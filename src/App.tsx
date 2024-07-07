@@ -46,6 +46,7 @@ import LoginForm3 from './components/LoginForm/LoginForm3';
 import ProgressBar from './components/ProgressBar/ProgressBar';
 import Dropdown from './components/Dropdown/Dropdown';
 import Template1 from './pages/Examples/Template1/Template1';
+import Tab from './components/Tab/Tab';
 import { AuthProvider } from './context/AuthContext';
 
 const App: React.FC = () => {
@@ -93,6 +94,7 @@ const App: React.FC = () => {
           <Route path="/loginform3" element={<LoginForm3 />} />
           <Route path="/progressbar" element={<ProgressBar />} />
           <Route path="dropdown" element={<Dropdown />} />
+          <Route path="/tab" element={<Tab />} />
         </Routes>
         <Footer></Footer>
       </Router>

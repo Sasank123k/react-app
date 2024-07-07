@@ -42,8 +42,8 @@ import SearchForm from '../../components/SearchForm/SearchForm';
 // Importing UI Elements
 import Button from '../../components/Button/Button';
 import CardSection from '../../components/CardSection/CardSection';
-/*import Modal from '../../components/Modal/Modal';
 import Tab from '../../components/Tab/Tab';
+/*import Modal from '../../components/Modal/Modal';
 import Accordion from '../../components/Accordion/Accordion';
 import Tooltip from '../../components/Tooltip/Tooltip';
 import Alert from '../../components/Alert/Alert';
@@ -128,8 +128,8 @@ const Components: React.FC = () => {
     { name: 'Card Section', category: 'Card Section', count: 12, component: CardSection },
     { name: 'Progress Bar', category: 'Progress Bar', count: 12, component: ProgressBar },
     { name: 'Dropdown', category: 'Dropdown', count: 7, component: Dropdown },
-    /*{ name: 'Modal', category: 'Modal', count: 5, component: Modal },
     { name: 'Tab', category: 'Tab', count: 4, component: Tab },
+    /*{ name: 'Modal', category: 'Modal', count: 5, component: Modal },
     { name: 'Accordion', category: 'Accordion', count: 6, component: Accordion },
     { name: 'Tooltip', category: 'Tooltip', count: 5, component: Tooltip },
     { name: 'Alert', category: 'Alert', count: 4, component: Alert },
