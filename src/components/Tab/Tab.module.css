@@ -1,111 +1,201 @@
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  width: 100%;
+}
+
+/* Common Tab Styles */
+.tabSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
 .tabsContainer {
-    width: 100%;
-    max-width: 800px;
-    margin: 20px auto;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    color: #333;
+  width: 100%;
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+.tabsList {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.tabItem {
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #cbd5e0;
+  transition: all 0.3s ease;
+}
+
+.tabItem:hover {
+  color: #63b3ed;
+}
+
+.tabItem.active {
+  border-bottom: 2px solid #63b3ed;
+  color: #63b3ed;
+}
+
+/* Horizontal Scrollable Tabs */
+.scrollableTabs {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Vertical Tabs */
+.tabsContainerVertical {
+  display: flex;
+}
+
+.tabsListVertical {
+  display: flex;
+  flex-direction: column;
+  margin-right: 20px;
+  border-right: 2px solid #e0e0e0;
+}
+
+.tabItemVertical {
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #cbd5e0;
+  transition: all 0.3s ease;
+}
+
+.tabItemVertical:hover {
+  color: #63b3ed;
+}
+
+.tabItemVertical.active {
+  border-right: 2px solid #63b3ed;
+  color: #63b3ed;
+}
+
+.tabContentVertical {
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  flex: 1;
+}
+
+/* Accordion Tabs */
+.accordionContainer {
+  width: 100%;
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+.accordionTab {
+  padding: 15px;
+  cursor: pointer;
+  font-size: 18px;
+  background-color: #007bff;
+  color: white;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.accordionTab.active {
+  background-color: #0056b3;
+}
+
+.accordionContent {
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+/* Icon Tabs */
+.tabIcon {
+  margin-right: 10px;
+}
+
+/* Animated Tabs */
+.animatedContent {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
   }
-  
-  .tabsList {
-    display: flex;
-    justify-content: space-around;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
+  to {
+    opacity: 1;
   }
-  
-  .tabsList2 {
-    display: flex;
-    justify-content: space-around;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
-  }
-  
-  .tabItem {
-    padding: 10px 20px;
-    cursor: pointer;
-    font-size: 16px;
-    color: #cbd5e0;
-    transition: all 0.3s ease;
-  }
-  
-  .tabItem2 {
-    padding: 10px 20px;
-    cursor: pointer;
-    font-size: 16px;
-    color: #6c757d;
-    transition: all 0.3s ease;
-  }
-  
-  .tabItem:hover {
-    color: #63b3ed;
-  }
-  
-  .tabItem2:hover {
-    color: #495057;
-  }
-  
-  .tabItem.active {
-    border-bottom: 2px solid #63b3ed;
-    color: #63b3ed;
-  }
-  
-  .tabItem2.active {
-    border-bottom: 2px solid #007bff;
-    color: #007bff;
-  }
-  
-  .tabContent {
-    padding: 20px;
-    background-color: #fff;
-    border-radius: 8px;
-  }
-  
-  .codeBox {
-    margin-top: 20px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    background-color: #2d2d2d;
-    color: #fff;
-    max-height: 300px;
-    overflow-y: scroll;
-    position: relative;
-  }
-  
-  .toggleButtons {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  
-  .toggleButton {
-    padding: 5px 10px;
-    cursor: pointer;
-    border: 1px solid #ddd;
-    background-color: #444;
-    color: #fff;
-    border-radius: 3px;
-  }
-  
-  .toggleButton.active {
-    background-color: #3b82f6;
-    border-color: #3b82f6;
-  }
-  
-  .copyButton {
-    padding: 5px 10px;
-    cursor: pointer;
-    border: 1px solid #ddd;
-    background-color: #444;
-    color: #fff;
-    border-radius: 3px;
-    position: absolute;
-    top: 10px;
-    right: 10px;
-  }
-  
+}
+
+/* Common Content Styles */
+.tabContent {
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+}
+
+/* Code Box */
+.codeBox {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: #2d2d2d;
+  color: #fff;
+  max-height: 300px;
+  overflow-y: scroll;
+  position: relative;
+  width: 75%;
+}
+
+.toggleButtons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.toggleButton {
+  padding: 5px 10px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background-color: #444;
+  color: #fff;
+  border-radius: 3px;
+}
+
+.toggleButton.active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.copyButton {
+  padding: 5px 10px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background-color: #444;
+  color: #fff;
+  border-radius: 3px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}

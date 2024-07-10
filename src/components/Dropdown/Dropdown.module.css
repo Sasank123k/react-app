@@ -1,101 +1,139 @@
-.dropdownContainer {
+.pageContainer {
   display: flex;
-  justify-content: center;
-  margin: 20px 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  width: 100%;
+}
+
+/* Common Dropdown Styles */
+.dropdownSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.dropdownButton {
+  padding: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dropdownMenu {
+  border: 1px solid #ddd;
+  background-color: white;
+  padding: 10px;
+  position: absolute;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdownItem {
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dropdownItem:hover {
+  background-color: #f1f1f1;
+}
+
+.dropdownIcon {
+  margin-right: 10px;
+}
+
+/* Specific Dropdown Styles */
+
+/* Dropdown 2 */
+
+.dropdownButton2 .dropdownMenu {
+  padding: 10px;
+}
+
+/* Dropdown 3 */
+
+.dropdownMenu3 {
+  display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.dropdown, .dropdown2, .dropdown3, .dropdown4 {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 20px;
-}
-
-.dropdownButton, .dropdownButton2, .dropdownButton3, .dropdownButton4 {
-  background-color: #f8f8f8;
-  color: #333;
-  padding: 10px 20px;
-  font-size: 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+.dropdownItem3 {
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
-  transition: background-color 0.3s ease;
 }
 
-.dropdownButton:hover, .dropdownButton2:hover, .dropdownButton3:hover, .dropdownButton4:hover {
-  background-color: #e0e0e0;
+.userInfo {
+  margin-left: 10px;
 }
 
-.dropdownButton::after, .dropdownButton2::after, .dropdownButton3::after, .dropdownButton4::after {
-  content: ' ▼';
-  font-size: 12px;
-  margin-left: 8px;
+.userName {
+  font-weight: bold;
 }
 
-.dropdownMenu, .dropdownMenu2, .dropdownMenu3, .dropdownMenu4 {
-  display: block;
-  position: absolute;
-  background-color: white;
-  min-width: 200px;
-  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-  border-radius: 4px;
-  z-index: 1;
-  margin-top: 8px;
-  padding: 10px 0;
+.userEmail {
+  font-size: 0.9em;
+  color: #666;
 }
 
-.dropdownItem, .dropdownItem2, .dropdownItem3, .dropdownItem4 {
-  color: #333;
-  padding: 12px 20px;
-  text-decoration: none;
-  display: block;
-  transition: background-color 0.3s ease;
+/* Dropdown 4 */
+.dropdownItem4 {
   position: relative;
 }
 
-.dropdownItem:hover, .dropdownItem2:hover, .dropdownItem3:hover, .dropdownItem4:hover {
-  background-color: #f1f1f1;
-}
-
-.icon {
-  margin-right: 10px;
-}
-
-.dropdownHeader {
-  padding: 12px 20px;
-  font-size: 14px;
-  color: #555;
-  border-bottom: 1px solid #ddd;
-  margin-bottom: 10px;
+.nestedDropdownIndicator {
+  float: right;
 }
 
 .nestedDropdownMenu {
-  display: block;
+  display: none;
   position: absolute;
   left: 100%;
   top: 0;
+  border: 1px solid #ddd;
   background-color: white;
-  min-width: 200px;
-  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-  border-radius: 4px;
-  z-index: 1;
-  margin-top: 0;
-  padding: 10px 0;
+  padding: 10px;
+  z-index: 1001;
 }
 
-.nestedDropdownItem {
-  color: #333;
-  padding: 12px 20px;
-  text-decoration: none;
+.dropdownItem:hover .nestedDropdownMenu {
   display: block;
-  transition: background-color 0.3s ease;
 }
 
-.nestedDropdownItem:hover {
-  background-color: #f1f1f1;
+.dropdownItem .nestedDropdownMenu .dropdownItem {
+  display: block;
 }
 
+/* Dropdown 5 */
+.dropdownItem5 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  
+}
+
+.dropdownCheckbox {
+  margin-right: 10px;
+}
+
+.selectButton {
+  margin-top: 10px;
+  padding: 5px 10px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Code Box */
 .codeBox {
   margin-top: 20px;
   padding: 10px;
@@ -106,6 +144,7 @@
   max-height: 300px;
   overflow-y: scroll;
   position: relative;
+  width: 75%;
 }
 
 .toggleButtons {
@@ -139,12 +178,4 @@
   position: absolute;
   top: 10px;
   right: 10px;
-}
-
-.heading {
-  margin-top: 40px;
-  text-align: center;
-  font-size: 24px;
-  color: #333;
-  margin-bottom: 20px;
 }

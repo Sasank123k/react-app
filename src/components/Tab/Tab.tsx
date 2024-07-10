@@ -1,334 +1,309 @@
 import React, { useState } from 'react';
 import styles from './Tab.module.css';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
+import { FaHome, FaUser, FaCog, FaBell, FaInfoCircle } from 'react-icons/fa';
 
 const Tab: React.FC = () => {
   const [activeTab1, setActiveTab1] = useState('overview');
   const [activeTab2, setActiveTab2] = useState('account');
-  const [codeType, setCodeType] = useState('tsx');
+  const [activeTab3, setActiveTab3] = useState('profile');
+  const [activeTab4, setActiveTab4] = useState('home');
+  const [activeTab5, setActiveTab5] = useState('info');
 
-  const handleTabClick1 = (tab: string) => {
-    setActiveTab1(tab);
-  };
+  const [codeType1, setCodeType1] = useState('tsx');
+  const [codeType2, setCodeType2] = useState('tsx');
+  const [codeType3, setCodeType3] = useState('tsx');
+  const [codeType4, setCodeType4] = useState('tsx');
+  const [codeType5, setCodeType5] = useState('tsx');
 
-  const handleTabClick2 = (tab: string) => {
-    setActiveTab2(tab);
-  };
+  const tsxCode1 = `// TSX code for Tab 1`;
+  const cssCode1 = `.tabItem1 { /* CSS for Tab 1 */ }`;
 
-  const tsxCode1 = `import React, { useState } from 'react';
-import styles from './Tab.module.css';
-import { CopyToClipboard } from 'react-copy-to-clipboard';
+  const tsxCode2 = `// TSX code for Tab 2`;
+  const cssCode2 = `.tabItem2 { /* CSS for Tab 2 */ }`;
 
-const Tab1: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const tsxCode3 = `// TSX code for Tab 3`;
+  const cssCode3 = `.tabItem3 { /* CSS for Tab 3 */ }`;
 
-  const handleTabClick = (tab: string) => {
-    setActiveTab(tab);
-  };
+  const tsxCode4 = `// TSX code for Tab 4`;
+  const cssCode4 = `.tabItem4 { /* CSS for Tab 4 */ }`;
+
+  const tsxCode5 = `// TSX code for Tab 5`;
+  const cssCode5 = `.tabItem5 { /* CSS for Tab 5 */ }`;
 
   return (
-    <div className={styles.tabsContainer}>
-      <ul className={styles.tabsList}>
-        <li
-          className={\`\${styles.tabItem} \${activeTab === 'overview' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('overview')}
-        >
-          Overview
-        </li>
-        <li
-          className={\`\${styles.tabItem} \${activeTab === 'activity' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('activity')}
-        >
-          Activity
-        </li>
-        <li
-          className={\`\${styles.tabItem} \${activeTab === 'settings' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('settings')}
-        >
-          Settings
-        </li>
-        <li
-          className={\`\${styles.tabItem} \${activeTab === 'collaborators' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('collaborators')}
-        >
-          Collaborators
-        </li>
-        <li
-          className={\`\${styles.tabItem} \${activeTab === 'notifications' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('notifications')}
-        >
-          Notifications
-        </li>
-      </ul>
-      <div className={styles.tabContent}>
-        {activeTab === 'overview' && <div>Content for Overview</div>}
-        {activeTab === 'activity' && <div>Content for Activity</div>}
-        {activeTab === 'settings' && <div>Content for Settings</div>}
-        {activeTab === 'collaborators' && <div>Content for Collaborators</div>}
-        {activeTab === 'notifications' && <div>Content for Notifications</div>}
+    <div className={styles.pageContainer}>
+      {/* Horizontal Scrollable Tabs */}
+      <div className={styles.tabSection}>
+        <div className={styles.tabsContainer}>
+          <div className={styles.scrollableTabs}>
+            <ul className={styles.tabsList}>
+              <li
+                className={`${styles.tabItem} ${activeTab1 === 'overview' ? styles.active : ''}`}
+                onClick={() => setActiveTab1('overview')}
+              >
+                Overview
+              </li>
+              <li
+                className={`${styles.tabItem} ${activeTab1 === 'activity' ? styles.active : ''}`}
+                onClick={() => setActiveTab1('activity')}
+              >
+                Activity
+              </li>
+              <li
+                className={`${styles.tabItem} ${activeTab1 === 'settings' ? styles.active : ''}`}
+                onClick={() => setActiveTab1('settings')}
+              >
+                Settings
+              </li>
+              <li
+                className={`${styles.tabItem} ${activeTab1 === 'more' ? styles.active : ''}`}
+                onClick={() => setActiveTab1('more')}
+              >
+                More
+              </li>
+              <li
+                className={`${styles.tabItem} ${activeTab1 === 'extra' ? styles.active : ''}`}
+                onClick={() => setActiveTab1('extra')}
+              >
+                Extra
+              </li>
+            </ul>
+          </div>
+          <div className={styles.tabContent}>
+            {activeTab1 === 'overview' && <div>Content for Overview</div>}
+            {activeTab1 === 'activity' && <div>Content for Activity</div>}
+            {activeTab1 === 'settings' && <div>Content for Settings</div>}
+            {activeTab1 === 'more' && <div>Content for More</div>}
+            {activeTab1 === 'extra' && <div>Content for Extra</div>}
+          </div>
+        </div>
+        <div className={styles.codeBox}>
+          <div className={styles.toggleButtons}>
+            <button
+              className={`${styles.toggleButton} ${codeType1 === 'tsx' ? styles.active : ''}`}
+              onClick={() => setCodeType1('tsx')}
+            >
+              TSX
+            </button>
+            <button
+              className={`${styles.toggleButton} ${codeType1 === 'css' ? styles.active : ''}`}
+              onClick={() => setCodeType1('css')}
+            >
+              CSS
+            </button>
+          </div>
+          <CopyToClipboard text={codeType1 === 'tsx' ? tsxCode1 : cssCode1}>
+            <button className={styles.copyButton}>Copy</button>
+          </CopyToClipboard>
+          <pre>{codeType1 === 'tsx' ? tsxCode1 : cssCode1}</pre>
+        </div>
       </div>
-    </div>
-  );
-};
 
-export default Tab1;`;
-
-  const cssCode1 = `.tabsContainer {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  background-color: #1a202c;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  color: white;
-}
-
-.tabsList {
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.tabItem {
-  padding: 10px 20px;
-  cursor: pointer;
-  font-size: 16px;
-  color: #cbd5e0;
-  transition: all 0.3s ease;
-}
-
-.tabItem:hover {
-  color: #63b3ed;
-}
-
-.tabItem.active {
-  border-bottom: 2px solid #63b3ed;
-  color: #63b3ed;
-}
-
-.tabContent {
-  padding: 20px;
-  background-color: #2d3748;
-  border-radius: 8px;
-}`;
-
-  const tsxCode2 = `import React, { useState } from 'react';
-import styles from './Tab.module.css';
-import { CopyToClipboard } from 'react-copy-to-clipboard';
-
-const Tab2: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('account');
-
-  const handleTabClick = (tab: string) => {
-    setActiveTab(tab);
-  };
-
-  return (
-    <div className={styles.tabsContainer}>
-      <ul className={styles.tabsList2}>
-        <li
-          className={\`\${styles.tabItem2} \${activeTab === 'account' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('account')}
-        >
-          My Account
-        </li>
-        <li
-          className={\`\${styles.tabItem2} \${activeTab === 'company' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('company')}
-        >
-          Company
-        </li>
-        <li
-          className={\`\${styles.tabItem2} \${activeTab === 'team' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('team')}
-        >
-          Team Members
-        </li>
-        <li
-          className={\`\${styles.tabItem2} \${activeTab === 'billing' ? styles.active : ''}\`}
-          onClick={() => handleTabClick('billing')}
-        >
-          Billing
-        </li>
-      </ul>
-      <div className={styles.tabContent}>
-        {activeTab === 'account' && <div>Content for My Account</div>}
-        {activeTab === 'company' && <div>Content for Company</div>}
-        {activeTab === 'team' && <div>Content for Team Members</div>}
-        {activeTab === 'billing' && <div>Content for Billing</div>}
+      {/* Vertical Tabs */}
+      <div className={styles.tabSection}>
+        <div className={styles.tabsContainerVertical}>
+          <ul className={styles.tabsListVertical}>
+            <li
+              className={`${styles.tabItemVertical} ${activeTab2 === 'account' ? styles.active : ''}`}
+              onClick={() => setActiveTab2('account')}
+            >
+              Account
+            </li>
+            <li
+              className={`${styles.tabItemVertical} ${activeTab2 === 'billing' ? styles.active : ''}`}
+              onClick={() => setActiveTab2('billing')}
+            >
+              Billing
+            </li>
+            <li
+              className={`${styles.tabItemVertical} ${activeTab2 === 'users' ? styles.active : ''}`}
+              onClick={() => setActiveTab2('users')}
+            >
+              Users
+            </li>
+          </ul>
+          <div className={styles.tabContentVertical}>
+            {activeTab2 === 'account' && <div>Content for Account</div>}
+            {activeTab2 === 'billing' && <div>Content for Billing</div>}
+            {activeTab2 === 'users' && <div>Content for Users</div>}
+          </div>
+        </div>
+        <div className={styles.codeBox}>
+          <div className={styles.toggleButtons}>
+            <button
+              className={`${styles.toggleButton} ${codeType2 === 'tsx' ? styles.active : ''}`}
+              onClick={() => setCodeType2('tsx')}
+            >
+              TSX
+            </button>
+            <button
+              className={`${styles.toggleButton} ${codeType2 === 'css' ? styles.active : ''}`}
+              onClick={() => setCodeType2('css')}
+            >
+              CSS
+            </button>
+          </div>
+          <CopyToClipboard text={codeType2 === 'tsx' ? tsxCode2 : cssCode2}>
+            <button className={styles.copyButton}>Copy</button>
+          </CopyToClipboard>
+          <pre>{codeType2 === 'tsx' ? tsxCode2 : cssCode2}</pre>
+        </div>
       </div>
-    </div>
-  );
-};
 
-export default Tab2;`;
-
-  const cssCode2 = `.tabsContainer {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  color: #333;
-}
-
-.tabsList2 {
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.tabItem2 {
-  padding: 10px 20px;
-  cursor: pointer;
-  font-size: 16px;
-  color: #6c757d;
-  transition: all 0.3s ease;
-}
-
-.tabItem2:hover {
-  color: #495057;
-}
-
-.tabItem2.active {
-  border-bottom: 2px solid #007bff;
-  color: #007bff;
-}
-
-.tabContent {
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-}`;
-
-  return (
-    <div>
-      {/* First Tab Component */}
-      <div className={styles.tabsContainer}>
-        <ul className={styles.tabsList}>
-          <li
-            className={`${styles.tabItem} ${activeTab1 === 'overview' ? styles.active : ''}`}
-            onClick={() => handleTabClick1('overview')}
+      {/* Accordion Tabs */}
+      <div className={styles.tabSection}>
+        <div className={styles.accordionContainer}>
+          <div
+            className={`${styles.accordionTab} ${activeTab3 === 'profile' ? styles.active : ''}`}
+            onClick={() => setActiveTab3(activeTab3 === 'profile' ? '' : 'profile')}
           >
-            Overview
-          </li>
-          <li
-            className={`${styles.tabItem} ${activeTab1 === 'activity' ? styles.active : ''}`}
-            onClick={() => handleTabClick1('activity')}
+            Profile
+          </div>
+          {activeTab3 === 'profile' && (
+            <div className={styles.accordionContent}>Content for Profile</div>
+          )}
+          <div
+            className={`${styles.accordionTab} ${activeTab3 === 'messages' ? styles.active : ''}`}
+            onClick={() => setActiveTab3(activeTab3 === 'messages' ? '' : 'messages')}
           >
-            Activity
-          </li>
-          <li
-            className={`${styles.tabItem} ${activeTab1 === 'settings' ? styles.active : ''}`}
-            onClick={() => handleTabClick1('settings')}
-          >
-            Settings
-          </li>
-          <li
-            className={`${styles.tabItem} ${activeTab1 === 'collaborators' ? styles.active : ''}`}
-            onClick={() => handleTabClick1('collaborators')}
-          >
-            Collaborators
-          </li>
-          <li
-            className={`${styles.tabItem} ${activeTab1 === 'notifications' ? styles.active : ''}`}
-            onClick={() => handleTabClick1('notifications')}
+            Messages
+          </div>
+          {activeTab3 === 'messages' && (
+            <div className={styles.accordionContent}>Content for Messages</div>
+          )}
+          <div
+            className={`${styles.accordionTab} ${activeTab3 === 'notifications' ? styles.active : ''}`}
+            onClick={() => setActiveTab3(activeTab3 === 'notifications' ? '' : 'notifications')}
           >
             Notifications
-          </li>
-        </ul>
-        <div className={styles.tabContent}>
-          {activeTab1 === 'overview' && <div>Content for Overview</div>}
-          {activeTab1 === 'activity' && <div>Content for Activity</div>}
-          {activeTab1 === 'settings' && <div>Content for Settings</div>}
-          {activeTab1 === 'collaborators' && <div>Content for Collaborators</div>}
-          {activeTab1 === 'notifications' && <div>Content for Notifications</div>}
+          </div>
+          {activeTab3 === 'notifications' && (
+            <div className={styles.accordionContent}>Content for Notifications</div>
+          )}
+        </div>
+        <div className={styles.codeBox}>
+          <div className={styles.toggleButtons}>
+            <button
+              className={`${styles.toggleButton} ${codeType3 === 'tsx' ? styles.active : ''}`}
+              onClick={() => setCodeType3('tsx')}
+            >
+              TSX
+            </button>
+            <button
+              className={`${styles.toggleButton} ${codeType3 === 'css' ? styles.active : ''}`}
+              onClick={() => setCodeType3('css')}
+            >
+              CSS
+            </button>
+          </div>
+          <CopyToClipboard text={codeType3 === 'tsx' ? tsxCode3 : cssCode3}>
+            <button className={styles.copyButton}>Copy</button>
+          </CopyToClipboard>
+          <pre>{codeType3 === 'tsx' ? tsxCode3 : cssCode3}</pre>
         </div>
       </div>
 
-      <div className={styles.codeBox}>
-        <div className={styles.toggleButtons}>
-          <button
-            className={`${styles.toggleButton} ${codeType === 'tsx' ? styles.active : ''}`}
-            onClick={() => setCodeType('tsx')}
-          >
-            TSX
-          </button>
-          <button
-            className={`${styles.toggleButton} ${codeType === 'css' ? styles.active : ''}`}
-            onClick={() => setCodeType('css')}
-          >
-            CSS
-          </button>
+      {/* Icon Tabs */}
+      <div className={styles.tabSection}>
+        <div className={styles.tabsContainer}>
+          <ul className={styles.tabsList}>
+            <li
+              className={`${styles.tabItem} ${activeTab4 === 'home' ? styles.active : ''}`}
+              onClick={() => setActiveTab4('home')}
+            >
+              <FaHome className={styles.tabIcon} /> Home
+            </li>
+            <li
+              className={`${styles.tabItem} ${activeTab4 === 'services' ? styles.active : ''}`}
+              onClick={() => setActiveTab4('services')}
+            >
+              <FaCog className={styles.tabIcon} /> Services
+            </li>
+            <li
+              className={`${styles.tabItem} ${activeTab4 === 'contact' ? styles.active : ''}`}
+              onClick={() => setActiveTab4('contact')}
+            >
+              <FaBell className={styles.tabIcon} /> Contact
+            </li>
+          </ul>
+          <div className={styles.tabContent}>
+            {activeTab4 === 'home' && <div>Content for Home</div>}
+            {activeTab4 === 'services' && <div>Content for Services</div>}
+            {activeTab4 === 'contact' && <div>Content for Contact</div>}
+          </div>
         </div>
-        <CopyToClipboard text={codeType === 'tsx' ? tsxCode1 : cssCode1}>
-          <button className={styles.copyButton}>Copy</button>
-        </CopyToClipboard>
-        <pre>{codeType === 'tsx' ? tsxCode1 : cssCode1}</pre>
-      </div>
-
-      {/* Second Tab Component */}
-      <div className={styles.tabsContainer}>
-        <ul className={styles.tabsList2}>
-          <li
-            className={`${styles.tabItem2} ${activeTab2 === 'account' ? styles.active : ''}`}
-            onClick={() => handleTabClick2('account')}
-          >
-            My Account
-          </li>
-          <li
-            className={`${styles.tabItem2} ${activeTab2 === 'company' ? styles.active : ''}`}
-            onClick={() => handleTabClick2('company')}
-          >
-            Company
-          </li>
-          <li
-            className={`${styles.tabItem2} ${activeTab2 === 'team' ? styles.active : ''}`}
-            onClick={() => handleTabClick2('team')}
-          >
-            Team Members
-          </li>
-          <li
-            className={`${styles.tabItem2} ${activeTab2 === 'billing' ? styles.active : ''}`}
-            onClick={() => handleTabClick2('billing')}
-          >
-            Billing
-          </li>
-        </ul>
-        <div className={styles.tabContent}>
-          {activeTab2 === 'account' && <div>Content for My Account</div>}
-          {activeTab2 === 'company' && <div>Content for Company</div>}
-          {activeTab2 === 'team' && <div>Content for Team Members</div>}
-          {activeTab2 === 'billing' && <div>Content for Billing</div>}
+        <div className={styles.codeBox}>
+          <div className={styles.toggleButtons}>
+            <button
+              className={`${styles.toggleButton} ${codeType4 === 'tsx' ? styles.active : ''}`}
+              onClick={() => setCodeType4('tsx')}
+            >
+              TSX
+            </button>
+            <button
+              className={`${styles.toggleButton} ${codeType4 === 'css' ? styles.active : ''}`}
+              onClick={() => setCodeType4('css')}
+            >
+              CSS
+            </button>
+          </div>
+          <CopyToClipboard text={codeType4 === 'tsx' ? tsxCode4 : cssCode4}>
+            <button className={styles.copyButton}>Copy</button>
+          </CopyToClipboard>
+          <pre>{codeType4 === 'tsx' ? tsxCode4 : cssCode4}</pre>
         </div>
       </div>
 
-      <div className={styles.codeBox}>
-        <div className={styles.toggleButtons}>
-          <button
-            className={`${styles.toggleButton} ${codeType === 'tsx' ? styles.active : ''}`}
-            onClick={() => setCodeType('tsx')}
-          >
-            TSX
-          </button>
-          <button
-            className={`${styles.toggleButton} ${codeType === 'css' ? styles.active : ''}`}
-            onClick={() => setCodeType('css')}
-          >
-            CSS
-          </button>
+      {/* Animated Tabs */}
+      <div className={styles.tabSection}>
+        <div className={styles.tabsContainer}>
+          <ul className={styles.tabsList}>
+            <li
+              className={`${styles.tabItem} ${activeTab5 === 'info' ? styles.active : ''}`}
+              onClick={() => setActiveTab5('info')}
+            >
+              Info
+            </li>
+            <li
+              className={`${styles.tabItem} ${activeTab5 === 'stats' ? styles.active : ''}`}
+              onClick={() => setActiveTab5('stats')}
+            >
+              Stats
+            </li>
+            <li
+              className={`${styles.tabItem} ${activeTab5 === 'help' ? styles.active : ''}`}
+              onClick={() => setActiveTab5('help')}
+            >
+              Help
+            </li>
+          </ul>
+          <div className={`${styles.tabContent} ${styles.animatedContent}`}>
+            {activeTab5 === 'info' && <div>Content for Info</div>}
+            {activeTab5 === 'stats' && <div>Content for Stats</div>}
+            {activeTab5 === 'help' && <div>Content for Help</div>}
+          </div>
         </div>
-        <CopyToClipboard text={codeType === 'tsx' ? tsxCode2 : cssCode2}>
-          <button className={styles.copyButton}>Copy</button>
-        </CopyToClipboard>
-        <pre>{codeType === 'tsx' ? tsxCode2 : cssCode2}</pre>
+        <div className={styles.codeBox}>
+          <div className={styles.toggleButtons}>
+            <button
+              className={`${styles.toggleButton} ${codeType5 === 'tsx' ? styles.active : ''}`}
+              onClick={() => setCodeType5('tsx')}
+            >
+              TSX
+            </button>
+            <button
+              className={`${styles.toggleButton} ${codeType5 === 'css' ? styles.active : ''}`}
+              onClick={() => setCodeType5('css')}
+            >
+              CSS
+            </button>
+          </div>
+          <CopyToClipboard text={codeType5 === 'tsx' ? tsxCode5 : cssCode5}>
+            <button className={styles.copyButton}>Copy</button>
+          </CopyToClipboard>
+          <pre>{codeType5 === 'tsx' ? tsxCode5 : cssCode5}</pre>
+        </div>
       </div>
     </div>
   );

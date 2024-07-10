@@ -47,6 +47,7 @@ import ProgressBar from './components/ProgressBar/ProgressBar';
 import Dropdown from './components/Dropdown/Dropdown';
 import Template1 from './pages/Examples/Template1/Template1';
 import Tab from './components/Tab/Tab';
+import Breadcrumb from './components/Breadcrumb/Breadcrumb';
 import { AuthProvider } from './context/AuthContext';
 
 const App: React.FC = () => {
@@ -95,6 +96,7 @@ const App: React.FC = () => {
           <Route path="/progressbar" element={<ProgressBar />} />
           <Route path="dropdown" element={<Dropdown />} />
           <Route path="/tab" element={<Tab />} />
+          <Route path="/breadcrumb" element={<Breadcrumb />} />
         </Routes>
         <Footer></Footer>
       </Router>

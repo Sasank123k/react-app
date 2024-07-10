@@ -48,7 +48,7 @@ import Accordion from '../../components/Accordion/Accordion';
 import Tooltip from '../../components/Tooltip/Tooltip';
 import Alert from '../../components/Alert/Alert';
 import Badge from '../../components/Badge/Badge';*/
-// import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
+ import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 // import Pagination from '../../components/Pagination/Pagination';
 import Dropdown from '../../components/Dropdown/Dropdown';
  import ProgressBar from '../../components/ProgressBar/ProgressBar';
@@ -129,6 +129,7 @@ const Components: React.FC = () => {
     { name: 'Progress Bar', category: 'Progress Bar', count: 12, component: ProgressBar },
     { name: 'Dropdown', category: 'Dropdown', count: 7, component: Dropdown },
     { name: 'Tab', category: 'Tab', count: 4, component: Tab },
+    { name: 'Breadcrumb', category: 'Breadcrumb', count: 5, component: Breadcrumb},
     /*{ name: 'Modal', category: 'Modal', count: 5, component: Modal },
     { name: 'Accordion', category: 'Accordion', count: 6, component: Accordion },
     { name: 'Tooltip', category: 'Tooltip', count: 5, component: Tooltip },
