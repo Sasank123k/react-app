@@ -48,6 +48,7 @@ import Dropdown from './components/Dropdown/Dropdown';
 import Template1 from './pages/Examples/Template1/Template1';
 import Tab from './components/Tab/Tab';
 import Breadcrumb from './components/Breadcrumb/Breadcrumb';
+import Accordion from './components/Accordion/Accordion';
 import { AuthProvider } from './context/AuthContext';
 
 const App: React.FC = () => {
@@ -97,6 +98,7 @@ const App: React.FC = () => {
           <Route path="dropdown" element={<Dropdown />} />
           <Route path="/tab" element={<Tab />} />
           <Route path="/breadcrumb" element={<Breadcrumb />} />
+          <Route path="/accordion" element={<Accordion />} />
         </Routes>
         <Footer></Footer>
       </Router>

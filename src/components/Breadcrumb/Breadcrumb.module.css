@@ -1,145 +1,150 @@
 .pageContainer {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 40px;
-    width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  width: 100%;
+}
+
+/* Common Styles */
+.breadcrumbSection {
+  width: 100%;
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+.breadcrumbSection a {
+  text-decoration: none;
+  color: #007bff;
+}
+
+.breadcrumbSection a:hover {
+  text-decoration: underline;
+}
+
+/* Simple Breadcrumb */
+.simpleBreadcrumb {
+  display: flex;
+  gap: 5px;
+}
+
+/* Icon Breadcrumb */
+.iconBreadcrumb {
+  display: flex;
+  align-items: center;
+}
+
+.breadcrumbIcon {
+  margin-right: 5px;
+}
+
+.breadcrumbSeparator {
+  margin: 0 5px;
+  color: #6c757d;
+}
+
+/* Vertical Breadcrumb */
+.verticalBreadcrumb {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-start;
+}
+
+.verticalBreadcrumb .breadcrumbSeparator {
+  margin: 5px 0;
+}
+
+/* Step Breadcrumb */
+.stepBreadcrumb {
+  display: flex;
+  align-items: center;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+}
+
+.stepNumber {
+  margin-right: 5px;
+  background-color: #007bff;
+  color: white;
+  border-radius: 50%;
+  padding: 5px 10px;
+}
+
+/* Animated Breadcrumb */
+.animatedBreadcrumb {
+  display: flex;
+  align-items: center;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
   }
-  
-  /* Common Styles */
-  .breadcrumbSection {
-    width: 100%;
-    max-width: 800px;
-    margin: 20px auto;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    color: #333;
+  to {
+    opacity: 1;
   }
-  
-  .breadcrumbSection a {
-    text-decoration: none;
-    color: #007bff;
-  }
-  
-  .breadcrumbSection a:hover {
-    text-decoration: underline;
-  }
-  
-  /* Simple Breadcrumb */
-  .simpleBreadcrumb {
-    display: flex;
-    gap: 5px;
-  }
-  
-  /* Icon Breadcrumb */
-  .iconBreadcrumb {
-    display: flex;
-    align-items: center;
-  }
-  
-  .breadcrumbIcon {
-    margin-right: 5px;
-  }
-  
-  .breadcrumbSeparator {
-    margin: 0 5px;
-    color: #6c757d;
-  }
-  
-  /* Vertical Breadcrumb */
-  .verticalBreadcrumb {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    align-items: flex-start;
-  }
-  
-  .verticalBreadcrumb .breadcrumbSeparator {
-    margin: 5px 0;
-  }
-  
-  /* Step Breadcrumb */
-  .stepBreadcrumb {
-    display: flex;
-    align-items: center;
-  }
-  
-  .stepItem {
-    display: flex;
-    align-items: center;
-  }
-  
-  .stepNumber {
-    margin-right: 5px;
-    background-color: #007bff;
-    color: white;
-    border-radius: 50%;
-    padding: 5px 10px;
-  }
-  
-  /* Animated Breadcrumb */
-  .animatedBreadcrumb {
-    display: flex;
-    align-items: center;
-    animation: fadeIn 0.5s ease-in-out;
-  }
-  
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  
-  /* Code Box */
-  .codeBox {
-    margin-top: 20px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    background-color: #2d2d2d;
-    color: #fff;
-    max-height: 300px;
-    overflow-y: scroll;
-    position: relative;
-    width: 75%;
-  }
-  
-  .toggleButtons {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  
-  .toggleButton {
-    padding: 5px 10px;
-    cursor: pointer;
-    border: 1px solid #ddd;
-    background-color: #444;
-    color: #fff;
-    border-radius: 3px;
-  }
-  
-  .toggleButton.active {
-    background-color: #3b82f6;
-    border-color: #3b82f6;
-  }
-  
-  .copyButton {
-    padding: 5px 10px;
-    cursor: pointer;
-    border: 1px solid #ddd;
-    background-color: #444;
-    color: #fff;
-    border-radius: 3px;
-    position: absolute;
-    top: 10px;
-    right: 10px;
-  }
-  
+}
+
+/* Code Box */
+.codeBoxContainer {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.codeBox {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: #2d2d2d;
+  color: #fff;
+  max-height: 300px;
+  overflow-y: scroll;
+  position: relative;
+  width: 90%;
+}
+
+.toggleButtons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.toggleButton {
+  padding: 5px 10px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background-color: #444;
+  color: #fff;
+  border-radius: 3px;
+}
+
+.toggleButton.active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.copyButton {
+  padding: 5px 10px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background-color: #444;
+  color: #fff;
+  border-radius: 3px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}

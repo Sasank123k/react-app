@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styles from './Breadcrumb.module.css';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
-import { FaHome, FaChevronRight, FaChevronDown, FaAngleDoubleRight } from 'react-icons/fa';
+import { FaHome, FaChevronRight } from 'react-icons/fa';
 
 const Breadcrumb: React.FC = () => {
   const [codeType1, setCodeType1] = useState('tsx');
@@ -11,27 +11,33 @@ const Breadcrumb: React.FC = () => {
   const [codeType5, setCodeType5] = useState('tsx');
 
   const tsxCode1 = `// TSX code for Simple Breadcrumb`;
-  const cssCode1 = `.simpleBreadcrumb { /* CSS for Simple Breadcrumb */ }`;
+  const cssCode1 = `/* CSS code for Simple Breadcrumb */`;
 
   const tsxCode2 = `// TSX code for Icon Breadcrumb`;
-  const cssCode2 = `.iconBreadcrumb { /* CSS for Icon Breadcrumb */ }`;
+  const cssCode2 = `/* CSS code for Icon Breadcrumb */`;
 
   const tsxCode3 = `// TSX code for Vertical Breadcrumb`;
-  const cssCode3 = `.verticalBreadcrumb { /* CSS for Vertical Breadcrumb */ }`;
+  const cssCode3 = `/* CSS code for Vertical Breadcrumb */`;
 
   const tsxCode4 = `// TSX code for Step Breadcrumb`;
-  const cssCode4 = `.stepBreadcrumb { /* CSS for Step Breadcrumb */ }`;
+  const cssCode4 = `/* CSS code for Step Breadcrumb */`;
 
   const tsxCode5 = `// TSX code for Animated Breadcrumb`;
-  const cssCode5 = `.animatedBreadcrumb { /* CSS for Animated Breadcrumb */ }`;
+  const cssCode5 = `/* CSS code for Animated Breadcrumb */`;
 
   return (
     <div className={styles.pageContainer}>
       {/* Simple Breadcrumb */}
       <div className={styles.breadcrumbSection}>
-        <div className={styles.simpleBreadcrumb}>
-          <a href="#">Home</a> / <a href="#">Library</a> / <a href="#">Data</a>
-        </div>
+        <nav className={styles.simpleBreadcrumb}>
+          <a href="/">Home</a>
+          <span className={styles.breadcrumbSeparator}>/</span>
+          <a href="/about">About</a>
+          <span className={styles.breadcrumbSeparator}>/</span>
+          <span>Contact</span>
+        </nav>
+      </div>
+      <div className={styles.codeBoxContainer}>
         <div className={styles.codeBox}>
           <div className={styles.toggleButtons}>
             <button
@@ -56,13 +62,16 @@ const Breadcrumb: React.FC = () => {
 
       {/* Icon Breadcrumb */}
       <div className={styles.breadcrumbSection}>
-        <div className={styles.iconBreadcrumb}>
-          <a href="#"><FaHome className={styles.breadcrumbIcon} /> Home</a>
+        <nav className={styles.iconBreadcrumb}>
+          <FaHome className={styles.breadcrumbIcon} />
+          <a href="/">Home</a>
           <FaChevronRight className={styles.breadcrumbSeparator} />
-          <a href="#">Library</a>
+          <a href="/about">About</a>
           <FaChevronRight className={styles.breadcrumbSeparator} />
-          <a href="#">Data</a>
-        </div>
+          <span>Contact</span>
+        </nav>
+      </div>
+      <div className={styles.codeBoxContainer}>
         <div className={styles.codeBox}>
           <div className={styles.toggleButtons}>
             <button
@@ -87,13 +96,15 @@ const Breadcrumb: React.FC = () => {
 
       {/* Vertical Breadcrumb */}
       <div className={styles.breadcrumbSection}>
-        <div className={styles.verticalBreadcrumb}>
-          <a href="#">Home</a>
-          <FaChevronDown className={styles.breadcrumbSeparator} />
-          <a href="#">Library</a>
-          <FaChevronDown className={styles.breadcrumbSeparator} />
-          <a href="#">Data</a>
-        </div>
+        <nav className={styles.verticalBreadcrumb}>
+          <a href="/">Home</a>
+          <span className={styles.breadcrumbSeparator}>/</span>
+          <a href="/about">About</a>
+          <span className={styles.breadcrumbSeparator}>/</span>
+          <span>Contact</span>
+        </nav>
+      </div>
+      <div className={styles.codeBoxContainer}>
         <div className={styles.codeBox}>
           <div className={styles.toggleButtons}>
             <button
@@ -118,22 +129,24 @@ const Breadcrumb: React.FC = () => {
 
       {/* Step Breadcrumb */}
       <div className={styles.breadcrumbSection}>
-        <div className={styles.stepBreadcrumb}>
+        <nav className={styles.stepBreadcrumb}>
           <div className={styles.stepItem}>
             <span className={styles.stepNumber}>1</span>
-            <a href="#">Home</a>
+            <a href="/">Home</a>
           </div>
-          <FaAngleDoubleRight className={styles.breadcrumbSeparator} />
+          <FaChevronRight className={styles.breadcrumbSeparator} />
           <div className={styles.stepItem}>
             <span className={styles.stepNumber}>2</span>
-            <a href="#">Library</a>
+            <a href="/about">About</a>
           </div>
-          <FaAngleDoubleRight className={styles.breadcrumbSeparator} />
+          <FaChevronRight className={styles.breadcrumbSeparator} />
           <div className={styles.stepItem}>
             <span className={styles.stepNumber}>3</span>
-            <a href="#">Data</a>
+            <span>Contact</span>
           </div>
-        </div>
+        </nav>
+      </div>
+      <div className={styles.codeBoxContainer}>
         <div className={styles.codeBox}>
           <div className={styles.toggleButtons}>
             <button
@@ -158,13 +171,15 @@ const Breadcrumb: React.FC = () => {
 
       {/* Animated Breadcrumb */}
       <div className={styles.breadcrumbSection}>
-        <div className={styles.animatedBreadcrumb}>
-          <a href="#">Home</a>
+        <nav className={styles.animatedBreadcrumb}>
+          <a href="/">Home</a>
           <FaChevronRight className={styles.breadcrumbSeparator} />
-          <a href="#">Library</a>
+          <a href="/about">About</a>
           <FaChevronRight className={styles.breadcrumbSeparator} />
-          <a href="#">Data</a>
-        </div>
+          <span>Contact</span>
+        </nav>
+      </div>
+      <div className={styles.codeBoxContainer}>
         <div className={styles.codeBox}>
           <div className={styles.toggleButtons}>
             <button

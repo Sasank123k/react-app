@@ -43,8 +43,8 @@ import SearchForm from '../../components/SearchForm/SearchForm';
 import Button from '../../components/Button/Button';
 import CardSection from '../../components/CardSection/CardSection';
 import Tab from '../../components/Tab/Tab';
-/*import Modal from '../../components/Modal/Modal';
 import Accordion from '../../components/Accordion/Accordion';
+/*import Modal from '../../components/Modal/Modal';
 import Tooltip from '../../components/Tooltip/Tooltip';
 import Alert from '../../components/Alert/Alert';
 import Badge from '../../components/Badge/Badge';*/
@@ -130,8 +130,8 @@ const Components: React.FC = () => {
     { name: 'Dropdown', category: 'Dropdown', count: 7, component: Dropdown },
     { name: 'Tab', category: 'Tab', count: 4, component: Tab },
     { name: 'Breadcrumb', category: 'Breadcrumb', count: 5, component: Breadcrumb},
-    /*{ name: 'Modal', category: 'Modal', count: 5, component: Modal },
     { name: 'Accordion', category: 'Accordion', count: 6, component: Accordion },
+    /*{ name: 'Modal', category: 'Modal', count: 5, component: Modal },
     { name: 'Tooltip', category: 'Tooltip', count: 5, component: Tooltip },
     { name: 'Alert', category: 'Alert', count: 4, component: Alert },
     { name: 'Badge', category: 'Badge', count: 3, component: Badge },*/

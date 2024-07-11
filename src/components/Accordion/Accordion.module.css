@@ -1,0 +1,130 @@
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    width: 100%;
+  }
+  
+  /* Common Styles */
+  .accordionSection {
+    width: 100%;
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    color: #333;
+  }
+  
+  .accordionContainer {
+    width: 100%;
+  }
+  
+  .accordionHeader,
+  .nestedAccordionHeader {
+    padding: 15px;
+    cursor: pointer;
+    font-size: 18px;
+    background-color: #333;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    margin-top: 10px;
+  }
+  
+  .accordionHeader:hover,
+  .nestedAccordionHeader:hover {
+    background-color: #555;
+  }
+  
+  .accordionContent,
+  .nestedAccordionContent {
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 4px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .accordionImage {
+    max-width: 100px;
+    height: auto;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  
+  .toggleButton {
+    padding: 10px 20px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .toggleButton:hover {
+    background-color: #2563eb;
+  }
+  
+  /* Code Box */
+  .codeBoxContainer {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    width: 80%;
+  }
+  
+  .codeBox {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #2d2d2d;
+    color: #fff;
+    max-height: 300px;
+    overflow-y: scroll;
+    position: relative;
+    width: 90%;
+  }
+  
+  .toggleButtons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .toggleButton {
+    padding: 5px 10px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    background-color: #444;
+    color: #fff;
+    border-radius: 3px;
+  }
+  
+  .toggleButton.active {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+  }
+  
+  .copyButton {
+    padding: 5px 10px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    background-color: #444;
+    color: #fff;
+    border-radius: 3px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  
