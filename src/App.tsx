@@ -49,6 +49,8 @@ import Template1 from './pages/Examples/Template1/Template1';
 import Tab from './components/Tab/Tab';
 import Breadcrumb from './components/Breadcrumb/Breadcrumb';
 import Accordion from './components/Accordion/Accordion';
+import Chart from './components/Chart/Chart';
+
 import { AuthProvider } from './context/AuthContext';
 
 const App: React.FC = () => {
@@ -99,6 +101,7 @@ const App: React.FC = () => {
           <Route path="/tab" element={<Tab />} />
           <Route path="/breadcrumb" element={<Breadcrumb />} />
           <Route path="/accordion" element={<Accordion />} />
+          <Route path="/chart" element={<Chart />} />
         </Routes>
         <Footer></Footer>
       </Router>

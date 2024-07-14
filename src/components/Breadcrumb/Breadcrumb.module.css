@@ -6,105 +6,114 @@
   width: 100%;
 }
 
+.breadcrumbContainer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
 /* Common Styles */
 .breadcrumbSection {
-  width: 100%;
+  width: 45%;
   max-width: 800px;
-  margin: 20px auto;
+  margin: 20px;
   padding: 20px;
   font-family: Arial, sans-serif;
-  background-color: #f8f9fa;
+  background-color: #ffffff;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   color: #333;
+  display: flex;
+  justify-content: center; /* Center align the breadcrumb */
+}
+
+.simpleBreadcrumb, .iconBreadcrumb, .dropdownBreadcrumb, .statusIndicatorBreadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .breadcrumbSection a {
   text-decoration: none;
   color: #007bff;
+  font-size: 18px; /* Increase font size */
+  display: flex;
+  align-items: center;
+  position: relative;
+  top: -1px; /* Adjust alignment */
 }
 
 .breadcrumbSection a:hover {
   text-decoration: underline;
 }
 
-/* Simple Breadcrumb */
-.simpleBreadcrumb {
-  display: flex;
-  gap: 5px;
-}
-
-/* Icon Breadcrumb */
-.iconBreadcrumb {
+.breadcrumbSeparator {
+  margin: 0 5px;
+  color: #6c757d;
+  font-size: 18px; /* Increase font size */
   display: flex;
   align-items: center;
+  position: relative;
+  top: -1px; /* Adjust alignment */
 }
 
 .breadcrumbIcon {
   margin-right: 5px;
 }
 
-.breadcrumbSeparator {
-  margin: 0 5px;
-  color: #6c757d;
-}
-
-/* Vertical Breadcrumb */
-.verticalBreadcrumb {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  align-items: flex-start;
-}
-
-.verticalBreadcrumb .breadcrumbSeparator {
-  margin: 5px 0;
-}
-
-/* Step Breadcrumb */
-.stepBreadcrumb {
+.dropdownItem {
+  position: relative;
+  cursor: pointer;
   display: flex;
   align-items: center;
 }
 
-.stepItem {
-  display: flex;
-  align-items: center;
+.dropdownMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  list-style: none;
+  padding: 10px;
+  margin: 0;
+  width: 150px;
+  z-index: 1;
 }
 
-.stepNumber {
-  margin-right: 5px;
-  background-color: #007bff;
+.dropdownMenu li {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.dropdownMenu li:hover {
+  background-color: #f0f0f0;
+}
+
+.statusIndicatorBreadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.statusItem {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-radius: 4px;
+  background-color: #007bff; /* Uniform color for all steps */
   color: white;
-  border-radius: 50%;
-  padding: 5px 10px;
 }
 
-/* Animated Breadcrumb */
-.animatedBreadcrumb {
-  display: flex;
-  align-items: center;
-  animation: fadeIn 0.5s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.statusLabel {
+  font-size: 18px;
 }
 
 /* Code Box */
-.codeBoxContainer {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
 .codeBox {
-  margin-top: 20px;
+  width: 80%;
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 5px;
@@ -113,7 +122,6 @@
   max-height: 300px;
   overflow-y: scroll;
   position: relative;
-  width: 90%;
 }
 
 .toggleButtons {
