@@ -1,10 +1,334 @@
-Here are three realistic future goals for your React and Flask-based UI toolkit project:
+import React, { useState } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Button
+} from '@mui/material';
+import styles from './BasicTables.module.css';
 
-1. **Add a CDN Link for Easy Integration**:
-   - Create a CDN link for your UI toolkit, similar to Bootstrap, so users can easily include your components in their projects with a single line of code.
+const BasicTables = () => {
+  const [showCode, setShowCode] = useState({
+    basic: false,
+    striped: false,
+    bordered: false,
+    hoverable: false,
+    responsive: false,
+  });
 
-2. **Expand Component Library**:
-   - Develop and include a few additional essential components such as forms, modals, and tables to enhance the utility of your toolkit.
+  const toggleCode = (type: string) => {
+    setShowCode((prev) => ({ ...prev, [type]: !prev[type] }));
+  };
 
-3. **Improve Documentation**:
-   - Enhance the existing documentation with clear usage examples, detailed component descriptions, and a FAQ section to make it easier for developers to integrate and use your toolkit.
+  const createData = (name: string, calories: number, fat: number) => {
+    return { name, calories, fat };
+  };
+
+  const rows = [
+    createData('Frozen yoghurt', 159, 6.0),
+    createData('Ice cream sandwich', 237, 9.0),
+    createData('Eclair', 262, 16.0),
+    createData('Cupcake', 305, 3.7),
+    createData('Gingerbread', 356, 16.0),
+  ];
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.tableWithCode}>
+        <div className={styles.tableContainer}>
+          <h3>Basic Table</h3>
+          <TableContainer component={Paper}>
+            <Table sx={{ minWidth: 650 }} aria-label="simple table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Dessert (100g serving)</TableCell>
+                  <TableCell align="right">Calories</TableCell>
+                  <TableCell align="right">Fat&nbsp;(g)</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow
+                    key={row.name}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <TableCell component="th" scope="row">
+                      {row.name}
+                    </TableCell>
+                    <TableCell align="right">{row.calories}</TableCell>
+                    <TableCell align="right">{row.fat}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Button onClick={() => toggleCode('basic')} className={styles.toggleButton}>
+            {showCode.basic ? 'Hide Code' : 'Show Code'}
+          </Button>
+        </div>
+        {showCode.basic && (
+          <div className={styles.codeContainer}>
+            <h3>Code</h3>
+            <pre>
+              <code>// Sample code for Basic Table</code>
+            </pre>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.tableWithCode}>
+        <div className={styles.tableContainer}>
+          <h3>Striped Table</h3>
+          <TableContainer component={Paper}>
+            <Table sx={{ minWidth: 650 }} aria-label="striped table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Dessert (100g serving)</TableCell>
+                  <TableCell align="right">Calories</TableCell>
+                  <TableCell align="right">Fat&nbsp;(g)</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((row, index) => (
+                  <TableRow
+                    key={row.name}
+                    sx={{
+                      '&:last-child td, &:last-child th': { border: 0 },
+                      backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white',
+                    }}
+                  >
+                    <TableCell component="th" scope="row">
+                      {row.name}
+                    </TableCell>
+                    <TableCell align="right">{row.calories}</TableCell>
+                    <TableCell align="right">{row.fat}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Button onClick={() => toggleCode('striped')} className={styles.toggleButton}>
+            {showCode.striped ? 'Hide Code' : 'Show Code'}
+          </Button>
+        </div>
+        {showCode.striped && (
+          <div className={styles.codeContainer}>
+            <h3>Code</h3>
+            <pre>
+              <code>// Sample code for Striped Table</code>
+            </pre>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.tableWithCode}>
+        <div className={styles.tableContainer}>
+          <h3>Bordered Table</h3>
+          <TableContainer component={Paper}>
+            <Table sx={{ minWidth: 650, border: '1px solid #ccc' }} aria-label="bordered table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Dessert (100g serving)</TableCell>
+                  <TableCell align="right">Calories</TableCell>
+                  <TableCell align="right">Fat&nbsp;(g)</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.name}>
+                    <TableCell component="th" scope="row">
+                      {row.name}
+                    </TableCell>
+                    <TableCell align="right">{row.calories}</TableCell>
+                    <TableCell align="right">{row.fat}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Button onClick={() => toggleCode('bordered')} className={styles.toggleButton}>
+            {showCode.bordered ? 'Hide Code' : 'Show Code'}
+          </Button>
+        </div>
+        {showCode.bordered && (
+          <div className={styles.codeContainer}>
+            <h3>Code</h3>
+            <pre>
+              <code>// Sample code for Bordered Table</code>
+            </pre>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.tableWithCode}>
+        <div className={styles.tableContainer}>
+          <h3>Hoverable Table</h3>
+          <TableContainer component={Paper}>
+            <Table sx={{ minWidth: 650 }} aria-label="hoverable table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Dessert (100g serving)</TableCell>
+                  <TableCell align="right">Calories</TableCell>
+                  <TableCell align="right">Fat&nbsp;(g)</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow
+                    key={row.name}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: '#f5f5f5',
+                      },
+                    }}
+                  >
+                    <TableCell component="th" scope="row">
+                      {row.name}
+                    </TableCell>
+                    <TableCell align="right">{row.calories}</TableCell>
+                    <TableCell align="right">{row.fat}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Button onClick={() => toggleCode('hoverable')} className={styles.toggleButton}>
+            {showCode.hoverable ? 'Hide Code' : 'Show Code'}
+          </Button>
+        </div>
+        {showCode.hoverable && (
+          <div className={styles.codeContainer}>
+            <h3>Code</h3>
+            <pre>
+              <code>// Sample code for Hoverable Table</code>
+            </pre>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.tableWithCode}>
+        <div className={styles.tableContainer}>
+          <h3>Responsive Table</h3>
+          <TableContainer component={Paper}>
+            <Table sx={{ minWidth: 650 }} aria-label="responsive table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Dessert (100g serving)</TableCell>
+                  <TableCell align="right">Calories</TableCell>
+                  <TableCell align="right">Fat&nbsp;(g)</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.name}>
+                    <TableCell component="th" scope="row">
+                      {row.name}
+                    </TableCell>
+                    <TableCell align="right">{row.calories}</TableCell>
+                    <TableCell align="right">{row.fat}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Button onClick={() => toggleCode('responsive')} className={styles.toggleButton}>
+            {showCode.responsive ? 'Hide Code' : 'Show Code'}
+          </Button>
+        </div>
+        {showCode.responsive && (
+          <div className={styles.codeContainer}>
+            <h3>Code</h3
+<pre>
+              <code>// Sample code for Responsive Table</code>
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default BasicTables;
+
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tableWithCode {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.tableContainer {
+  width: 60%;
+}
+
+.codeContainer {
+  width: 35%;
+  background-color: #f4f4f4;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toggleButton {
+  margin-top: 10px;
+  padding: 5px 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.toggleButton:hover {
+  background-color: #0056b3;
+}
+
+.basicTable,
+.stripedTable,
+.borderedTable,
+.hoverableTable,
+.responsiveTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+.basicTable th,
+.basicTable td,
+.stripedTable th,
+.stripedTable td,
+.borderedTable th,
+.borderedTable td,
+.hoverableTable th,
+.hoverableTable td,
+.responsiveTable th,
+.responsiveTable td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.stripedTable tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.hoverableTable tr:hover {
+  background-color: #ddd;
+}
+
+.borderedTable th,
+.borderedTable td {
+  border: 2px solid #000;
+}
