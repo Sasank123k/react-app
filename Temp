@@ -1,7 +1,13 @@
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
-from pptx.enum.dml import MSO_ARROWHEAD
+
+# Attempt to import MSO_ARROWHEAD; if unavailable, set a flag
+try:
+    from pptx.enum.dml import MSO_ARROWHEAD
+    arrowhead_available = True
+except ImportError:
+    arrowhead_available = False
 
 # Create a new presentation
 prs = Presentation()
@@ -16,11 +22,13 @@ def add_textbox(slide, left, top, width, height, text, font_size=16):
             run.font.size = Pt(font_size)
     return textbox
 
-# Helper function to add an arrow connector with an arrow head
+# Helper function to add an arrow connector with an arrow head (if available)
 def add_arrow_connector(slide, start_x, start_y, end_x, end_y):
-    connector = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, start_x, start_y, end_x - start_x, end_y - start_y)
-    # Set an arrow head at the end of the connector
-    connector.line.end_arrowhead.style = MSO_ARROWHEAD.TRIANGLE
+    connector = slide.shapes.add_connector(
+        MSO_CONNECTOR.STRAIGHT, start_x, start_y, end_x - start_x, end_y - start_y
+    )
+    if arrowhead_available:
+        connector.line.end_arrowhead.style = MSO_ARROWHEAD.TRIANGLE
     return connector
 
 # ----------------------
