@@ -1,39 +1,119 @@
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+from pptx import Presentation
+from pptx.util import Pt
 
-const useScrollToTop = () => {
-  const { pathname } = useLocation();
+# Create a presentation object
+prs = Presentation()
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-};
+# Slide 1: Title Slide
+slide = prs.slides.add_slide(prs.slide_layouts[0])
+slide.shapes.title.text = "Integration Options for GitHub in Our Website"
+slide.placeholders[1].text = "Detailed Analysis of GitHub Integration Approaches"
 
-export default useScrollToTop;
+# Slide 2: Agenda
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "Agenda"
+agenda = (
+    "1. Use Case Overview\n"
+    "2. Personal Access Tokens (PATs)\n"
+    "3. OAuth Apps\n"
+    "4. GitHub Apps\n"
+    "5. Git CLI\n"
+    "6. Conclusion & Recommendations\n"
+    "7. Q&A"
+)
+slide.placeholders[1].text = agenda
 
+# Slide 3: Use Case Overview
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "Use Case Overview"
+use_case = (
+    "• Users log in to our website.\n"
+    "• They generate JSON config files.\n"
+    "• The file is pushed directly to their GitHub repository.\n"
+    "• No repository cloning is involved.\n"
+    "• Pushing is executed from the user’s account."
+)
+slide.placeholders[1].text = use_case
 
-import React from 'react';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
-import Home from './pages/Home/Home';
-import Login from './pages/Login/Login';
-import SignUp from './pages/SignUp/SignUp';
-import ComponentsPage from './pages/Components/Components';
-import useScrollToTop from './hooks/useScrollToTop';
+# Slide 4: Personal Access Tokens (PATs)
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "Personal Access Tokens (PATs)"
+pat_content = (
+    "How It Works:\n"
+    "  • User generates a PAT from GitHub.\n"
+    "  • Use GitHub API to push JSON file without cloning.\n\n"
+    "Pros:\n"
+    "  • Directly associated with the user’s account.\n"
+    "  • Simple REST API implementation.\n\n"
+    "Cons:\n"
+    "  • Security risk if token is compromised.\n"
+    "  • Requires users to manage token scopes and security."
+)
+slide.placeholders[1].text = pat_content
 
-const App = () => {
-  useScrollToTop();  // Custom hook is used here
+# Slide 5: OAuth Apps
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "OAuth Apps"
+oauth_content = (
+    "How It Works:\n"
+    "  • Initiates an OAuth flow where user consents via GitHub.\n"
+    "  • An access token is received to push the file.\n\n"
+    "Pros:\n"
+    "  • Explicit user consent with scoped permissions.\n"
+    "  • Better token management (refresh & revoke capabilities).\n\n"
+    "Cons:\n"
+    "  • More complex to implement (handling redirects, token refresh, etc.).\n"
+    "  • Token expiry may interrupt the user experience."
+)
+slide.placeholders[1].text = oauth_content
 
-  return (
-    <Router>
-      <Switch>
-        <Route exact path="/" component={Home} />
-        <Route path="/login" component={Login} />
-        <Route path="/signup" component={SignUp} />
-        <Route path="/components" component={ComponentsPage} />
-        {/* Add more routes as needed */}
-      </Switch>
-    </Router>
-  );
-};
+# Slide 6: GitHub Apps
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "GitHub Apps"
+github_apps_content = (
+    "How It Works:\n"
+    "  • Users install the GitHub App which issues scoped tokens.\n"
+    "  • The app pushes the file with fine-grained permissions.\n\n"
+    "Pros:\n"
+    "  • Granular, fine-grained permission control.\n"
+    "  • Improved security and audit logging.\n\n"
+    "Cons:\n"
+    "  • Requires app installation, adding friction to onboarding.\n"
+    "  • Actions may be attributed to the app rather than the individual user."
+)
+slide.placeholders[1].text = github_apps_content
 
-export default App;
+# Slide 7: Git CLI
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "Git CLI"
+git_cli_content = (
+    "How It Works:\n"
+    "  • Uses Git commands (clone, commit, push) to update repositories.\n\n"
+    "Pros:\n"
+    "  • Full git functionality and a familiar workflow.\n\n"
+    "Cons:\n"
+    "  • Cloning is required, which violates the use case requirements.\n"
+    "  • Resource-intensive with complex error handling."
+)
+slide.placeholders[1].text = git_cli_content
+
+# Slide 8: Conclusion & Recommendations
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "Conclusion & Recommendations"
+conclusion = (
+    "• PATs and OAuth Apps best meet the requirement for direct user pushes.\n"
+    "• OAuth Apps offer better security and token management compared to PATs.\n"
+    "• GitHub Apps provide fine-grained control but may not perfectly reflect individual user actions.\n"
+    "• Git CLI is not recommended due to its cloning requirement and overhead.\n\n"
+    "Consider company API restrictions and user experience when choosing the approach."
+)
+slide.placeholders[1].text = conclusion
+
+# Slide 9: Q&A
+slide = prs.slides.add_slide(prs.slide_layouts[1])
+slide.shapes.title.text = "Q&A"
+slide.placeholders[1].text = "Questions & Discussion"
+
+# Save the presentation to a file
+prs.save("github_integration_options.pptx")
+print("Presentation created and saved as 'github_integration_options.pptx'")
