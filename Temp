@@ -27,8 +27,12 @@ def add_arrow_connector(slide, start_x, start_y, end_x, end_y):
     connector = slide.shapes.add_connector(
         MSO_CONNECTOR.STRAIGHT, start_x, start_y, end_x - start_x, end_y - start_y
     )
+    # Try setting an arrow head; if it fails, ignore and continue.
     if arrowhead_available:
-        connector.line.end_arrowhead.style = MSO_ARROWHEAD.TRIANGLE
+        try:
+            connector.line.end_arrowhead.style = MSO_ARROWHEAD.TRIANGLE
+        except Exception:
+            pass
     return connector
 
 # ----------------------
@@ -91,7 +95,6 @@ select_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, center_left, I
 select_node.text = "Select Integration Option"
 
 # Branching horizontal nodes for integration options
-# Adjust left positions so all nodes fit on the slide (assumes slide width ~10 inches)
 pat_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.5), Inches(5), node_width, node_height)
 pat_node.text = "PATs\n• Simple\n• Manual token mgmt"
 
@@ -113,32 +116,32 @@ repo_node.text = "GitHub Repository Updated"
 
 # Connect vertical nodes
 for shape_from, shape_to in [(user_node, auth_node), (auth_node, generate_node), (generate_node, select_node)]:
-    start_x = shape_from.left + shape_from.width/2
+    start_x = shape_from.left + shape_from.width / 2
     start_y = shape_from.top + shape_from.height
-    end_x = shape_to.left + shape_to.width/2
+    end_x = shape_to.left + shape_to.width / 2
     end_y = shape_to.top
     add_arrow_connector(slide, start_x, start_y, end_x, end_y)
 
-# Connect "Select Integration Option" to each integration option node (branching downward)
+# Connect "Select Integration Option" to each integration option node
 for option_node in [pat_node, oauth_node, github_apps_node, git_cli_node]:
-    start_x = select_node.left + select_node.width/2
+    start_x = select_node.left + select_node.width / 2
     start_y = select_node.top + select_node.height
-    end_x = option_node.left + option_node.width/2
+    end_x = option_node.left + option_node.width / 2
     end_y = option_node.top
     add_arrow_connector(slide, start_x, start_y, end_x, end_y)
 
 # Connect each integration option node to the Push Operation node
 for option_node in [pat_node, oauth_node, github_apps_node, git_cli_node]:
-    start_x = option_node.left + option_node.width/2
+    start_x = option_node.left + option_node.width / 2
     start_y = option_node.top + option_node.height
-    end_x = push_node.left + push_node.width/2
+    end_x = push_node.left + push_node.width / 2
     end_y = push_node.top
     add_arrow_connector(slide, start_x, start_y, end_x, end_y)
 
 # Connect Push Operation to GitHub Repository Updated
-start_x = push_node.left + push_node.width/2
+start_x = push_node.left + push_node.width / 2
 start_y = push_node.top + push_node.height
-end_x = repo_node.left + repo_node.width/2
+end_x = repo_node.left + repo_node.width / 2
 end_y = repo_node.top
 add_arrow_connector(slide, start_x, start_y, end_x, end_y)
 
