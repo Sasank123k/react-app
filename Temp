@@ -1,11 +1,11 @@
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.enum.dml import MSO_ARROWHEAD
 
 # Create a new presentation
 prs = Presentation()
 
-# ----------------------
 # Helper function to add a text box with custom formatting
 def add_textbox(slide, left, top, width, height, text, font_size=16):
     textbox = slide.shapes.add_textbox(left, top, width, height)
@@ -15,6 +15,13 @@ def add_textbox(slide, left, top, width, height, text, font_size=16):
         for run in paragraph.runs:
             run.font.size = Pt(font_size)
     return textbox
+
+# Helper function to add an arrow connector with an arrow head
+def add_arrow_connector(slide, start_x, start_y, end_x, end_y):
+    connector = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, start_x, start_y, end_x - start_x, end_y - start_y)
+    # Set an arrow head at the end of the connector
+    connector.line.end_arrowhead.style = MSO_ARROWHEAD.TRIANGLE
+    return connector
 
 # ----------------------
 # Slide 1: Title Slide
@@ -29,7 +36,7 @@ slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "Agenda"
 agenda_text = (
     "• Use Case Overview\n"
-    "• Integration Flow Diagram\n"
+    "• Detailed Integration Flow Diagram\n"
     "• Personal Access Tokens (PATs)\n"
     "• OAuth Apps\n"
     "• GitHub Apps\n"
@@ -44,86 +51,88 @@ slide.placeholders[1].text = agenda_text
 slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "Use Case Overview"
 use_case_text = (
-    "• Users log in to our website.\n"
-    "• They generate JSON config files.\n"
-    "• The file is pushed directly to the user’s GitHub repository.\n"
-    "• No repository cloning is involved.\n"
-    "• Push actions occur using the user’s own account credentials."
+    "• Users log in to our website\n"
+    "• They generate JSON configuration files\n"
+    "• The file is pushed directly to the user’s GitHub repository\n"
+    "• No repository cloning is involved\n"
+    "• Pushes occur using the user’s account credentials"
 )
 slide.placeholders[1].text = use_case_text
 
 # ----------------------
-# Slide 4: Integration Flow Diagram
-# We'll create a blank slide and then add shapes and connectors.
-slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank layout
-
-# Title for the slide
+# Slide 4: Detailed Integration Flow Diagram
+# Create a blank slide for a custom flow diagram
+slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_textbox(slide, Inches(0.5), Inches(0.3), Inches(9), Inches(0.5),
-            "Integration Flow Diagram", font_size=24)
+            "Detailed Integration Flow Diagram", font_size=24)
 
-# Define positions for nodes (using Inches)
-# Main flow: User -> Website -> JSON Config -> Push to GitHub
-user_left, user_top = Inches(0.5), Inches(1.5)
-website_left, website_top = Inches(3), Inches(1.5)
-config_left, config_top = Inches(5.5), Inches(1.5)
-push_left, push_top = Inches(8), Inches(1.5)
+# Vertical flow nodes (centered)
+node_width, node_height = Inches(2), Inches(0.75)
+center_left = Inches(4)
 
-# Add main flow nodes as rounded rectangles
-user_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, user_left, user_top, Inches(1.5), Inches(0.75))
-user_box.text = "User"
-website_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, website_left, website_top, Inches(1.5), Inches(0.75))
-website_box.text = "Website"
-config_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, config_left, config_top, Inches(1.5), Inches(0.75))
-config_box.text = "JSON Config"
-push_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, push_left, push_top, Inches(1.5), Inches(0.75))
-push_box.text = "Push to GitHub"
+user_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, center_left, Inches(1), node_width, node_height)
+user_node.text = "User Logs In"
 
-# Function to add a straight connector between two shapes
-def connect_shapes(slide, shape1, shape2):
-    # Get center positions of shape1 and shape2
-    start_x = shape1.left + shape1.width
-    start_y = shape1.top + shape1.height/2
-    end_x = shape2.left
-    end_y = shape2.top + shape2.height/2
-    connector = slide.shapes.add_connector(
-        MSO_CONNECTOR.STRAIGHT, start_x, start_y, end_x - start_x, end_y - start_y
-    )
-    return connector
+auth_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, center_left, Inches(2), node_width, node_height)
+auth_node.text = "Authentication"
 
-# Connect main flow nodes
-connect_shapes(slide, user_box, website_box)
-connect_shapes(slide, website_box, config_box)
-connect_shapes(slide, config_box, push_box)
+generate_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, center_left, Inches(3), node_width, node_height)
+generate_node.text = "Generate JSON Config"
 
-# Now add integration option nodes branching from "Push to GitHub"
-# We'll place them below the main flow
-option_top = push_top + Inches(1.5)
-option_spacing = Inches(1.8)
+select_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, center_left, Inches(4), node_width, node_height)
+select_node.text = "Select Integration Option"
 
-pat_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, push_left - Inches(1.5), option_top, Inches(1.5), Inches(0.75))
-pat_box.text = "PATs"
+# Branching horizontal nodes for integration options
+# Adjust left positions so all nodes fit on the slide (assumes slide width ~10 inches)
+pat_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.5), Inches(5), node_width, node_height)
+pat_node.text = "PATs\n• Simple\n• Manual token mgmt"
 
-oauth_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, push_left, option_top, Inches(1.5), Inches(0.75))
-oauth_box.text = "OAuth Apps"
+oauth_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(3), Inches(5), node_width, node_height)
+oauth_node.text = "OAuth Apps\n• Secure\n• Token refresh"
 
-github_app_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, push_left + Inches(1.5), option_top, Inches(1.5), Inches(0.75))
-github_app_box.text = "GitHub Apps"
+github_apps_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(5.5), Inches(5), node_width, node_height)
+github_apps_node.text = "GitHub Apps\n• Granular\n• Audit logs"
 
-git_cli_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, push_left + Inches(3), option_top, Inches(1.5), Inches(0.75))
-git_cli_box.text = "Git CLI"
+git_cli_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(8), Inches(5), node_width, node_height)
+git_cli_node.text = "Git CLI\n• Full git\n• Cloning req"
 
-# Connect "Push to GitHub" to each integration option node
-def connect_from_push(push_shape, target_shape):
-    start_x = push_shape.left + push_shape.width/2
-    start_y = push_shape.top + push_shape.height
-    end_x = target_shape.left + target_shape.width/2
-    end_y = target_shape.top
-    slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, start_x, start_y, end_x - start_x, end_y - start_y)
+# Vertical nodes after branch
+push_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, center_left, Inches(6), node_width, node_height)
+push_node.text = "Push Operation Initiated"
 
-connect_from_push(push_box, pat_box)
-connect_from_push(push_box, oauth_box)
-connect_from_push(push_box, github_app_box)
-connect_from_push(push_box, git_cli_box)
+repo_node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, center_left, Inches(7), node_width, node_height)
+repo_node.text = "GitHub Repository Updated"
+
+# Connect vertical nodes
+for shape_from, shape_to in [(user_node, auth_node), (auth_node, generate_node), (generate_node, select_node)]:
+    start_x = shape_from.left + shape_from.width/2
+    start_y = shape_from.top + shape_from.height
+    end_x = shape_to.left + shape_to.width/2
+    end_y = shape_to.top
+    add_arrow_connector(slide, start_x, start_y, end_x, end_y)
+
+# Connect "Select Integration Option" to each integration option node (branching downward)
+for option_node in [pat_node, oauth_node, github_apps_node, git_cli_node]:
+    start_x = select_node.left + select_node.width/2
+    start_y = select_node.top + select_node.height
+    end_x = option_node.left + option_node.width/2
+    end_y = option_node.top
+    add_arrow_connector(slide, start_x, start_y, end_x, end_y)
+
+# Connect each integration option node to the Push Operation node
+for option_node in [pat_node, oauth_node, github_apps_node, git_cli_node]:
+    start_x = option_node.left + option_node.width/2
+    start_y = option_node.top + option_node.height
+    end_x = push_node.left + push_node.width/2
+    end_y = push_node.top
+    add_arrow_connector(slide, start_x, start_y, end_x, end_y)
+
+# Connect Push Operation to GitHub Repository Updated
+start_x = push_node.left + push_node.width/2
+start_y = push_node.top + push_node.height
+end_x = repo_node.left + repo_node.width/2
+end_y = repo_node.top
+add_arrow_connector(slide, start_x, start_y, end_x, end_y)
 
 # ----------------------
 # Slide 5: Personal Access Tokens (PATs)
@@ -131,16 +140,16 @@ slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "Personal Access Tokens (PATs)"
 pat_text = (
     "How It Works:\n"
-    "  • User generates a PAT in GitHub.\n"
-    "  • Website uses the PAT to push JSON directly via GitHub API.\n\n"
+    "• User generates a PAT with necessary scopes (e.g., repo, user) from GitHub.\n"
+    "• The website uses this token to directly call GitHub’s API and push the JSON file.\n\n"
     "Pros:\n"
-    "  • Directly associated with the user’s account.\n"
-    "  • Simple REST API calls.\n\n"
+    "• Directly tied to the user’s account.\n"
+    "• Simple, REST-based implementation without a complex flow.\n\n"
     "Cons:\n"
-    "  • Security risk if token is compromised.\n"
-    "  • Requires user token management."
+    "• Security risk if the token is exposed.\n"
+    "• Requires users to manually generate and manage tokens.\n"
+    "• Limited control over token lifecycle and permissions."
 )
-# Use a textbox to ensure text fits within boundaries.
 add_textbox(slide, Inches(0.5), Inches(1.5), Inches(9), Inches(4), pat_text, font_size=16)
 
 # ----------------------
@@ -149,14 +158,16 @@ slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "OAuth Apps"
 oauth_text = (
     "How It Works:\n"
-    "  • Initiates OAuth flow; user grants permissions.\n"
-    "  • Website receives an access token to push the file.\n\n"
+    "• Website initiates an OAuth flow by redirecting the user to GitHub’s consent screen.\n"
+    "• User grants permission, and GitHub returns an access token to the website.\n"
+    "• The token is used to push the JSON file directly from the user’s account.\n\n"
     "Pros:\n"
-    "  • Scoped permissions and explicit user consent.\n"
-    "  • Better token management (refresh & revoke).\n\n"
+    "• Secure, standard authorization with explicit user consent.\n"
+    "• Supports token refresh and revocation for improved lifecycle management.\n"
+    "• Scopes can be limited to specific actions.\n\n"
     "Cons:\n"
-    "  • More complex implementation (redirects, token exchange).\n"
-    "  • Token expiry may require reauthorization."
+    "• More complex implementation (managing redirects, token exchange, expiry).\n"
+    "• Potential interruptions if tokens expire and require reauthorization."
 )
 add_textbox(slide, Inches(0.5), Inches(1.5), Inches(9), Inches(4), oauth_text, font_size=16)
 
@@ -166,14 +177,16 @@ slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "GitHub Apps"
 github_apps_text = (
     "How It Works:\n"
-    "  • User installs the GitHub App on their account.\n"
-    "  • The app issues installation tokens for file pushes.\n\n"
+    "• User installs the GitHub App on their account or organization.\n"
+    "• The app issues installation tokens with fine-grained permissions.\n"
+    "• These tokens allow the website to push the JSON file via the GitHub API.\n\n"
     "Pros:\n"
-    "  • Granular permissions with improved security.\n"
-    "  • Detailed audit logs.\n\n"
+    "• Provides granular permission control and enhanced security.\n"
+    "• Detailed audit logs for tracking actions.\n"
+    "• Separation of duties between user and app.\n\n"
     "Cons:\n"
-    "  • Requires app installation (adds onboarding friction).\n"
-    "  • Actions may be attributed to the app, not the user."
+    "• Requires users to install the app, adding onboarding friction.\n"
+    "• Actions may be recorded under the app’s identity rather than the user’s."
 )
 add_textbox(slide, Inches(0.5), Inches(1.5), Inches(9), Inches(4), github_apps_text, font_size=16)
 
@@ -183,12 +196,14 @@ slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "Git CLI"
 git_cli_text = (
     "How It Works:\n"
-    "  • Uses Git commands (clone, commit, push) to update repositories.\n\n"
+    "• Website utilizes Git command-line operations (clone, commit, push) to update repositories.\n"
+    "• Typically requires a temporary clone of the repository on the server.\n\n"
     "Pros:\n"
-    "  • Full Git workflow and history control.\n\n"
+    "• Full control over Git operations and commit history.\n"
+    "• Familiar process for developers.\n\n"
     "Cons:\n"
-    "  • Requires cloning the repository (violates our use case).\n"
-    "  • Resource intensive and complex error handling."
+    "• Requires repository cloning, which contradicts the direct push requirement.\n"
+    "• Resource-intensive with complex error handling and merge conflict management."
 )
 add_textbox(slide, Inches(0.5), Inches(1.5), Inches(9), Inches(4), git_cli_text, font_size=16)
 
@@ -197,11 +212,12 @@ add_textbox(slide, Inches(0.5), Inches(1.5), Inches(9), Inches(4), git_cli_text,
 slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "Conclusion & Recommendations"
 conclusion_text = (
-    "• PATs and OAuth Apps best meet the requirement for direct user pushes.\n"
-    "• OAuth Apps provide enhanced security & token management.\n"
-    "• GitHub Apps offer granular control but may not reflect individual user actions.\n"
-    "• Git CLI is not recommended due to cloning and overhead.\n\n"
-    "Consider company API restrictions and user experience when choosing the approach."
+    "• PATs and OAuth Apps best meet the direct push requirement.\n"
+    "• OAuth Apps offer improved security and token management over PATs.\n"
+    "• GitHub Apps provide granular control and auditability but add onboarding complexity.\n"
+    "• Git CLI is not recommended due to its cloning requirement and resource overhead.\n\n"
+    "Recommendation:\n"
+    "Choose the approach that best aligns with your security policies, user experience needs, and company API restrictions."
 )
 add_textbox(slide, Inches(0.5), Inches(1.5), Inches(9), Inches(4), conclusion_text, font_size=16)
 
@@ -211,6 +227,6 @@ slide = prs.slides.add_slide(prs.slide_layouts[1])
 slide.shapes.title.text = "Q&A"
 add_textbox(slide, Inches(0.5), Inches(1.5), Inches(9), Inches(2), "Questions & Discussion", font_size=20)
 
-# Save the presentation
-prs.save("github_integration_options_enhanced.pptx")
-print("Presentation created and saved as 'github_integration_options_enhanced.pptx'")
+# Save the presentation to a file
+prs.save("github_integration_options_detailed.pptx")
+print("Presentation created and saved as 'github_integration_options_detailed.pptx'")
