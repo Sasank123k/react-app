@@ -1,10 +1,137 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 const GitHubIntegrationPage = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [accessToken, setAccessToken] = useState(null);
+  const [repoOwner, setRepoOwner] = useState("");
+  const [repoName, setRepoName] = useState("");
+  const [branch, setBranch] = useState("main");
+  const [filePath, setFilePath] = useState("data/config.json");
+  const [jsonContent, setJsonContent] = useState('{ "key": "value" }');
+  const [statusMessage, setStatusMessage] = useState("");
+
+  // Check if user is already authenticated (by checking session)
+  useEffect(() => {
+    fetch("http://localhost:8080/test-session", { credentials: "include" })
+      .then((response) => response.text())
+      .then((data) => {
+        if (data.includes("Stored Token:") && !data.includes("null")) {
+          setIsAuthenticated(true);
+          setAccessToken(data.split("Stored Token: ")[1]); // Extract token
+        }
+      })
+      .catch((error) => console.error("Error checking session:", error));
+  }, []);
+
+  // Handle GitHub Login
+  const handleLogin = () => {
+    window.location.href = "http://localhost:8080/login/github";
+  };
+
+  // Handle Push JSON File
+  const handlePushFile = (e) => {
+    e.preventDefault();
+
+    if (!isAuthenticated || !accessToken) {
+      setStatusMessage("Error: You must be logged in to push files.");
+      return;
+    }
+
+    // Encode JSON content in Base64 (required by GitHub API)
+    const encodedContent = btoa(jsonContent);
+
+    const payload = {
+      repoOwner,
+      repoName,
+      branch,
+      filePath,
+      content: encodedContent,
+    };
+
+    fetch("http://localhost:8080/api/push-json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    })
+      .then((response) => response.text())
+      .then((data) => {
+        setStatusMessage(data);
+      })
+      .catch((error) => {
+        console.error("Error pushing file:", error);
+        setStatusMessage("Error pushing file.");
+      });
+  };
+
   return (
     <div>
       <h1>GitHub Integration Page</h1>
-      <p>This is where GitHub OAuth and JSON push functionality will be added.</p>
+
+      {/* Show Login Button if Not Authenticated */}
+      {!isAuthenticated ? (
+        <>
+          <p>You need to log in to GitHub first.</p>
+          <button onClick={handleLogin}>Login with GitHub</button>
+        </>
+      ) : (
+        <>
+          <p>✅ Logged in to GitHub! You can now push JSON files.</p>
+
+          {/* Push JSON File Form */}
+          <form onSubmit={handlePushFile}>
+            <label>Repo Owner:</label>
+            <input
+              type="text"
+              value={repoOwner}
+              onChange={(e) => setRepoOwner(e.target.value)}
+              required
+            />
+            <br />
+
+            <label>Repo Name:</label>
+            <input
+              type="text"
+              value={repoName}
+              onChange={(e) => setRepoName(e.target.value)}
+              required
+            />
+            <br />
+
+            <label>Branch:</label>
+            <input
+              type="text"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              required
+            />
+            <br />
+
+            <label>File Path:</label>
+            <input
+              type="text"
+              value={filePath}
+              onChange={(e) => setFilePath(e.target.value)}
+              required
+            />
+            <br />
+
+            <label>JSON Content:</label>
+            <textarea
+              rows="5"
+              value={jsonContent}
+              onChange={(e) => setJsonContent(e.target.value)}
+              required
+            ></textarea>
+            <br />
+
+            <button type="submit">Push JSON File</button>
+          </form>
+
+          {/* Status Message */}
+          {statusMessage && <p>{statusMessage}</p>}
+        </>
+      )}
     </div>
   );
 };
