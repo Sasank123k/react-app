@@ -1,213 +1,159 @@
-package com.example.githuboauthapp.controller;
+package com.example.githuboauthapp.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.example.githuboauthapp.model.PushRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpSession;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
-@Controller
-public class OAuthCallbackController {
-
-    @Value("${github.client.id}")
-    private String clientId;
-
-    @Value("${github.client.secret}")
-    private String clientSecret;
-
-    @Value("${github.redirect.uri}")
-    private String redirectUri;
+@Service
+public class GitHubPushRestService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @GetMapping("/oauth/callback")
-    public void githubCallback(@RequestParam("code") String code,
-                               HttpSession session,
-                               HttpServletRequest request,
-                               HttpServletResponse response) throws IOException {
+    /**
+     * Pushes a JSON file to the specified GitHub repository and branch.
+     * If the branch does not exist and createBranch is true, it creates the branch
+     * using the repository's default branch as base.
+     */
+    public void pushJsonFile(PushRequest request, String userAccessToken) throws Exception {
+        RestTemplate restTemplate = new RestTemplate();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "token " + userAccessToken);
+
+        String baseUrl = "https://api.github.com/repos/" + request.getRepoOwner() + "/" + request.getRepoName();
+        String branch = request.getBranch();
+
+        // 1. Check if the target branch exists.
+        String refUrl = baseUrl + "/git/ref/heads/" + branch;
+        ResponseEntity<String> branchResponse = null;
         try {
-            RestTemplate restTemplate = new RestTemplate();
-            String tokenUrl = "https://github.com/login/oauth/access_token";
-
-            String requestBody = "client_id=" + clientId +
-                                 "&client_secret=" + clientSecret +
-                                 "&code=" + code +
-                                 "&redirect_uri=" + redirectUri;
-
-            // Set headers for form submission
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED);
-            headers.setAccept(Collections.singletonList(org.springframework.http.MediaType.APPLICATION_JSON));
-            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(requestBody, headers);
-
-            // Exchange code for access token
-            String tokenResponse = restTemplate.postForObject(tokenUrl, entity, String.class);
-            JsonNode jsonNode = objectMapper.readTree(tokenResponse);
-            String accessToken = jsonNode.get("access_token").asText();
-
-            // Log and store the token in session
-            System.out.println("Obtained access token: " + accessToken);
-            session.setAttribute("githubAccessToken", accessToken);
-
-            // Redirect the user directly to the frontend GitHub Integration page.
-            response.sendRedirect("http://localhost:3000/github-integration?authenticated=true");
+            branchResponse = restTemplate.exchange(refUrl, HttpMethod.GET, new HttpEntity<>(headers), String.class);
         } catch (Exception e) {
-            e.printStackTrace();
-            response.sendRedirect("http://localhost:3000/github-integration?error=authentication_failed");
+            // Exception indicates branch does not exist.
+            System.out.println("Branch " + branch + " does not exist.");
         }
+
+        // 2. If branch doesn't exist and createBranch flag is true, create it.
+        if (branchResponse == null || branchResponse.getStatusCode() == HttpStatus.NOT_FOUND) {
+            if (request.isCreateBranch()) {
+                // Get repository details to determine default branch.
+                String repoUrl = baseUrl;
+                ResponseEntity<String> repoResponse = restTemplate.exchange(repoUrl, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                Map<String, Object> repoInfo = objectMapper.readValue(repoResponse.getBody(), HashMap.class);
+                String defaultBranch = (String) repoInfo.get("default_branch");
+                System.out.println("Default branch is: " + defaultBranch);
+
+                // Get the commit SHA for the default branch.
+                String defaultRefUrl = baseUrl + "/git/ref/heads/" + defaultBranch;
+                ResponseEntity<String> defaultRefResponse = restTemplate.exchange(defaultRefUrl, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                Map<String, Object> defaultRef = objectMapper.readValue(defaultRefResponse.getBody(), HashMap.class);
+                Map<String, Object> objectMap = (Map<String, Object>) defaultRef.get("object");
+                String baseSha = (String) objectMap.get("sha");
+
+                // Create new branch using the default branch's SHA.
+                String createRefUrl = baseUrl + "/git/refs";
+                Map<String, Object> newRefPayload = new HashMap<>();
+                newRefPayload.put("ref", "refs/heads/" + branch);
+                newRefPayload.put("sha", baseSha);
+                HttpEntity<String> createRefEntity = new HttpEntity<>(objectMapper.writeValueAsString(newRefPayload), headers);
+                ResponseEntity<String> createRefResponse = restTemplate.postForEntity(createRefUrl, createRefEntity, String.class);
+                if (!createRefResponse.getStatusCode().is2xxSuccessful()) {
+                    throw new RuntimeException("Failed to create branch: " + createRefResponse.getBody());
+                }
+                System.out.println("Branch " + branch + " created successfully.");
+            } else {
+                throw new RuntimeException("Branch " + branch + " does not exist and createBranch flag is false.");
+            }
+        }
+
+        // 3. Check if the file exists to get its SHA (for update) on the target branch.
+        String fileUrl = baseUrl + "/contents/" + request.getFilePath();
+        String sha = null;
+        try {
+            ResponseEntity<String> getResponse = restTemplate.exchange(
+                    fileUrl + "?ref=" + branch,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    String.class);
+            Map<String, Object> fileInfo = objectMapper.readValue(getResponse.getBody(), HashMap.class);
+            sha = (String) fileInfo.get("sha");
+            System.out.println("Existing file SHA: " + sha);
+        } catch (Exception ex) {
+            System.out.println("File not found; will create new file.");
+        }
+
+        // 4. Build the payload to create/update the file.
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("message", "Update JSON file via REST API");
+        requestBody.put("content", request.getContent());  // Already Base64 encoded JSON content.
+        requestBody.put("branch", branch);
+        if (sha != null) {
+            requestBody.put("sha", sha);
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
+        ResponseEntity<String> pushResponse = restTemplate.exchange(fileUrl, HttpMethod.PUT, entity, String.class);
+        if (!pushResponse.getStatusCode().is2xxSuccessful()) {
+            throw new RuntimeException("Failed to push file: " + pushResponse.getBody());
+        }
+        System.out.println("File pushed successfully.");
     }
 }
 
 
-import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 
-const GitHubIntegrationPage = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [repoOwner, setRepoOwner] = useState("");
-  const [repoName, setRepoName] = useState("");
-  const [branch, setBranch] = useState("main");
-  const [filePath, setFilePath] = useState("data/config.json");
-  const [jsonContent, setJsonContent] = useState('{ "key": "value" }');
-  const [statusMessage, setStatusMessage] = useState("");
+package com.example.githuboauthapp.model;
 
-  const navigate = useNavigate();
-  const location = useLocation();
+public class PushRequest {
+    private String repoOwner;
+    private String repoName;
+    private String branch;
+    private String filePath;
+    private String content;  // Base64 encoded JSON content
+    private boolean createBranch; // If true, create branch if it doesn't exist
 
-  // Function to check session by calling the backend test endpoint
-  const checkSession = () => {
-    fetch("http://localhost:8080/test-session", { credentials: "include" })
-      .then((response) => response.text())
-      .then((data) => {
-        console.log("Session data:", data);
-        if (data.includes("Stored Token:") && !data.includes("null")) {
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
-      })
-      .catch((error) =>
-        console.error("Error checking session in GitHubIntegrationPage:", error)
-      );
-  };
-
-  useEffect(() => {
-    // Check if URL query parameter "authenticated" is set
-    const params = new URLSearchParams(location.search);
-    if (params.get("authenticated") === "true") {
-      // Optionally remove query params from URL
-      navigate("/github-integration", { replace: true });
+    // Getters and Setters
+    public String getRepoOwner() {
+        return repoOwner;
     }
-    // Check session regardless of query params
-    checkSession();
-  }, [location, navigate]);
+    public void setRepoOwner(String repoOwner) {
+        this.repoOwner = repoOwner;
+    }
+    public String getRepoName() {
+        return repoName;
+    }
+    public void setRepoName(String repoName) {
+        this.repoName = repoName;
+    }
+    public String getBranch() {
+        return branch;
+    }
+    public void setBranch(String branch) {
+        this.branch = branch;
+    }
+    public String getFilePath() {
+        return filePath;
+    }
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
+    public String getContent() {
+        return content;
+    }
+    public void setContent(String content) {
+        this.content = content;
+    }
+    public boolean isCreateBranch() {
+        return createBranch;
+    }
+    public void setCreateBranch(boolean createBranch) {
+        this.createBranch = createBranch;
+    }
+}
 
-  // Handle form submission to push file
-  const handlePushFile = (e) => {
-    e.preventDefault();
-
-    // Encode JSON content to Base64
-    const encodedContent = btoa(jsonContent);
-
-    const payload = {
-      repoOwner,
-      repoName,
-      branch,
-      filePath,
-      content: encodedContent,
-    };
-
-    fetch("http://localhost:8080/api/push-json", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      credentials: "include", // Ensure session cookies are sent
-    })
-      .then((response) => response.text())
-      .then((data) => {
-        setStatusMessage(data);
-      })
-      .catch((error) => {
-        console.error("Error pushing file:", error);
-        setStatusMessage("Error pushing file.");
-      });
-  };
-
-  return (
-    <div>
-      <h1>GitHub Integration Page</h1>
-      {!isAuthenticated ? (
-        <div>
-          <p>You need to log in to GitHub first.</p>
-          <button onClick={() => (window.location.href = "http://localhost:8080/login/github")}>
-            Login with GitHub
-          </button>
-        </div>
-      ) : (
-        <div>
-          <p>✅ You are logged in to GitHub!</p>
-          <form onSubmit={handlePushFile}>
-            <div>
-              <label>Repo Owner:</label>
-              <input
-                type="text"
-                value={repoOwner}
-                onChange={(e) => setRepoOwner(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>Repo Name:</label>
-              <input
-                type="text"
-                value={repoName}
-                onChange={(e) => setRepoName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>Branch:</label>
-              <input
-                type="text"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>File Path:</label>
-              <input
-                type="text"
-                value={filePath}
-                onChange={(e) => setFilePath(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>JSON Content:</label>
-              <textarea
-                rows="5"
-                cols="50"
-                value={jsonContent}
-                onChange={(e) => setJsonContent(e.target.value)}
-                required
-              ></textarea>
-            </div>
-            <button type="submit">Push JSON File</button>
-          </form>
-          {statusMessage && <p>{statusMessage}</p>}
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default GitHubIntegrationPage;
