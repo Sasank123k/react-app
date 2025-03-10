@@ -1,159 +1,159 @@
-package com.example.githuboauthapp.service;
+import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
-import com.example.githuboauthapp.model.PushRequest;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.*;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+const GitHubIntegrationPage = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [repoOwner, setRepoOwner] = useState("");
+  const [repoName, setRepoName] = useState("");
+  const [branch, setBranch] = useState("main");
+  const [filePath, setFilePath] = useState("data/config.json");
+  const [jsonContent, setJsonContent] = useState('{ "key": "value" }');
+  const [createBranch, setCreateBranch] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
 
-import java.util.HashMap;
-import java.util.Map;
+  const navigate = useNavigate();
+  const location = useLocation();
 
-@Service
-public class GitHubPushRestService {
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    /**
-     * Pushes a JSON file to the specified GitHub repository and branch.
-     * If the branch does not exist and createBranch is true, it creates the branch
-     * using the repository's default branch as base.
-     */
-    public void pushJsonFile(PushRequest request, String userAccessToken) throws Exception {
-        RestTemplate restTemplate = new RestTemplate();
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "token " + userAccessToken);
-
-        String baseUrl = "https://api.github.com/repos/" + request.getRepoOwner() + "/" + request.getRepoName();
-        String branch = request.getBranch();
-
-        // 1. Check if the target branch exists.
-        String refUrl = baseUrl + "/git/ref/heads/" + branch;
-        ResponseEntity<String> branchResponse = null;
-        try {
-            branchResponse = restTemplate.exchange(refUrl, HttpMethod.GET, new HttpEntity<>(headers), String.class);
-        } catch (Exception e) {
-            // Exception indicates branch does not exist.
-            System.out.println("Branch " + branch + " does not exist.");
+  // Check session by calling backend /test-session endpoint
+  const checkSession = () => {
+    fetch("http://localhost:8080/test-session", { credentials: "include" })
+      .then((response) => response.text())
+      .then((data) => {
+        console.log("Session data:", data);
+        if (data.includes("Stored Token:") && !data.includes("null")) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
         }
+      })
+      .catch((error) => console.error("Error checking session:", error));
+  };
 
-        // 2. If branch doesn't exist and createBranch flag is true, create it.
-        if (branchResponse == null || branchResponse.getStatusCode() == HttpStatus.NOT_FOUND) {
-            if (request.isCreateBranch()) {
-                // Get repository details to determine default branch.
-                String repoUrl = baseUrl;
-                ResponseEntity<String> repoResponse = restTemplate.exchange(repoUrl, HttpMethod.GET, new HttpEntity<>(headers), String.class);
-                Map<String, Object> repoInfo = objectMapper.readValue(repoResponse.getBody(), HashMap.class);
-                String defaultBranch = (String) repoInfo.get("default_branch");
-                System.out.println("Default branch is: " + defaultBranch);
+  // Run session check on page load and when location changes
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("authenticated") === "true") {
+      // Clean the URL by removing the query param
+      navigate("/github-integration", { replace: true });
+    }
+    checkSession();
+  }, [location, navigate]);
 
-                // Get the commit SHA for the default branch.
-                String defaultRefUrl = baseUrl + "/git/ref/heads/" + defaultBranch;
-                ResponseEntity<String> defaultRefResponse = restTemplate.exchange(defaultRefUrl, HttpMethod.GET, new HttpEntity<>(headers), String.class);
-                Map<String, Object> defaultRef = objectMapper.readValue(defaultRefResponse.getBody(), HashMap.class);
-                Map<String, Object> objectMap = (Map<String, Object>) defaultRef.get("object");
-                String baseSha = (String) objectMap.get("sha");
+  // Initiate GitHub OAuth login (redirect to backend)
+  const handleLogin = () => {
+    window.location.href = "http://localhost:8080/login/github";
+  };
 
-                // Create new branch using the default branch's SHA.
-                String createRefUrl = baseUrl + "/git/refs";
-                Map<String, Object> newRefPayload = new HashMap<>();
-                newRefPayload.put("ref", "refs/heads/" + branch);
-                newRefPayload.put("sha", baseSha);
-                HttpEntity<String> createRefEntity = new HttpEntity<>(objectMapper.writeValueAsString(newRefPayload), headers);
-                ResponseEntity<String> createRefResponse = restTemplate.postForEntity(createRefUrl, createRefEntity, String.class);
-                if (!createRefResponse.getStatusCode().is2xxSuccessful()) {
-                    throw new RuntimeException("Failed to create branch: " + createRefResponse.getBody());
-                }
-                System.out.println("Branch " + branch + " created successfully.");
-            } else {
-                throw new RuntimeException("Branch " + branch + " does not exist and createBranch flag is false.");
-            }
-        }
+  // Handle the form submission to push the JSON file
+  const handlePushFile = (e) => {
+    e.preventDefault();
 
-        // 3. Check if the file exists to get its SHA (for update) on the target branch.
-        String fileUrl = baseUrl + "/contents/" + request.getFilePath();
-        String sha = null;
-        try {
-            ResponseEntity<String> getResponse = restTemplate.exchange(
-                    fileUrl + "?ref=" + branch,
-                    HttpMethod.GET,
-                    new HttpEntity<>(headers),
-                    String.class);
-            Map<String, Object> fileInfo = objectMapper.readValue(getResponse.getBody(), HashMap.class);
-            sha = (String) fileInfo.get("sha");
-            System.out.println("Existing file SHA: " + sha);
-        } catch (Exception ex) {
-            System.out.println("File not found; will create new file.");
-        }
+    // Base64-encode the JSON content (required by GitHub API)
+    const encodedContent = btoa(jsonContent);
 
-        // 4. Build the payload to create/update the file.
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("message", "Update JSON file via REST API");
-        requestBody.put("content", request.getContent());  // Already Base64 encoded JSON content.
-        requestBody.put("branch", branch);
-        if (sha != null) {
-            requestBody.put("sha", sha);
-        }
+    const payload = {
+      repoOwner,
+      repoName,
+      branch,
+      filePath,
+      content: encodedContent,
+      createBranch, // boolean flag for branch creation
+    };
 
-        HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
-        ResponseEntity<String> pushResponse = restTemplate.exchange(fileUrl, HttpMethod.PUT, entity, String.class);
-        if (!pushResponse.getStatusCode().is2xxSuccessful()) {
-            throw new RuntimeException("Failed to push file: " + pushResponse.getBody());
-        }
-        System.out.println("File pushed successfully.");
-    }
-}
+    fetch("http://localhost:8080/api/push-json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include", // include cookies for session
+    })
+      .then((response) => response.text())
+      .then((data) => {
+        setStatusMessage(data);
+      })
+      .catch((error) => {
+        console.error("Error pushing file:", error);
+        setStatusMessage("Error pushing file.");
+      });
+  };
 
+  return (
+    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+      <h1>GitHub Integration Page</h1>
+      {!isAuthenticated ? (
+        <div>
+          <p>You need to log in to GitHub first.</p>
+          <button onClick={handleLogin}>Login with GitHub</button>
+        </div>
+      ) : (
+        <div>
+          <p style={{ color: "green" }}>✅ You are logged in to GitHub!</p>
+          <form onSubmit={handlePushFile}>
+            <div>
+              <label>Repo Owner:</label>
+              <input
+                type="text"
+                value={repoOwner}
+                onChange={(e) => setRepoOwner(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>Repo Name:</label>
+              <input
+                type="text"
+                value={repoName}
+                onChange={(e) => setRepoName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>Branch:</label>
+              <input
+                type="text"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>File Path:</label>
+              <input
+                type="text"
+                value={filePath}
+                onChange={(e) => setFilePath(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>JSON Content:</label>
+              <textarea
+                rows="5"
+                cols="50"
+                value={jsonContent}
+                onChange={(e) => setJsonContent(e.target.value)}
+                required
+              ></textarea>
+            </div>
+            <div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={createBranch}
+                  onChange={(e) => setCreateBranch(e.target.checked)}
+                />
+                {"  "}Create branch if it does not exist
+              </label>
+            </div>
+            <br />
+            <button type="submit">Push JSON File</button>
+          </form>
+          {statusMessage && (
+            <p style={{ marginTop: "10px" }}>{statusMessage}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
-
-package com.example.githuboauthapp.model;
-
-public class PushRequest {
-    private String repoOwner;
-    private String repoName;
-    private String branch;
-    private String filePath;
-    private String content;  // Base64 encoded JSON content
-    private boolean createBranch; // If true, create branch if it doesn't exist
-
-    // Getters and Setters
-    public String getRepoOwner() {
-        return repoOwner;
-    }
-    public void setRepoOwner(String repoOwner) {
-        this.repoOwner = repoOwner;
-    }
-    public String getRepoName() {
-        return repoName;
-    }
-    public void setRepoName(String repoName) {
-        this.repoName = repoName;
-    }
-    public String getBranch() {
-        return branch;
-    }
-    public void setBranch(String branch) {
-        this.branch = branch;
-    }
-    public String getFilePath() {
-        return filePath;
-    }
-    public void setFilePath(String filePath) {
-        this.filePath = filePath;
-    }
-    public String getContent() {
-        return content;
-    }
-    public void setContent(String content) {
-        this.content = content;
-    }
-    public boolean isCreateBranch() {
-        return createBranch;
-    }
-    public void setCreateBranch(boolean createBranch) {
-        this.createBranch = createBranch;
-    }
-}
-
+export default GitHubIntegrationPage;
