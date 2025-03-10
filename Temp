@@ -1,21 +1,213 @@
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+package com.example.githuboauthapp.controller;
 
-@Configuration
-public class CorsConfig {
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.client.RestTemplate;
 
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**") // Allow all paths
-                        .allowedOrigins("http://localhost:3000") // Allow frontend URL
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Allow necessary HTTP methods
-                        .allowCredentials(true); // Allow cookies/session handling
-            }
-        };
+import java.io.IOException;
+import java.util.Collections;
+
+@Controller
+public class OAuthCallbackController {
+
+    @Value("${github.client.id}")
+    private String clientId;
+
+    @Value("${github.client.secret}")
+    private String clientSecret;
+
+    @Value("${github.redirect.uri}")
+    private String redirectUri;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @GetMapping("/oauth/callback")
+    public void githubCallback(@RequestParam("code") String code,
+                               HttpSession session,
+                               HttpServletRequest request,
+                               HttpServletResponse response) throws IOException {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String tokenUrl = "https://github.com/login/oauth/access_token";
+
+            String requestBody = "client_id=" + clientId +
+                                 "&client_secret=" + clientSecret +
+                                 "&code=" + code +
+                                 "&redirect_uri=" + redirectUri;
+
+            // Set headers for form submission
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED);
+            headers.setAccept(Collections.singletonList(org.springframework.http.MediaType.APPLICATION_JSON));
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            // Exchange code for access token
+            String tokenResponse = restTemplate.postForObject(tokenUrl, entity, String.class);
+            JsonNode jsonNode = objectMapper.readTree(tokenResponse);
+            String accessToken = jsonNode.get("access_token").asText();
+
+            // Log and store the token in session
+            System.out.println("Obtained access token: " + accessToken);
+            session.setAttribute("githubAccessToken", accessToken);
+
+            // Redirect the user directly to the frontend GitHub Integration page.
+            response.sendRedirect("http://localhost:3000/github-integration?authenticated=true");
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.sendRedirect("http://localhost:3000/github-integration?error=authentication_failed");
+        }
     }
 }
+
+
+import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+
+const GitHubIntegrationPage = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [repoOwner, setRepoOwner] = useState("");
+  const [repoName, setRepoName] = useState("");
+  const [branch, setBranch] = useState("main");
+  const [filePath, setFilePath] = useState("data/config.json");
+  const [jsonContent, setJsonContent] = useState('{ "key": "value" }');
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Function to check session by calling the backend test endpoint
+  const checkSession = () => {
+    fetch("http://localhost:8080/test-session", { credentials: "include" })
+      .then((response) => response.text())
+      .then((data) => {
+        console.log("Session data:", data);
+        if (data.includes("Stored Token:") && !data.includes("null")) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      })
+      .catch((error) =>
+        console.error("Error checking session in GitHubIntegrationPage:", error)
+      );
+  };
+
+  useEffect(() => {
+    // Check if URL query parameter "authenticated" is set
+    const params = new URLSearchParams(location.search);
+    if (params.get("authenticated") === "true") {
+      // Optionally remove query params from URL
+      navigate("/github-integration", { replace: true });
+    }
+    // Check session regardless of query params
+    checkSession();
+  }, [location, navigate]);
+
+  // Handle form submission to push file
+  const handlePushFile = (e) => {
+    e.preventDefault();
+
+    // Encode JSON content to Base64
+    const encodedContent = btoa(jsonContent);
+
+    const payload = {
+      repoOwner,
+      repoName,
+      branch,
+      filePath,
+      content: encodedContent,
+    };
+
+    fetch("http://localhost:8080/api/push-json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include", // Ensure session cookies are sent
+    })
+      .then((response) => response.text())
+      .then((data) => {
+        setStatusMessage(data);
+      })
+      .catch((error) => {
+        console.error("Error pushing file:", error);
+        setStatusMessage("Error pushing file.");
+      });
+  };
+
+  return (
+    <div>
+      <h1>GitHub Integration Page</h1>
+      {!isAuthenticated ? (
+        <div>
+          <p>You need to log in to GitHub first.</p>
+          <button onClick={() => (window.location.href = "http://localhost:8080/login/github")}>
+            Login with GitHub
+          </button>
+        </div>
+      ) : (
+        <div>
+          <p>✅ You are logged in to GitHub!</p>
+          <form onSubmit={handlePushFile}>
+            <div>
+              <label>Repo Owner:</label>
+              <input
+                type="text"
+                value={repoOwner}
+                onChange={(e) => setRepoOwner(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>Repo Name:</label>
+              <input
+                type="text"
+                value={repoName}
+                onChange={(e) => setRepoName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>Branch:</label>
+              <input
+                type="text"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>File Path:</label>
+              <input
+                type="text"
+                value={filePath}
+                onChange={(e) => setFilePath(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label>JSON Content:</label>
+              <textarea
+                rows="5"
+                cols="50"
+                value={jsonContent}
+                onChange={(e) => setJsonContent(e.target.value)}
+                required
+              ></textarea>
+            </div>
+            <button type="submit">Push JSON File</button>
+          </form>
+          {statusMessage && <p>{statusMessage}</p>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default GitHubIntegrationPage;
