@@ -1,159 +1,303 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { generateSearHeader } from '@wf/react-library';
+import { useAppGlobalState } from '../../util/Constant';
 
-const GitHubIntegrationPage = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [repoOwner, setRepoOwner] = useState("");
-  const [repoName, setRepoName] = useState("");
-  const [branch, setBranch] = useState("main");
-  const [filePath, setFilePath] = useState("data/config.json");
-  const [jsonContent, setJsonContent] = useState('{ "key": "value" }');
-  const [createBranch, setCreateBranch] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
+const MICRO_SERVICE_URL = 'your-microservice-url-here'; // Replace with your backend URL
 
-  const navigate = useNavigate();
-  const location = useLocation();
+const GitOperationForm = () => {
+  const appGlobalState = useAppGlobalState();
 
-  // Check session by calling backend /test-session endpoint
-  const checkSession = () => {
-    fetch("http://localhost:8080/test-session", { credentials: "include" })
-      .then((response) => response.text())
-      .then((data) => {
-        console.log("Session data:", data);
-        if (data.includes("Stored Token:") && !data.includes("null")) {
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
-      })
-      .catch((error) => console.error("Error checking session:", error));
-  };
+  // For repository selection from backend
+  const [repositories, setRepositories] = useState([]);
+  const [selectedRepo, setSelectedRepo] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState('');
+  
+  // Option to manually enter repository details
+  const [manualRepo, setManualRepo] = useState(false);
+  const [manualOwner, setManualOwner] = useState('');
+  const [manualRepoName, setManualRepoName] = useState('');
+  const [manualBaseBranch, setManualBaseBranch] = useState('');
+  const [manualBaseSha, setManualBaseSha] = useState('');
+  
+  // Git operation details (applies in both cases)
+  const [newBranchName, setNewBranchName] = useState('');
+  const [baseSha, setBaseSha] = useState(''); // if not using manual entry, user can type in the base commit SHA
+  const [filePath, setFilePath] = useState('');
+  const [commitMessage, setCommitMessage] = useState('');
+  const [fileContent, setFileContent] = useState('');
+  
+  // Loading and messaging states
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Run session check on page load and when location changes
+  // Fetch repositories if not using manual entry
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get("authenticated") === "true") {
-      // Clean the URL by removing the query param
-      navigate("/github-integration", { replace: true });
+    if (!manualRepo) {
+      axios.get(`${MICRO_SERVICE_URL}/ghe/repositories`, {
+        headers: generateSearHeader(appGlobalState),
+        withCredentials: true,
+      })
+      .then(response => {
+        setRepositories(response.data);
+      })
+      .catch(err => {
+        setError(err.response ? err.response.data : err.message);
+      });
     }
-    checkSession();
-  }, [location, navigate]);
+  }, [manualRepo, appGlobalState]);
 
-  // Initiate GitHub OAuth login (redirect to backend)
-  const handleLogin = () => {
-    window.location.href = "http://localhost:8080/login/github";
+  // Fetch branches when a repository is selected (only if not manual)
+  useEffect(() => {
+    if (!manualRepo && selectedRepo) {
+      axios.get(`${MICRO_SERVICE_URL}/ghe/branches`, {
+        params: {
+          owner: selectedRepo.owner,
+          repo: selectedRepo.name,
+        },
+        headers: generateSearHeader(appGlobalState),
+        withCredentials: true,
+      })
+      .then(response => {
+        setBranches(response.data);
+      })
+      .catch(err => {
+        setError(err.response ? err.response.data : err.message);
+      });
+    }
+  }, [selectedRepo, manualRepo, appGlobalState]);
+
+  // Handler for repository dropdown change
+  const handleRepoChange = (e) => {
+    const repoName = e.target.value;
+    const repo = repositories.find((r) => r.name === repoName);
+    setSelectedRepo(repo);
+    setSelectedBranch('');
+    setBranches([]);
   };
 
-  // Handle the form submission to push the JSON file
-  const handlePushFile = (e) => {
+  // Submit handler performing sequential operations: create branch then push file
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
 
-    // Base64-encode the JSON content (required by GitHub API)
-    const encodedContent = btoa(jsonContent);
+    // Determine repository and base branch details based on manual toggle
+    let owner, repoName, baseBranchName, baseCommitSha;
+    if (manualRepo) {
+      owner = manualOwner;
+      repoName = manualRepoName;
+      baseBranchName = manualBaseBranch; // This could be used as reference if needed
+      baseCommitSha = manualBaseSha;
+    } else {
+      if (!selectedRepo || !selectedBranch) {
+        setError('Please select a repository and branch.');
+        setLoading(false);
+        return;
+      }
+      owner = selectedRepo.owner;
+      repoName = selectedRepo.name;
+      baseBranchName = selectedBranch;
+      baseCommitSha = baseSha; // User should input the base commit SHA manually
+    }
 
-    const payload = {
-      repoOwner,
-      repoName,
-      branch,
-      filePath,
-      content: encodedContent,
-      createBranch, // boolean flag for branch creation
-    };
+    // First, create a new branch using the provided new branch name and base commit SHA.
+    try {
+      const createBranchPayload = {
+        operation: 'createBranch',
+        owner: owner,
+        repo: repoName,
+        newBranch: newBranchName,
+        baseSha: baseCommitSha,
+      };
+      
+      const createBranchResponse = await axios.post(
+        `${MICRO_SERVICE_URL}/ghe/operation`,
+        createBranchPayload,
+        {
+          headers: generateSearHeader(appGlobalState),
+          withCredentials: true,
+        }
+      );
+      
+      console.log('Create Branch Response:', createBranchResponse.data);
+    } catch (err) {
+      setError('Error creating branch: ' + (err.response ? err.response.data : err.message));
+      setLoading(false);
+      return;
+    }
 
-    fetch("http://localhost:8080/api/push-json", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      credentials: "include", // include cookies for session
-    })
-      .then((response) => response.text())
-      .then((data) => {
-        setStatusMessage(data);
-      })
-      .catch((error) => {
-        console.error("Error pushing file:", error);
-        setStatusMessage("Error pushing file.");
-      });
+    // Next, push the file (add file) to the new branch.
+    try {
+      const addFilePayload = {
+        operation: 'addFile',
+        owner: owner,
+        repo: repoName,
+        filePath: filePath,
+        commitMessage: commitMessage,
+        content: fileContent,
+        // fileSha is not required for adding a new file
+      };
+      
+      const addFileResponse = await axios.post(
+        `${MICRO_SERVICE_URL}/ghe/operation`,
+        addFilePayload,
+        {
+          headers: generateSearHeader(appGlobalState),
+          withCredentials: true,
+        }
+      );
+      
+      console.log('Add File Response:', addFileResponse.data);
+      setSuccess('Git operations completed successfully.');
+    } catch (err) {
+      setError('Error pushing file: ' + (err.response ? err.response.data : err.message));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-      <h1>GitHub Integration Page</h1>
-      {!isAuthenticated ? (
+    <div className="git-operation-form">
+      <h2>Perform Git Operation</h2>
+      {error && <div className="error-msg">{error}</div>}
+      {success && <div className="success-msg">{success}</div>}
+      <form onSubmit={handleSubmit}>
         <div>
-          <p>You need to log in to GitHub first.</p>
-          <button onClick={handleLogin}>Login with GitHub</button>
+          <label>
+            <input
+              type="checkbox"
+              checked={manualRepo}
+              onChange={(e) => setManualRepo(e.target.checked)}
+            />
+            Enter repository details manually
+          </label>
         </div>
-      ) : (
+
+        {!manualRepo ? (
+          <div>
+            <div>
+              <label>Repository:</label>
+              <select value={selectedRepo ? selectedRepo.name : ''} onChange={handleRepoChange}>
+                <option value="">-- Select Repository --</option>
+                {repositories.map((repo) => (
+                  <option key={repo.name} value={repo.name}>
+                    {repo.name} ({repo.owner})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedRepo && branches.length > 0 && (
+              <div>
+                <label>Base Branch:</label>
+                <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+                  <option value="">-- Select Branch --</option>
+                  {branches.map((branch) => (
+                    <option key={branch} value={branch}>
+                      {branch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {/* Field for base commit SHA (since the branch API currently only returns branch names) */}
+            <div>
+              <label>Base Commit SHA:</label>
+              <input
+                type="text"
+                value={baseSha}
+                onChange={(e) => setBaseSha(e.target.value)}
+                placeholder="Enter base commit SHA"
+              />
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div>
+              <label>Repository Owner:</label>
+              <input
+                type="text"
+                value={manualOwner}
+                onChange={(e) => setManualOwner(e.target.value)}
+                placeholder="Enter owner"
+              />
+            </div>
+            <div>
+              <label>Repository Name:</label>
+              <input
+                type="text"
+                value={manualRepoName}
+                onChange={(e) => setManualRepoName(e.target.value)}
+                placeholder="Enter repository name"
+              />
+            </div>
+            <div>
+              <label>Base Branch:</label>
+              <input
+                type="text"
+                value={manualBaseBranch}
+                onChange={(e) => setManualBaseBranch(e.target.value)}
+                placeholder="Enter base branch name"
+              />
+            </div>
+            <div>
+              <label>Base Commit SHA:</label>
+              <input
+                type="text"
+                value={manualBaseSha}
+                onChange={(e) => setManualBaseSha(e.target.value)}
+                placeholder="Enter base commit SHA"
+              />
+            </div>
+          </div>
+        )}
+
         <div>
-          <p style={{ color: "green" }}>✅ You are logged in to GitHub!</p>
-          <form onSubmit={handlePushFile}>
-            <div>
-              <label>Repo Owner:</label>
-              <input
-                type="text"
-                value={repoOwner}
-                onChange={(e) => setRepoOwner(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>Repo Name:</label>
-              <input
-                type="text"
-                value={repoName}
-                onChange={(e) => setRepoName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>Branch:</label>
-              <input
-                type="text"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>File Path:</label>
-              <input
-                type="text"
-                value={filePath}
-                onChange={(e) => setFilePath(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label>JSON Content:</label>
-              <textarea
-                rows="5"
-                cols="50"
-                value={jsonContent}
-                onChange={(e) => setJsonContent(e.target.value)}
-                required
-              ></textarea>
-            </div>
-            <div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={createBranch}
-                  onChange={(e) => setCreateBranch(e.target.checked)}
-                />
-                {"  "}Create branch if it does not exist
-              </label>
-            </div>
-            <br />
-            <button type="submit">Push JSON File</button>
-          </form>
-          {statusMessage && (
-            <p style={{ marginTop: "10px" }}>{statusMessage}</p>
-          )}
+          <label>New Branch Name:</label>
+          <input
+            type="text"
+            value={newBranchName}
+            onChange={(e) => setNewBranchName(e.target.value)}
+            placeholder="Enter new branch name"
+          />
         </div>
-      )}
+        <div>
+          <label>File Path:</label>
+          <input
+            type="text"
+            value={filePath}
+            onChange={(e) => setFilePath(e.target.value)}
+            placeholder="e.g., path/to/file.json"
+          />
+        </div>
+        <div>
+          <label>Commit Message:</label>
+          <input
+            type="text"
+            value={commitMessage}
+            onChange={(e) => setCommitMessage(e.target.value)}
+            placeholder="Enter commit message"
+          />
+        </div>
+        <div>
+          <label>File Content (Base64 Encoded):</label>
+          <textarea
+            value={fileContent}
+            onChange={(e) => setFileContent(e.target.value)}
+            placeholder="Enter file content"
+          />
+        </div>
+        <div>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Processing...' : 'Submit Git Operation'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
 
-export default GitHubIntegrationPage;
+export default GitOperationForm;
