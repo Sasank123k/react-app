@@ -8,26 +8,29 @@ const MICRO_SERVICE_URL = 'your-microservice-url-here'; // Replace with your bac
 const GitOperationForm = () => {
   const appGlobalState = useAppGlobalState();
 
-  // For repository selection from backend
+  // For repository selection (non-manual)
   const [repositories, setRepositories] = useState([]);
   const [selectedRepo, setSelectedRepo] = useState(null);
+  // For branch selection – now expecting objects with { name, commitSha }
   const [branches, setBranches] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState('');
-  
+  // Base commit SHA will now be set automatically when a branch is selected
+  const [baseSha, setBaseSha] = useState('');
+
   // Option to manually enter repository details
   const [manualRepo, setManualRepo] = useState(false);
   const [manualOwner, setManualOwner] = useState('');
   const [manualRepoName, setManualRepoName] = useState('');
+  // For manual entry, we still allow entering branch and base SHA manually
   const [manualBaseBranch, setManualBaseBranch] = useState('');
   const [manualBaseSha, setManualBaseSha] = useState('');
-  
+
   // Git operation details (applies in both cases)
   const [newBranchName, setNewBranchName] = useState('');
-  const [baseSha, setBaseSha] = useState(''); // if not using manual entry, user can type in the base commit SHA
   const [filePath, setFilePath] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
   const [fileContent, setFileContent] = useState('');
-  
+
   // Loading and messaging states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -61,6 +64,7 @@ const GitOperationForm = () => {
         withCredentials: true,
       })
       .then(response => {
+        // Expecting response.data to be an array of branch objects: { name, commitSha }
         setBranches(response.data);
       })
       .catch(err => {
@@ -76,6 +80,20 @@ const GitOperationForm = () => {
     setSelectedRepo(repo);
     setSelectedBranch('');
     setBranches([]);
+    setBaseSha(''); // clear previous base SHA
+  };
+
+  // Handler for branch dropdown change; now also auto-set the base commit SHA
+  const handleBranchChange = (e) => {
+    const branchName = e.target.value;
+    setSelectedBranch(branchName);
+    // Find the branch object and set its commitSha as baseSha
+    const branchObj = branches.find(b => b.name === branchName);
+    if (branchObj && branchObj.commitSha) {
+      setBaseSha(branchObj.commitSha);
+    } else {
+      setBaseSha('');
+    }
   };
 
   // Submit handler performing sequential operations: create branch then push file
@@ -85,12 +103,12 @@ const GitOperationForm = () => {
     setSuccess('');
     setLoading(true);
 
-    // Determine repository and base branch details based on manual toggle
+    // Determine repository details based on manual toggle
     let owner, repoName, baseBranchName, baseCommitSha;
     if (manualRepo) {
       owner = manualOwner;
       repoName = manualRepoName;
-      baseBranchName = manualBaseBranch; // This could be used as reference if needed
+      baseBranchName = manualBaseBranch;
       baseCommitSha = manualBaseSha;
     } else {
       if (!selectedRepo || !selectedBranch) {
@@ -101,7 +119,7 @@ const GitOperationForm = () => {
       owner = selectedRepo.owner;
       repoName = selectedRepo.name;
       baseBranchName = selectedBranch;
-      baseCommitSha = baseSha; // User should input the base commit SHA manually
+      baseCommitSha = baseSha;
     }
 
     // First, create a new branch using the provided new branch name and base commit SHA.
@@ -193,26 +211,21 @@ const GitOperationForm = () => {
             {selectedRepo && branches.length > 0 && (
               <div>
                 <label>Base Branch:</label>
-                <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+                <select value={selectedBranch} onChange={handleBranchChange}>
                   <option value="">-- Select Branch --</option>
                   {branches.map((branch) => (
-                    <option key={branch} value={branch}>
-                      {branch}
+                    <option key={branch.name} value={branch.name}>
+                      {branch.name}
                     </option>
                   ))}
                 </select>
               </div>
             )}
-            {/* Field for base commit SHA (since the branch API currently only returns branch names) */}
-            <div>
-              <label>Base Commit SHA:</label>
-              <input
-                type="text"
-                value={baseSha}
-                onChange={(e) => setBaseSha(e.target.value)}
-                placeholder="Enter base commit SHA"
-              />
-            </div>
+            {selectedBranch && baseSha && (
+              <div>
+                <strong>Base Commit SHA:</strong> {baseSha}
+              </div>
+            )}
           </div>
         ) : (
           <div>
