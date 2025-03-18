@@ -1,126 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 
-// Correct import paths based on project structure
+// Import authentication and constants
 import { generateSearHeader } from '../../../Authentication';
 import { useAppGlobalState } from '@wf/react-library';
 import MICROSERVICE_URL from '../../../util/constant';
 
-const RepoBranchSelectorWithManualPush = ({ onSelect }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [repositories, setRepositories] = useState([]);
-  const [selectedRepo, setSelectedRepo] = useState(null);
-  const [branches, setBranches] = useState([]);
-  const [selectedBranch, setSelectedBranch] = useState('');
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [loadingBranches, setLoadingBranches] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-
-  // Manual file push states
-  const [manualRepo, setManualRepo] = useState('');
-  const [manualBranch, setManualBranch] = useState('');
+const RepoBranchSelectorWithManualPush = () => {
+  // Form state
+  const [owner, setOwner] = useState('');
+  const [repo, setRepo] = useState('');
+  const [branch, setBranch] = useState('');
   const [filePath, setFilePath] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
   const [fileContent, setFileContent] = useState('');
 
+  // UI state
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
   const appGlobalState = useAppGlobalState();
 
-  // Fetch repositories on mount
-  useEffect(() => {
-    const fetchRepositories = async () => {
-      setLoadingRepos(true);
-      try {
-        const response = await axios.get(`${MICROSERVICE_URL}/ghe/repositories`, {
-          headers: generateSearHeader(appGlobalState),
-          withCredentials: true, // Ensures session cookies are sent
-        });
-        setRepositories(response.data);
-        setIsAuthenticated(true);
-      } catch (err) {
-        if (err.response && err.response.status === 401) {
-          setIsAuthenticated(false);
-        } else {
-          setError(err.response ? err.response.data : err.message);
-        }
-      } finally {
-        setLoadingRepos(false);
-      }
-    };
-
-    fetchRepositories();
-  }, [appGlobalState]);
-
-  // Fetch branches when a repository is selected
-  useEffect(() => {
-    const fetchBranches = async () => {
-      setLoadingBranches(true);
-      try {
-        const response = await axios.get(`${MICROSERVICE_URL}/ghe/branches`, {
-          params: {
-            owner: selectedRepo.owner,
-            repo: selectedRepo.name,
-          },
-          headers: generateSearHeader(appGlobalState),
-          withCredentials: true,
-        });
-        setBranches(response.data);
-      } catch (err) {
-        setError(err.response ? err.response.data : err.message);
-      } finally {
-        setLoadingBranches(false);
-      }
-    };
-
-    if (selectedRepo) {
-      fetchBranches();
-    }
-  }, [selectedRepo, appGlobalState]);
-
-  // Handler for repository selection changes
-  const handleRepoChange = (e) => {
-    const repoName = e.target.value;
-    const repo = repositories.find((r) => r.name === repoName);
-    setSelectedRepo(repo);
-    setSelectedBranch('');
-    setBranches([]);
-  };
-
-  // Handler for branch selection changes
-  const handleBranchChange = (e) => {
-    setSelectedBranch(e.target.value);
-  };
-
-  // Proceed callback with selected repository and branch
-  const handleProceed = () => {
-    if (onSelect && selectedRepo && selectedBranch) {
-      onSelect({ repository: selectedRepo, branch: selectedBranch });
-    }
-  };
-
-  // Initiates GitHub login by redirecting to the backend auth endpoint
-  const handleLogin = () => {
-    window.location.href = `${MICROSERVICE_URL}/ghe/auth`;
-  };
-
-  // Function to push file manually
-  const handleManualPush = async () => {
+  // Function to push the file
+  const handlePushFile = async () => {
     setError(null);
     setSuccess(null);
+    setLoading(true);
 
-    if (!manualRepo || !manualBranch || !filePath || !commitMessage || !fileContent) {
-      setError("Please fill in all fields before pushing the file.");
+    if (!owner || !repo || !branch || !filePath || !commitMessage || !fileContent) {
+      setError('Please fill in all fields.');
+      setLoading(false);
       return;
     }
 
     try {
       const payload = {
         operation: 'addFile',
-        owner: manualRepo.split('/')[0], // Assuming "owner/repo"
-        repo: manualRepo.split('/')[1],
+        owner: owner,
+        repo: repo,
         filePath: filePath,
         commitMessage: commitMessage,
-        content: btoa(fileContent), // Convert to Base64
+        content: btoa(fileContent), // Convert to Base64 for GitHub API
       };
 
       const response = await axios.post(`${MICROSERVICE_URL}/ghe/operation`, payload, {
@@ -128,84 +49,53 @@ const RepoBranchSelectorWithManualPush = ({ onSelect }) => {
         withCredentials: true,
       });
 
-      setSuccess(`File successfully pushed to ${manualRepo}/${manualBranch}`);
+      setSuccess(`File successfully pushed to ${repo}/${branch}.`);
     } catch (err) {
       setError(`Error pushing file: ${err.response ? err.response.data : err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (isAuthenticated === false) {
-    return (
-      <div className="repo-branch-card">
-        <h2 className="repo-branch-title">Authentication Required</h2>
-        <p>Please log in with GitHub to view repositories.</p>
-        <div className="repo-branch-button-group">
-          <button className="repo-branch-button" onClick={handleLogin}>
-            Login with GitHub
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="repo-branch-card">
-      <h2 className="repo-branch-title">Select Repository and Branch</h2>
+      <h2 className="repo-branch-title">Push a File to an Existing Branch</h2>
       {error && <div className="repo-branch-error">{error}</div>}
       {success && <div className="repo-branch-success">{success}</div>}
-      
-      {/* Existing Repo Selection */}
+
       <div className="repo-branch-form-group">
-        <label className="repo-branch-label" htmlFor="repositorySelect">Repository:</label>
-        <select id="repositorySelect" className="repo-branch-select" value={selectedRepo ? selectedRepo.name : ''} onChange={handleRepoChange}>
-          <option value="">-- Select Repository --</option>
-          {repositories.map((repo) => (
-            <option key={repo.name} value={repo.name}>{repo.name} ({repo.owner})</option>
-          ))}
-        </select>
+        <label>Owner Name:</label>
+        <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Enter owner name" />
       </div>
 
-      {selectedRepo && (
-        <div className="repo-branch-form-group">
-          <label className="repo-branch-label" htmlFor="branchSelect">Branch:</label>
-          <select id="branchSelect" className="repo-branch-select" value={selectedBranch} onChange={handleBranchChange}>
-            <option value="">-- Select Branch --</option>
-            {branches.map((branch) => (
-              <option key={branch} value={branch}>{branch}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {selectedRepo && selectedBranch && (
-        <button className="repo-branch-button" onClick={handleProceed}>
-          Proceed with {selectedRepo.name} - {selectedBranch}
-        </button>
-      )}
-
-      {/* New Manual Push Section */}
-      <h2 className="repo-branch-title">Manually Push a File</h2>
       <div className="repo-branch-form-group">
-        <label>Repository (owner/repo):</label>
-        <input type="text" value={manualRepo} onChange={(e) => setManualRepo(e.target.value)} placeholder="e.g., user/repo-name" />
+        <label>Repository Name:</label>
+        <input type="text" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="Enter repository name" />
       </div>
+
       <div className="repo-branch-form-group">
-        <label>Branch:</label>
-        <input type="text" value={manualBranch} onChange={(e) => setManualBranch(e.target.value)} placeholder="Enter branch name" />
+        <label>Branch Name:</label>
+        <input type="text" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Enter branch name" />
       </div>
+
       <div className="repo-branch-form-group">
         <label>File Path:</label>
         <input type="text" value={filePath} onChange={(e) => setFilePath(e.target.value)} placeholder="e.g., src/data.json" />
       </div>
+
       <div className="repo-branch-form-group">
         <label>Commit Message:</label>
-        <input type="text" value={commitMessage} onChange={(e) => setCommitMessage(e.target.value)} placeholder="Commit message" />
+        <input type="text" value={commitMessage} onChange={(e) => setCommitMessage(e.target.value)} placeholder="Enter commit message" />
       </div>
+
       <div className="repo-branch-form-group">
         <label>File Content:</label>
-        <textarea value={fileContent} onChange={(e) => setFileContent(e.target.value)} placeholder="Enter file content" />
+        <textarea value={fileContent} onChange={(e) => setFileContent(e.target.value)} placeholder="Enter file content"></textarea>
       </div>
-      <button className="repo-branch-button" onClick={handleManualPush}>Push File</button>
+
+      <button className="repo-branch-button" onClick={handlePushFile} disabled={loading}>
+        {loading ? 'Pushing...' : 'Push File'}
+      </button>
     </div>
   );
 };
