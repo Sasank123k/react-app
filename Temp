@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-// Import paths updated as per your project (using '../../../Authentication' for generateSearHeader)
-// and MICROSERVICE_URL and useAppGlobalState from the constant module.
+// Import paths updated according to your project structure
 import { generateSearHeader } from '../../../Authentication';
 import { useAppGlobalState } from '@wf/react-library';
 import MICROSERVICE_URL from '../../../util/constant';
 
 const NewBranchCreator = () => {
-  // State for authentication and repository/branch dropdowns
+  // Toggle for manual entry mode
+  const [manualEntry, setManualEntry] = useState(false);
+
+  // States for dropdown mode (when manualEntry is false)
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [repositories, setRepositories] = useState([]);
   const [selectedRepo, setSelectedRepo] = useState(null);
@@ -17,7 +19,12 @@ const NewBranchCreator = () => {
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [loadingBranches, setLoadingBranches] = useState(false);
 
-  // State for new branch and file push details
+  // States for manual entry fields (when manualEntry is true)
+  const [manualOwner, setManualOwner] = useState('');
+  const [manualRepo, setManualRepo] = useState('');
+  const [manualBaseBranch, setManualBaseBranch] = useState('');
+
+  // States for new branch and file push details
   const [newBranch, setNewBranch] = useState('');
   const [filePath, setFilePath] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
@@ -30,8 +37,9 @@ const NewBranchCreator = () => {
 
   const appGlobalState = useAppGlobalState();
 
-  // Fetch repositories on mount
+  // Fetch repositories only if manualEntry is false
   useEffect(() => {
+    if (manualEntry) return;
     const fetchRepositories = async () => {
       setLoadingRepos(true);
       try {
@@ -52,10 +60,11 @@ const NewBranchCreator = () => {
       }
     };
     fetchRepositories();
-  }, [appGlobalState]);
+  }, [appGlobalState, manualEntry]);
 
-  // When a repository is selected, fetch its branches
+  // Fetch branches when a repository is selected (in dropdown mode)
   useEffect(() => {
+    if (manualEntry) return;
     const fetchBranches = async () => {
       setLoadingBranches(true);
       try {
@@ -77,9 +86,9 @@ const NewBranchCreator = () => {
     if (selectedRepo) {
       fetchBranches();
     }
-  }, [selectedRepo, appGlobalState]);
+  }, [selectedRepo, appGlobalState, manualEntry]);
 
-  // Handlers for dropdowns
+  // Handler for repository selection (dropdown mode)
   const handleRepoChange = (e) => {
     const repoName = e.target.value;
     const repo = repositories.find((r) => r.name === repoName);
@@ -88,29 +97,57 @@ const NewBranchCreator = () => {
     setBranches([]);
   };
 
+  // Handler for branch selection (dropdown mode)
   const handleBranchChange = (e) => {
     setSelectedBranch(e.target.value);
   };
 
-  // On form submit, create the new branch then push the file
+  // Toggle between dropdown and manual entry modes
+  const handleManualToggle = () => {
+    setManualEntry(!manualEntry);
+    // Reset fields when toggling
+    setSelectedRepo(null);
+    setSelectedBranch('');
+    setRepositories([]);
+    setBranches([]);
+    setManualOwner('');
+    setManualRepo('');
+    setManualBaseBranch('');
+  };
+
+  // On form submit: create branch and then push file
   const handleSubmit = async () => {
     setError(null);
     setSuccess(null);
-    if (!selectedRepo || !selectedBranch || !newBranch || !filePath || !commitMessage || !fileContent) {
-      setError('Please fill in all fields.');
-      return;
+    let owner, repoName, baseBranch;
+    if (manualEntry) {
+      if (!manualOwner || !manualRepo || !manualBaseBranch || !newBranch || !filePath || !commitMessage || !fileContent) {
+        setError('Please fill in all fields.');
+        return;
+      }
+      owner = manualOwner;
+      repoName = manualRepo;
+      baseBranch = manualBaseBranch;
+    } else {
+      if (!selectedRepo || !selectedBranch || !newBranch || !filePath || !commitMessage || !fileContent) {
+        setError('Please fill in all fields.');
+        return;
+      }
+      owner = selectedRepo.owner;
+      repoName = selectedRepo.name;
+      baseBranch = selectedBranch;
     }
     setLoading(true);
     try {
       // Step 1: Create the new branch
+      // (Leave baseSha empty so that the backend uses baseBranch to retrieve the latest commit SHA.)
       const createBranchPayload = {
         operation: 'createBranch',
-        owner: selectedRepo.owner,
-        repo: selectedRepo.name,
+        owner: owner,
+        repo: repoName,
         newBranch: newBranch,
-        // Leave baseSha empty; backend will fetch using baseBranch
         baseSha: "",
-        baseBranch: selectedBranch,
+        baseBranch: baseBranch,
       };
       const branchResponse = await axios.post(`${MICROSERVICE_URL}/ghe/operation`, createBranchPayload, {
         headers: generateSearHeader(appGlobalState),
@@ -119,14 +156,13 @@ const NewBranchCreator = () => {
       console.log("Branch creation response:", branchResponse.data);
 
       // Step 2: Push the file into the new branch
-      // (Assuming the backend uses the 'newBranch' field to push the file to that branch)
       const filePayload = {
         operation: 'addFile',
-        owner: selectedRepo.owner,
-        repo: selectedRepo.name,
+        owner: owner,
+        repo: repoName,
         filePath: filePath,
         commitMessage: commitMessage,
-        content: btoa(fileContent), // Encode file content in Base64
+        content: btoa(fileContent), // Base64 encode file content
         newBranch: newBranch,
       };
       const fileResponse = await axios.post(`${MICROSERVICE_URL}/ghe/operation`, filePayload, {
@@ -135,7 +171,7 @@ const NewBranchCreator = () => {
       });
       console.log("File push response:", fileResponse.data);
 
-      setSuccess(`New branch '${newBranch}' created from '${selectedBranch}' and file pushed successfully.`);
+      setSuccess(`New branch '${newBranch}' created from '${baseBranch}' and file pushed successfully.`);
     } catch (err) {
       setError(`Error: ${err.response ? err.response.data : err.message}`);
     } finally {
@@ -152,52 +188,92 @@ const NewBranchCreator = () => {
     );
   }
 
-  if (isAuthenticated === null || loadingRepos) {
-    return (
-      <div>
-        <h2>Loading repositories...</h2>
-      </div>
-    );
-  }
-
   return (
     <div className="new-branch-creator">
       <h2>Create a New Branch and Push a File</h2>
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
-      
-      {/* Repository and Base Branch Selection */}
+
+      {/* Toggle for manual entry */}
       <div className="form-group">
-        <label>Repository:</label>
-        <select value={selectedRepo ? selectedRepo.name : ''} onChange={handleRepoChange}>
-          <option value="">-- Select Repository --</option>
-          {repositories.map((repo) => (
-            <option key={repo.name} value={repo.name}>
-              {repo.name} ({repo.owner})
-            </option>
-          ))}
-        </select>
+        <label>
+          <input type="checkbox" checked={manualEntry} onChange={handleManualToggle} />
+          Enter repository details manually
+        </label>
       </div>
 
-      {selectedRepo && (
-        <div className="form-group">
-          <label>Base Branch:</label>
-          {loadingBranches ? (
-            <p>Loading branches...</p>
-          ) : (
-            <select value={selectedBranch} onChange={handleBranchChange}>
-              <option value="">-- Select Branch --</option>
-              {branches.map((branch) => (
-                <option key={branch} value={branch}>
-                  {branch}
-                </option>
-              ))}
-            </select>
+      {/* Dropdown mode */}
+      {!manualEntry && (
+        <>
+          <div className="form-group">
+            <label>Repository:</label>
+            {loadingRepos ? (
+              <p>Loading repositories...</p>
+            ) : (
+              <select value={selectedRepo ? selectedRepo.name : ''} onChange={handleRepoChange}>
+                <option value="">-- Select Repository --</option>
+                {repositories.map((repo) => (
+                  <option key={repo.name} value={repo.name}>
+                    {repo.name} ({repo.owner})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          {selectedRepo && (
+            <div className="form-group">
+              <label>Base Branch:</label>
+              {loadingBranches ? (
+                <p>Loading branches...</p>
+              ) : (
+                <select value={selectedBranch} onChange={handleBranchChange}>
+                  <option value="">-- Select Branch --</option>
+                  {branches.map((branch) => (
+                    <option key={branch} value={branch}>
+                      {branch}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* New Branch Name */}
+      {/* Manual entry mode */}
+      {manualEntry && (
+        <>
+          <div className="form-group">
+            <label>Owner Name:</label>
+            <input
+              type="text"
+              value={manualOwner}
+              onChange={(e) => setManualOwner(e.target.value)}
+              placeholder="Enter owner name"
+            />
+          </div>
+          <div className="form-group">
+            <label>Repository Name:</label>
+            <input
+              type="text"
+              value={manualRepo}
+              onChange={(e) => setManualRepo(e.target.value)}
+              placeholder="Enter repository name"
+            />
+          </div>
+          <div className="form-group">
+            <label>Base Branch:</label>
+            <input
+              type="text"
+              value={manualBaseBranch}
+              onChange={(e) => setManualBaseBranch(e.target.value)}
+              placeholder="Enter base branch name"
+            />
+          </div>
+        </>
+      )}
+
+      {/* New branch and file push fields */}
       <div className="form-group">
         <label>New Branch Name:</label>
         <input
@@ -210,7 +286,6 @@ const NewBranchCreator = () => {
 
       <hr />
 
-      {/* File Push Fields */}
       <h3>Push File Details</h3>
       <div className="form-group">
         <label>File Path:</label>
