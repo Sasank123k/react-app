@@ -1,324 +1,301 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+package com.wellsfargo.utcap.controller;
 
-// Import paths updated according to your project structure
-import { generateSearHeader } from '../../../Authentication';
-import { useAppGlobalState } from '@wf/react-library';
-import MICROSERVICE_URL from '../../../util/constant';
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.wellsfargo.utcap.dto.GitOperationRequest;
+import com.wellsfargo.utcap.model.GithubClientProperties;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.*;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
-const NewBranchCreator = () => {
-  // Toggle for manual entry mode
-  const [manualEntry, setManualEntry] = useState(false);
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.UUID;
 
-  // States for dropdown mode (when manualEntry is false)
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [repositories, setRepositories] = useState([]);
-  const [selectedRepo, setSelectedRepo] = useState(null);
-  const [branches, setBranches] = useState([]);
-  const [selectedBranch, setSelectedBranch] = useState('');
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [loadingBranches, setLoadingBranches] = useState(false);
+@RestController
+@RequestMapping("/ghe")
+public class GithubController {
 
-  // States for manual entry fields (when manualEntry is true)
-  const [manualOwner, setManualOwner] = useState('');
-  const [manualRepo, setManualRepo] = useState('');
-  const [manualBaseBranch, setManualBaseBranch] = useState('');
+    private static final Logger log = LoggerFactory.getLogger(GithubController.class);
+    private static final String GHE_API_BASE = "https://github.wellsfargo.com/api/v3/";
 
-  // States for new branch and file push details
-  const [newBranch, setNewBranch] = useState('');
-  const [filePath, setFilePath] = useState('');
-  const [commitMessage, setCommitMessage] = useState('');
-  const [fileContent, setFileContent] = useState('');
+    private final GithubClientProperties githubClientProperties;
 
-  // UI feedback state
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+    public GithubController(GithubClientProperties githubClientProperties) {
+        this.githubClientProperties = githubClientProperties;
+    }
 
-  const appGlobalState = useAppGlobalState();
+    // --- OAuth Endpoints ---
 
-  // Fetch repositories only if manualEntry is false
-  useEffect(() => {
-    if (manualEntry) return;
-    const fetchRepositories = async () => {
-      setLoadingRepos(true);
-      try {
-        const response = await axios.get(`${MICROSERVICE_URL}/ghe/repositories`, {
-          headers: generateSearHeader(appGlobalState),
-          withCredentials: true,
-        });
-        setRepositories(response.data);
-        setIsAuthenticated(true);
-      } catch (err) {
-        if (err.response && err.response.status === 401) {
-          setIsAuthenticated(false);
-        } else {
-          setError(err.response ? err.response.data : err.message);
+    @GetMapping("/auth")
+    public void redirectToGithub(HttpServletResponse response, HttpSession session) throws IOException {
+        String state = UUID.randomUUID().toString();
+        session.setAttribute("GITHUB_OAUTH_STATE", state);
+        log.info("In /auth: Session ID: {} | State set: '{}'", session.getId(), state);
+
+        String clientId = githubClientProperties.getId();
+        String redirectUri = "http://localhost:8080/ghe/callback";
+        String authorizationUrl = "https://github.wellsfargo.com/login/oauth/authorize"
+                + "?client_id=" + clientId
+                + "&redirect_uri=" + redirectUri
+                + "&scope=repo"
+                + "&state=" + state;
+        response.sendRedirect(authorizationUrl);
+    }
+
+    @GetMapping("/callback")
+    public void handleGithubCallback(
+            @RequestParam("code") String code,
+            @RequestParam("state") String state,
+            HttpSession session,
+            HttpServletResponse response) throws IOException {
+
+        log.info("In /callback: Session ID: {}", session.getId());
+        String sessionState = (String) session.getAttribute("GITHUB_OAUTH_STATE");
+        log.info("In /callback: Stored state: '{}' | Received state: '{}'", sessionState, state);
+
+        if (sessionState == null || !sessionState.equals(state)) {
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid state parameter");
+            return;
         }
-      } finally {
-        setLoadingRepos(false);
-      }
-    };
-    fetchRepositories();
-  }, [appGlobalState, manualEntry]);
 
-  // Fetch branches when a repository is selected (in dropdown mode)
-  useEffect(() => {
-    if (manualEntry) return;
-    const fetchBranches = async () => {
-      setLoadingBranches(true);
-      try {
-        const response = await axios.get(`${MICROSERVICE_URL}/ghe/branches`, {
-          params: {
-            owner: selectedRepo.owner,
-            repo: selectedRepo.name,
-          },
-          headers: generateSearHeader(appGlobalState),
-          withCredentials: true,
-        });
-        setBranches(response.data);
-      } catch (err) {
-        setError(err.response ? err.response.data : err.message);
-      } finally {
-        setLoadingBranches(false);
-      }
-    };
-    if (selectedRepo) {
-      fetchBranches();
+        String accessToken = getAccessTokenFromGhe(code);
+        log.info("Access Token: {}", accessToken);
+
+        session.setAttribute("GHE_ACCESS_TOKEN", accessToken);
+        log.info("before redirect");
+        response.addHeader("X-REQUEST-ID", UUID.randomUUID().toString());
+        Cookie sessionCookie = new Cookie("JSESSIONID", session.getId());
+        sessionCookie.setPath("/");
+        sessionCookie.setHttpOnly(true);
+        response.addCookie(sessionCookie);
+        response.sendRedirect("http://localhost:3000/githubintegrationpage");
+        log.info("after redirect");
     }
-  }, [selectedRepo, appGlobalState, manualEntry]);
 
-  // Handler for repository selection (dropdown mode)
-  const handleRepoChange = (e) => {
-    const repoName = e.target.value;
-    const repo = repositories.find((r) => r.name === repoName);
-    setSelectedRepo(repo);
-    setSelectedBranch('');
-    setBranches([]);
-  };
-
-  // Handler for branch selection (dropdown mode)
-  const handleBranchChange = (e) => {
-    setSelectedBranch(e.target.value);
-  };
-
-  // Toggle between dropdown and manual entry modes
-  const handleManualToggle = () => {
-    setManualEntry(!manualEntry);
-    // Reset fields when toggling
-    setSelectedRepo(null);
-    setSelectedBranch('');
-    setRepositories([]);
-    setBranches([]);
-    setManualOwner('');
-    setManualRepo('');
-    setManualBaseBranch('');
-  };
-
-  // On form submit: create branch and then push file
-  const handleSubmit = async () => {
-    setError(null);
-    setSuccess(null);
-    let owner, repoName, baseBranch;
-    if (manualEntry) {
-      if (!manualOwner || !manualRepo || !manualBaseBranch || !newBranch || !filePath || !commitMessage || !fileContent) {
-        setError('Please fill in all fields.');
-        return;
-      }
-      owner = manualOwner;
-      repoName = manualRepo;
-      baseBranch = manualBaseBranch;
-    } else {
-      if (!selectedRepo || !selectedBranch || !newBranch || !filePath || !commitMessage || !fileContent) {
-        setError('Please fill in all fields.');
-        return;
-      }
-      owner = selectedRepo.owner;
-      repoName = selectedRepo.name;
-      baseBranch = selectedBranch;
+    private String getAccessTokenFromGhe(String code) {
+        String tokenUrl = "https://github.wellsfargo.com/login/oauth/access_token";
+        RestTemplate restTemplate = new RestTemplate();
+        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        params.add("client_id", githubClientProperties.getId());
+        params.add("client_secret", githubClientProperties.getSecret());
+        params.add("code", code);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        headers.add("X-REQUEST-ID", UUID.randomUUID().toString());
+        headers.add("X-CORRELATION-ID", UUID.randomUUID().toString());
+        headers.add("X-CLIENT-ID", "UTCAP");
+        HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(params, headers);
+        ResponseEntity<String> response = restTemplate.exchange(tokenUrl, HttpMethod.POST, requestEntity, String.class);
+        String responseBody = response.getBody();
+        log.info("Token endpoint response: {}", responseBody);
+        return Arrays.stream(responseBody.split("&"))
+                .filter(s -> s.startsWith("access_token"))
+                .map(s -> s.split("=")[1])
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No access token found"));
     }
-    setLoading(true);
-    try {
-      // Step 1: Create the new branch
-      // (Leave baseSha empty so that the backend uses baseBranch to retrieve the latest commit SHA.)
-      const createBranchPayload = {
-        operation: 'createBranch',
-        owner: owner,
-        repo: repoName,
-        newBranch: newBranch,
-        baseSha: "",
-        baseBranch: baseBranch,
-      };
-      const branchResponse = await axios.post(`${MICROSERVICE_URL}/ghe/operation`, createBranchPayload, {
-        headers: generateSearHeader(appGlobalState),
-        withCredentials: true,
-      });
-      console.log("Branch creation response:", branchResponse.data);
 
-      // Step 2: Push the file into the new branch
-      const filePayload = {
-        operation: 'addFile',
-        owner: owner,
-        repo: repoName,
-        filePath: filePath,
-        commitMessage: commitMessage,
-        content: btoa(fileContent), // Base64 encode file content
-        newBranch: newBranch,
-      };
-      const fileResponse = await axios.post(`${MICROSERVICE_URL}/ghe/operation`, filePayload, {
-        headers: generateSearHeader(appGlobalState),
-        withCredentials: true,
-      });
-      console.log("File push response:", fileResponse.data);
+    // --- API Endpoints for Repositories and Branches ---
 
-      setSuccess(`New branch '${newBranch}' created from '${baseBranch}' and file pushed successfully.`);
-    } catch (err) {
-      setError(`Error: ${err.response ? err.response.data : err.message}`);
-    } finally {
-      setLoading(false);
+    @GetMapping("/repositories")
+    public ResponseEntity<?> getRepositories(HttpSession session) {
+        String accessToken = (String) session.getAttribute("GHE_ACCESS_TOKEN");
+        if (accessToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+        RestTemplate restTemplate = new RestTemplate();
+        String url = GHE_API_BASE + "/user/repos";
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        String responseBody = response.getBody();
+        log.info("Repositories API response status: {}", response.getStatusCode());
+        ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            JsonNode rootArray = objectMapper.readTree(responseBody);
+            com.fasterxml.jackson.databind.node.ArrayNode filteredRepos = objectMapper.createArrayNode();
+            if (rootArray.isArray()) {
+                for (JsonNode repoNode : rootArray) {
+                    JsonNode permissions = repoNode.get("permissions");
+                    if (permissions != null && permissions.get("push").asBoolean()) {
+                        ObjectNode simpleRepo = objectMapper.createObjectNode();
+                        simpleRepo.put("name", repoNode.get("name").asText());
+                        simpleRepo.put("owner", repoNode.get("owner").get("login").asText());
+                        filteredRepos.add(simpleRepo);
+                    }
+                }
+            }
+            return ResponseEntity.ok(filteredRepos);
+        } catch (Exception e) {
+            log.error("Error parsing repositories", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing repositories");
+        }
     }
-  };
 
-  if (isAuthenticated === false) {
-    return (
-      <div>
-        <h2>Authentication Required</h2>
-        <p>Please log in with GitHub.</p>
-      </div>
-    );
-  }
+    @GetMapping("/branches")
+    public ResponseEntity<?> getBranches(@RequestParam("owner") String owner,
+                                         @RequestParam("repo") String repo,
+                                         HttpSession session) {
+        String accessToken = (String) session.getAttribute("GHE_ACCESS_TOKEN");
+        if (accessToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+        RestTemplate restTemplate = new RestTemplate();
+        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/branches";
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        String responseBody = response.getBody();
+        log.info("Branches API response: {}", responseBody);
+        ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            com.fasterxml.jackson.databind.node.ArrayNode branchNames = objectMapper.createArrayNode();
+            if (root.isArray()) {
+                for (JsonNode branch : root) {
+                    branchNames.add(branch.get("name").asText());
+                }
+            }
+            return ResponseEntity.ok(branchNames);
+        } catch (Exception e) {
+            log.error("Error parsing branches", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing branches");
+        }
+    }
 
-  return (
-    <div className="new-branch-creator">
-      <h2>Create a New Branch and Push a File</h2>
-      {error && <div className="error">{error}</div>}
-      {success && <div className="success">{success}</div>}
+    // --- API Endpoint for Git Operations ---
 
-      {/* Toggle for manual entry */}
-      <div className="form-group">
-        <label>
-          <input type="checkbox" checked={manualEntry} onChange={handleManualToggle} />
-          Enter repository details manually
-        </label>
-      </div>
+    @PostMapping("/operation")
+    public ResponseEntity<?> performOperation(@RequestBody GitOperationRequest request, HttpSession session) {
+        String accessToken = (String) session.getAttribute("GHE_ACCESS_TOKEN");
+        if (accessToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+        try {
+            String result;
+            switch (request.getOperation()) {
+                case "createBranch":
+                    result = createBranch(accessToken, request);
+                    break;
+                case "updateFile":
+                    result = updateFile(accessToken, request);
+                    break;
+                case "addFile":
+                    result = addFile(accessToken, request);
+                    break;
+                case "mergeBranch":
+                    result = mergeBranch(accessToken, request);
+                    break;
+                default:
+                    return ResponseEntity.badRequest().body("Invalid operation: " + request.getOperation());
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception ex) {
+            log.error("Operation failed", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Operation failed: " + ex.getMessage());
+        }
+    }
 
-      {/* Dropdown mode */}
-      {!manualEntry && (
-        <>
-          <div className="form-group">
-            <label>Repository:</label>
-            {loadingRepos ? (
-              <p>Loading repositories...</p>
-            ) : (
-              <select value={selectedRepo ? selectedRepo.name : ''} onChange={handleRepoChange}>
-                <option value="">-- Select Repository --</option>
-                {repositories.map((repo) => (
-                  <option key={repo.name} value={repo.name}>
-                    {repo.name} ({repo.owner})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          {selectedRepo && (
-            <div className="form-group">
-              <label>Base Branch:</label>
-              {loadingBranches ? (
-                <p>Loading branches...</p>
-              ) : (
-                <select value={selectedBranch} onChange={handleBranchChange}>
-                  <option value="">-- Select Branch --</option>
-                  {branches.map((branch) => (
-                    <option key={branch} value={branch}>
-                      {branch}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
-        </>
-      )}
+    // --- Helper Methods for Git Operations ---
 
-      {/* Manual entry mode */}
-      {manualEntry && (
-        <>
-          <div className="form-group">
-            <label>Owner Name:</label>
-            <input
-              type="text"
-              value={manualOwner}
-              onChange={(e) => setManualOwner(e.target.value)}
-              placeholder="Enter owner name"
-            />
-          </div>
-          <div className="form-group">
-            <label>Repository Name:</label>
-            <input
-              type="text"
-              value={manualRepo}
-              onChange={(e) => setManualRepo(e.target.value)}
-              placeholder="Enter repository name"
-            />
-          </div>
-          <div className="form-group">
-            <label>Base Branch:</label>
-            <input
-              type="text"
-              value={manualBaseBranch}
-              onChange={(e) => setManualBaseBranch(e.target.value)}
-              placeholder="Enter base branch name"
-            />
-          </div>
-        </>
-      )}
+    // Helper to escape '%' characters so that String.format doesn't misinterpret them.
+    private String safeString(String s) {
+        return s == null ? null : s.replace("%", "%%");
+    }
 
-      {/* New branch and file push fields */}
-      <div className="form-group">
-        <label>New Branch Name:</label>
-        <input
-          type="text"
-          value={newBranch}
-          onChange={(e) => setNewBranch(e.target.value)}
-          placeholder="Enter new branch name"
-        />
-      </div>
+    // Updated createBranch method: if baseSha is missing, fetch it using baseBranch
+    private String createBranch(String accessToken, GitOperationRequest request) {
+        String baseSha = request.getBaseSha();
+        if (baseSha == null || baseSha.isEmpty()) {
+            String branchUrl = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo() 
+                    + "/branches/" + request.getBaseBranch();
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = buildAuthHeaders(accessToken);
+            HttpEntity<?> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> branchResponse = restTemplate.exchange(branchUrl, HttpMethod.GET, entity, String.class);
+            ObjectMapper objectMapper = new ObjectMapper();
+            try {
+                JsonNode branchNode = objectMapper.readTree(branchResponse.getBody());
+                baseSha = branchNode.get("commit").get("sha").asText();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to retrieve base branch commit SHA", e);
+            }
+        }
+        String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo() + "/git/refs";
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String payload = String.format("{\"ref\": \"refs/heads/%s\", \"sha\": \"%s\"}",
+                safeString(request.getNewBranch()), safeString(baseSha));
+        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+        log.info("Create branch response: {}", response.getBody());
+        return response.getBody();
+    }
 
-      <hr />
+    private String updateFile(String accessToken, GitOperationRequest request) {
+        String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
+                + "/contents/" + request.getFilePath();
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String payload = String.format("{\"message\": \"%s\", \"content\": \"%s\", \"sha\": \"%s\"}",
+                safeString(request.getCommitMessage()), safeString(request.getContent()), safeString(request.getFileSha()));
+        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
+        log.info("Update file response: {}", response.getBody());
+        return response.getBody();
+    }
 
-      <h3>Push File Details</h3>
-      <div className="form-group">
-        <label>File Path:</label>
-        <input
-          type="text"
-          value={filePath}
-          onChange={(e) => setFilePath(e.target.value)}
-          placeholder="e.g., src/data.json"
-        />
-      </div>
-      <div className="form-group">
-        <label>Commit Message:</label>
-        <input
-          type="text"
-          value={commitMessage}
-          onChange={(e) => setCommitMessage(e.target.value)}
-          placeholder="Enter commit message"
-        />
-      </div>
-      <div className="form-group">
-        <label>File Content:</label>
-        <textarea
-          value={fileContent}
-          onChange={(e) => setFileContent(e.target.value)}
-          placeholder="Enter file content"
-        />
-      </div>
+    private String addFile(String accessToken, GitOperationRequest request) {
+        String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
+                + "/contents/" + request.getFilePath();
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        // Include the branch parameter so that the file is added to the specified (new) branch.
+        String payload = String.format("{\"message\": \"%s\", \"content\": \"%s\", \"branch\": \"%s\"}",
+                safeString(request.getCommitMessage()), safeString(request.getContent()), safeString(request.getNewBranch()));
+        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
+        log.info("Add file response: {}", response.getBody());
+        return response.getBody();
+    }
 
-      <button onClick={handleSubmit} disabled={loading}>
-        {loading ? 'Processing...' : 'Create Branch & Push File'}
-      </button>
-    </div>
-  );
-};
+    private String mergeBranch(String accessToken, GitOperationRequest request) {
+        String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo() + "/merges";
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String payload = String.format("{\"base\": \"%s\", \"head\": \"%s\", \"commit_message\": \"%s\"}",
+                safeString(request.getBaseBranch()), safeString(request.getHeadBranch()), safeString(request.getCommitMessage()));
+        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+        log.info("Merge branch response: {}", response.getBody());
+        return response.getBody();
+    }
 
-export default NewBranchCreator;
+    /**
+     * Utility method to build HTTP headers for GitHub API requests.
+     */
+    private HttpHeaders buildAuthHeaders(String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "token " + accessToken);
+        headers.setAccept(Collections.singletonList(MediaType.parseMediaType("application/vnd.github.v3+json")));
+        headers.add("X-REQUEST-ID", UUID.randomUUID().toString());
+        headers.add("X-CORRELATION-ID", UUID.randomUUID().toString());
+        headers.add("X-CLIENT-ID", "UTCAP");
+        return headers;
+    }
+}
