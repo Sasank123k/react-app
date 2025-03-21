@@ -1,11 +1,189 @@
+package com.wellsfargo.utcap.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+public class PathConstructorService {
+
+    private static final String GHE_API_BASE = "https://github.wellsfargo.com/api/v3/";
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // Expected folder names for Type 1 structure.
+    private static final Set<String> EXPECTED_FOLDERS = new HashSet<>();
+    static {
+        EXPECTED_FOLDERS.add("config");
+        EXPECTED_FOLDERS.add("sql");
+        EXPECTED_FOLDERS.add("scripts");
+        EXPECTED_FOLDERS.add("metadata");
+        EXPECTED_FOLDERS.add("hql");
+        EXPECTED_FOLDERS.add("ddl");
+    }
+
+    /**
+     * Determines the SOR folder structure.
+     * If at least one folder in "src/batch/{sor}" matches an expected file type folder, returns 1 (Type 1);
+     * otherwise, returns 2 (Type 2).
+     */
+    public int determineStructureType(String owner, String repo, String sor, String accessToken) throws IOException {
+        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/contents/src/batch/" + sor;
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        if (root.isArray()) {
+            for (JsonNode node : root) {
+                if (node.has("name")) {
+                    String folderName = node.get("name").asText().toLowerCase();
+                    if (EXPECTED_FOLDERS.contains(folderName)) {
+                        return 1; // Type 1 structure
+                    }
+                }
+            }
+        }
+        return 2; // Default to Type 2 structure
+    }
+
+    /**
+     * Constructs the target file path based on the SOR structure type, file type, and feed name.
+     * The returned path is relative to the repository root.
+     */
+    public String constructTargetPath(String sor, String feedName, String fileType, int structureType) {
+        String basePath = "src/batch/" + sor + "/";
+        String targetPath;
+        if (structureType == 1) {
+            // Type 1: file type folders directly under sor.
+            switch (fileType.toLowerCase()) {
+                case "json":
+                    targetPath = basePath + "config/dci/json/" + feedName + ".json";
+                    break;
+                case "sql":
+                    targetPath = basePath + "sql/" + feedName + ".sql";
+                    break;
+                case "scripts":
+                    targetPath = basePath + "scripts/" + feedName + ".ksh";
+                    break;
+                case "metadata":
+                    targetPath = basePath + "metadata/" + feedName + ".txt";
+                    break;
+                case "hql":
+                    targetPath = basePath + "hql/" + feedName + ".hql";
+                    break;
+                case "ddl":
+                    targetPath = basePath + "ddl/" + feedName + ".ddl";
+                    break;
+                default:
+                    targetPath = basePath;
+            }
+        } else {
+            // Type 2: feed folder exists under sor.
+            basePath = basePath + feedName + "/";
+            switch (fileType.toLowerCase()) {
+                case "json":
+                    targetPath = basePath + "config/dci/json/" + feedName + ".json";
+                    break;
+                case "sql":
+                    targetPath = basePath + "sql/" + feedName + ".sql";
+                    break;
+                case "scripts":
+                    targetPath = basePath + "scripts/" + feedName + ".ksh";
+                    break;
+                case "metadata":
+                    targetPath = basePath + "metadata/" + feedName + ".txt";
+                    break;
+                case "hql":
+                    targetPath = basePath + "hql/" + feedName + ".hql";
+                    break;
+                case "ddl":
+                    targetPath = basePath + "ddl/" + feedName + ".ddl";
+                    break;
+                default:
+                    targetPath = basePath;
+            }
+        }
+        return targetPath;
+    }
+
+    /**
+     * Ensures that the folder path exists in the repository.
+     * Recursively checks each level and creates any missing folder using the GitHub API.
+     * Note: This example uses the default branch ("main") for folder creation; adjust if necessary.
+     */
+    public void ensureFolderPathExists(String owner, String repo, String folderPath, String accessToken) throws IOException {
+        // Split the folderPath and check each folder level.
+        // Example folderPath: "src/batch/sor1/config/dci/json"
+        String[] parts = folderPath.split("/");
+        String currentPath = "";
+        for (String part : parts) {
+            if (part.isEmpty()) continue;
+            currentPath += "/" + part;
+            // Remove leading slash for API use.
+            String apiPath = currentPath.startsWith("/") ? currentPath.substring(1) : currentPath;
+            String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/contents/" + apiPath;
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = buildAuthHeaders(accessToken);
+            HttpEntity<?> entity = new HttpEntity<>(headers);
+            try {
+                restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+                // Folder exists; continue.
+            } catch (HttpClientErrorException e) {
+                if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                    // Folder does not exist; create it.
+                    String createUrl = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/contents/" + apiPath;
+                    // GitHub requires a base64-encoded content; for folders, an empty string is acceptable.
+                    String payload = String.format("{\"message\": \"Creating folder %s\", \"content\": \"\", \"branch\": \"main\"}", apiPath);
+                    HttpEntity<String> putEntity = new HttpEntity<>(payload, headers);
+                    restTemplate.exchange(createUrl, HttpMethod.PUT, putEntity, String.class);
+                } else {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    /**
+     * Builds authentication headers for GitHub API requests.
+     */
+    private HttpHeaders buildAuthHeaders(String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "token " + accessToken);
+        headers.setAccept(Collections.singletonList(MediaType.parseMediaType("application/vnd.github.v3+json")));
+        headers.add("X-REQUEST-ID", UUID.randomUUID().toString());
+        headers.add("X-CORRELATION-ID", UUID.randomUUID().toString());
+        headers.add("X-CLIENT-ID", "UTCAP");
+        return headers;
+    }
+}
+
+
+
+
+
+
+
+
+
 package com.wellsfargo.utcap.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wellsfargo.utcap.dto.GitOperationRequest;
+import com.wellsfargo.utcap.service.PathConstructorService;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -26,12 +204,16 @@ public class GitOperationsController {
     private static final String GHE_API_BASE = "https://github.wellsfargo.com/api/v3/";
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Autowired
+    private PathConstructorService pathConstructorService;
+
     /**
      * Endpoint to perform Git operations based on the operation type specified in the request.
      *
-     * @param request GitOperationRequest payload containing details of the Git operation
-     * @param session HttpSession to obtain the stored access token
-     * @return ResponseEntity with the result of the operation or an error message
+     * @param request GitOperationRequest payload containing details of the Git operation.
+     *                For file operations, request should now include: sor, feedName, fileType.
+     * @param session HttpSession to obtain the stored access token.
+     * @return ResponseEntity with the result of the operation or an error message.
      */
     @PostMapping("/operation")
     public ResponseEntity<?> performOperation(@RequestBody GitOperationRequest request, HttpSession session) {
@@ -47,13 +229,31 @@ public class GitOperationsController {
                     result = createBranch(accessToken, request);
                     break;
                 case "pushFile":
+                    // Before pushing, compute the target file path using the PathConstructorService.
+                    // Expecting request contains: sor, feedName, fileType.
+                    String sor = request.getSor();         // e.g., "sor1"
+                    String feedName = request.getFeedName(); // e.g., "feed1"
+                    String fileType = request.getFileType(); // e.g., "json", "sql", etc.
+                    String owner = request.getOwner();
+                    String repo = request.getRepo();
+
+                    // Determine the structure type of the SOR.
+                    int structureType = pathConstructorService.determineStructureType(owner, repo, sor, accessToken);
+                    // Compute the target file path.
+                    String targetPath = pathConstructorService.constructTargetPath(sor, feedName, fileType, structureType);
+                    // Ensure that the folder (without the file name) exists.
+                    String folderPath = targetPath.substring(0, targetPath.lastIndexOf("/"));
+                    pathConstructorService.ensureFolderPathExists(owner, repo, folderPath, accessToken);
+                    // Update the request with the computed file path.
+                    request.setFilePath(targetPath);
+                    log.info("Computed file path: {}", targetPath);
                     result = pushFile(accessToken, request);
                     break;
                 case "updateFile":
-                    result = updateFile(accessToken, request); // Kept for backward compatibility
+                    result = updateFile(accessToken, request);
                     break;
                 case "addFile":
-                    result = addFile(accessToken, request); // Kept for backward compatibility
+                    result = addFile(accessToken, request);
                     break;
                 case "mergeBranch":
                     result = mergeBranch(accessToken, request);
@@ -71,19 +271,14 @@ public class GitOperationsController {
 
     /**
      * Creates a new branch in the repository.
-     * If the branch already exists, it simply logs that and returns its details.
-     *
-     * @param accessToken the GitHub access token
-     * @param request details for branch creation (owner, repo, new branch name)
-     * @return the response from the GitHub API as a String or a message that the branch exists
-     * @throws IOException if JSON parsing fails
+     * If the branch already exists, returns a message indicating so.
      */
     private String createBranch(String accessToken, GitOperationRequest request) throws IOException {
         String owner = request.getOwner();
         String repo = request.getRepo();
         String newBranch = request.getNewBranch();
 
-        // Check if branch already exists by performing a GET on /branches/{newBranch}
+        // Check if branch already exists.
         String branchUrl = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/branches/" + newBranch;
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = buildAuthHeaders(accessToken);
@@ -92,18 +287,16 @@ public class GitOperationsController {
             ResponseEntity<String> branchResponse = restTemplate.exchange(branchUrl, HttpMethod.GET, getEntity, String.class);
             if (branchResponse.getStatusCode() == HttpStatus.OK) {
                 log.info("Branch {} already exists.", newBranch);
-                // Optionally, you can extract branch SHA or other details here if needed.
                 return "Branch " + newBranch + " already exists.";
             }
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode() != HttpStatus.NOT_FOUND) {
-                // If error is something other than 404, propagate the exception.
                 throw e;
             }
-            // 404 means branch does not exist, so we continue to create it.
+            // 404 means branch does not exist; proceed to create.
         }
 
-        // Branch does not exist, so create it.
+        // Create branch.
         String defaultBranch = getDefaultBranch(accessToken, owner, repo);
         String baseSha = getBranchSha(accessToken, owner, repo, defaultBranch);
 
@@ -121,27 +314,21 @@ public class GitOperationsController {
 
     /**
      * Unified method to push a file.
-     * Checks if the file exists on GitHub:
-     * - If it exists, automatically updates the file.
-     * - If it does not exist, adds the file.
-     *
-     * @param accessToken the GitHub access token
-     * @param request details for file operation (owner, repo, file path, commit message, content, new branch)
-     * @return the response from the GitHub API as a String
-     * @throws IOException if JSON parsing fails
+     * Checks if the file exists on GitHub (in the specified branch):
+     * - If it exists, updates the file.
+     * - If not, adds the file.
      */
     private String pushFile(String accessToken, GitOperationRequest request) throws IOException {
         String owner = request.getOwner();
         String repo = request.getRepo();
         String filePath = request.getFilePath();
-        // Append the branch query parameter to check in the correct branch
+        // Append the branch query parameter to check in the correct branch.
         String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/contents/" + filePath + "?ref=" + request.getNewBranch();
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = buildAuthHeaders(accessToken);
         HttpEntity<?> entity = new HttpEntity<>(headers);
 
         try {
-            // Fetch file details to check if it exists in the specified branch
             ResponseEntity<String> getResponse = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             log.info("GET response for file update: {}", getResponse.getBody());
             String existingFileSha = extractShaFromResponse(getResponse.getBody());
@@ -160,12 +347,7 @@ public class GitOperationsController {
 
     /**
      * Updates an existing file in the repository.
-     * Kept for backward compatibility.
-     * Now includes the branch parameter for correct file placement.
-     *
-     * @param accessToken the GitHub access token
-     * @param request details for updating the file (owner, repo, file path, commit message, content, file SHA, new branch)
-     * @return the response from the GitHub API as a String
+     * Now includes the branch parameter.
      */
     private String updateFile(String accessToken, GitOperationRequest request) {
         String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
@@ -186,12 +368,7 @@ public class GitOperationsController {
 
     /**
      * Adds a new file to the repository.
-     * Kept for backward compatibility.
-     * Now includes the branch parameter for correct file placement.
-     *
-     * @param accessToken the GitHub access token
-     * @param request details for adding the file (owner, repo, file path, commit message, content, new branch)
-     * @return the response from the GitHub API as a String
+     * Now includes the branch parameter.
      */
     private String addFile(String accessToken, GitOperationRequest request) {
         String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
@@ -212,10 +389,6 @@ public class GitOperationsController {
 
     /**
      * Merges two branches in the repository.
-     *
-     * @param accessToken the GitHub access token
-     * @param request details for merging branches (owner, repo, base branch, head branch, commit message)
-     * @return the response from the GitHub API as a String
      */
     private String mergeBranch(String accessToken, GitOperationRequest request) {
         String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo() + "/merges";
@@ -235,12 +408,6 @@ public class GitOperationsController {
 
     /**
      * Retrieves the default branch for a given repository.
-     *
-     * @param accessToken the GitHub access token
-     * @param owner the repository owner's username
-     * @param repo the repository name
-     * @return the default branch as a String
-     * @throws IOException if JSON parsing fails
      */
     private String getDefaultBranch(String accessToken, String owner, String repo) throws IOException {
         String url = GHE_API_BASE + "/repos/" + owner + "/" + repo;
@@ -254,13 +421,6 @@ public class GitOperationsController {
 
     /**
      * Retrieves the latest commit SHA for a given branch.
-     *
-     * @param accessToken the GitHub access token
-     * @param owner the repository owner's username
-     * @param repo the repository name
-     * @param branchName the branch name
-     * @return the commit SHA as a String
-     * @throws IOException if JSON parsing fails
      */
     private String getBranchSha(String accessToken, String owner, String repo, String branchName) throws IOException {
         String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/branches/" + branchName;
@@ -274,11 +434,7 @@ public class GitOperationsController {
 
     /**
      * Extracts the file SHA from a GitHub API response.
-     * This method checks if the response is an object or an array.
-     *
-     * @param responseBody the JSON response body as a String
-     * @return the file SHA as a String
-     * @throws IOException if JSON parsing fails
+     * Checks if the response is an object or an array.
      */
     private String extractShaFromResponse(String responseBody) throws IOException {
         JsonNode root = objectMapper.readTree(responseBody);
@@ -294,9 +450,6 @@ public class GitOperationsController {
 
     /**
      * Builds authentication headers for GitHub API requests.
-     *
-     * @param accessToken the GitHub access token
-     * @return HttpHeaders with the required headers
      */
     private HttpHeaders buildAuthHeaders(String accessToken) {
         HttpHeaders headers = new HttpHeaders();
@@ -306,5 +459,144 @@ public class GitOperationsController {
         headers.add("X-CORRELATION-ID", UUID.randomUUID().toString());
         headers.add("X-CLIENT-ID", "UTCAP");
         return headers;
+    }
+}
+
+
+
+
+package com.wellsfargo.utcap.dto;
+
+public class GitOperationRequest {
+    // Specifies the Git operation: "createBranch", "updateFile", "addFile", "mergeBranch", "pushFile", etc.
+    private String operation;
+    private String owner;
+    private String repo;
+    
+    // For createBranch operation
+    private String newBranch;
+    private String baseSha;
+    private String baseBranch;
+    
+    // For updateFile and addFile operations
+    private String filePath;
+    private String commitMessage;
+    private String content;
+    private String fileSha;
+    
+    // For mergeBranch operation
+    private String baseBranchForMerge;
+    private String headBranch;
+    
+    // New fields for dynamic path construction
+    private String sor;       // The SOR name (e.g., "sor1")
+    private String feedName;  // The feed (table) name
+    private String fileType;  // The file type (e.g., "json", "sql", "scripts", "metadata", "hql", "ddl")
+
+    // Getters and setters for all fields
+
+    public String getOperation() {
+        return operation;
+    }
+    public void setOperation(String operation) {
+        this.operation = operation;
+    }
+    
+    public String getOwner() {
+        return owner;
+    }
+    public void setOwner(String owner) {
+        this.owner = owner;
+    }
+    
+    public String getRepo() {
+        return repo;
+    }
+    public void setRepo(String repo) {
+        this.repo = repo;
+    }
+    
+    public String getNewBranch() {
+        return newBranch;
+    }
+    public void setNewBranch(String newBranch) {
+        this.newBranch = newBranch;
+    }
+    
+    public String getBaseSha() {
+        return baseSha;
+    }
+    public void setBaseSha(String baseSha) {
+        this.baseSha = baseSha;
+    }
+    
+    public String getBaseBranch() {
+        return baseBranch;
+    }
+    public void setBaseBranch(String baseBranch) {
+        this.baseBranch = baseBranch;
+    }
+    
+    public String getFilePath() {
+        return filePath;
+    }
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
+    
+    public String getCommitMessage() {
+        return commitMessage;
+    }
+    public void setCommitMessage(String commitMessage) {
+        this.commitMessage = commitMessage;
+    }
+    
+    public String getContent() {
+        return content;
+    }
+    public void setContent(String content) {
+        this.content = content;
+    }
+    
+    public String getFileSha() {
+        return fileSha;
+    }
+    public void setFileSha(String fileSha) {
+        this.fileSha = fileSha;
+    }
+    
+    public String getBaseBranchForMerge() {
+        return baseBranchForMerge;
+    }
+    public void setBaseBranchForMerge(String baseBranchForMerge) {
+        this.baseBranchForMerge = baseBranchForMerge;
+    }
+    
+    public String getHeadBranch() {
+        return headBranch;
+    }
+    public void setHeadBranch(String headBranch) {
+        this.headBranch = headBranch;
+    }
+    
+    public String getSor() {
+        return sor;
+    }
+    public void setSor(String sor) {
+        this.sor = sor;
+    }
+    
+    public String getFeedName() {
+        return feedName;
+    }
+    public void setFeedName(String feedName) {
+        this.feedName = feedName;
+    }
+    
+    public String getFileType() {
+        return fileType;
+    }
+    public void setFileType(String fileType) {
+        this.fileType = fileType;
     }
 }
