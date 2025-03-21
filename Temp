@@ -102,13 +102,14 @@ public class GitOperationsController {
         String owner = request.getOwner();
         String repo = request.getRepo();
         String filePath = request.getFilePath();
-        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/contents/" + filePath;
+        // Append the branch query parameter to check in the correct branch
+        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/contents/" + filePath + "?ref=" + request.getNewBranch();
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = buildAuthHeaders(accessToken);
         HttpEntity<?> entity = new HttpEntity<>(headers);
 
         try {
-            // Fetch file details to check if it exists
+            // Fetch file details to check if it exists in the specified branch
             ResponseEntity<String> getResponse = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             log.info("GET response for file update: {}", getResponse.getBody());
             String existingFileSha = extractShaFromResponse(getResponse.getBody());
@@ -117,7 +118,7 @@ public class GitOperationsController {
             return updateFile(accessToken, request);
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                log.info("File does not exist. Proceeding with add.");
+                log.info("File does not exist in branch {}. Proceeding with add.", request.getNewBranch());
                 return addFile(accessToken, request);
             } else {
                 throw e;
@@ -219,11 +220,10 @@ public class GitOperationsController {
 
     /**
      * Extracts the file SHA from a GitHub API response.
-     * This method now checks if the response is an object or an array.
+     * This method checks if the response is an object or an array.
      */
     private String extractShaFromResponse(String responseBody) throws IOException {
         JsonNode root = objectMapper.readTree(responseBody);
-        // If response is an array, pick the first element's sha.
         if (root.isArray() && root.size() > 0) {
             return root.get(0).get("sha").asText();
         } else if (root.isObject() && root.has("sha")) {
