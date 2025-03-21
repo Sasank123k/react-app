@@ -74,3 +74,26 @@ public class MetadataGenerator {
         System.out.println(metadata);
     }
 }
+
+
+{
+  utcap_metadata_tag_template: {
+    type: object,
+    required: true,
+    properties: {
+      Drt_id: { type: string, required: true, default: ORT ID },
+      Confidential_Data_Indicator: { type: string, required: true, default: Confidential Data Indicator }
+    }
+  },
+  utcap_taxonomy_tag_template: {
+    type: object,
+    required: true,
+    properties: {
+      Confidential_Type: { type: string, required: true, default: Confidential type of the field },
+      GCP_infotype_1: { type: string, required: true, default: Information type 1 of the confidential field },
+      GCP_infotype_2: { type: string, required: true, default: Information type 2 of the confidential field },
+      Encryption_Level: { type: string, required: true, default: Encryption level for the field },
+      Filter_Criteria: { type: string, required: true, default: Filter criteria for the confidential field }
+    }
+  }
+}
