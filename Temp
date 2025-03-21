@@ -17,8 +17,6 @@ import java.util.UUID;
 
 /**
  * Controller for handling Git operations.
- * It processes operations like creating a branch, updating a file, adding a file,
- * merging branches, and a unified pushFile operation.
  */
 @RestController
 @RequestMapping("/ghe")
@@ -28,13 +26,6 @@ public class GitOperationsController {
     private static final String GHE_API_BASE = "https://github.wellsfargo.com/api/v3/";
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * Endpoint to perform Git operations based on the operation type specified in the request.
-     *
-     * @param request GitOperationRequest payload containing details of the Git operation
-     * @param session HttpSession to obtain the stored access token
-     * @return ResponseEntity with the result of the operation or an error message
-     */
     @PostMapping("/operation")
     public ResponseEntity<?> performOperation(@RequestBody GitOperationRequest request, HttpSession session) {
         String accessToken = (String) session.getAttribute("GHE_ACCESS_TOKEN");
@@ -51,6 +42,12 @@ public class GitOperationsController {
                 case "pushFile":
                     result = pushFile(accessToken, request);
                     break;
+                case "updateFile":
+                    result = updateFile(accessToken, request); // Kept as a standalone function for backward compatibility
+                    break;
+                case "addFile":
+                    result = addFile(accessToken, request); // Kept as a standalone function for backward compatibility
+                    break;
                 case "mergeBranch":
                     result = mergeBranch(accessToken, request);
                     break;
@@ -65,14 +62,10 @@ public class GitOperationsController {
         }
     }
 
-    /**
-     * Creates a new branch in the repository.
-     */
     private String createBranch(String accessToken, GitOperationRequest request) throws IOException {
         String owner = request.getOwner();
         String repo = request.getRepo();
 
-        // Automatically fetch the default branch name and its latest commit SHA
         String defaultBranch = getDefaultBranch(accessToken, owner, repo);
         String baseSha = getBranchSha(accessToken, owner, repo, defaultBranch);
 
@@ -92,12 +85,6 @@ public class GitOperationsController {
         return response.getBody();
     }
 
-    /**
-     * Unified method to push a file.
-     * Checks if the file exists on GitHub:
-     * - If it exists, automatically updates the file.
-     * - If it does not exist, adds the file.
-     */
     private String pushFile(String accessToken, GitOperationRequest request) throws IOException {
         String owner = request.getOwner();
         String repo = request.getRepo();
@@ -108,7 +95,6 @@ public class GitOperationsController {
         HttpEntity<?> entity = new HttpEntity<>(headers);
 
         try {
-            // Try to get the file details to check if it exists
             ResponseEntity<String> getResponse = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             String existingFileSha = extractShaFromResponse(getResponse.getBody());
             request.setFileSha(existingFileSha);
@@ -124,9 +110,6 @@ public class GitOperationsController {
         }
     }
 
-    /**
-     * Updates an existing file in the repository.
-     */
     private String updateFile(String accessToken, GitOperationRequest request) {
         String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
                 + "/contents/" + request.getFilePath();
@@ -134,11 +117,12 @@ public class GitOperationsController {
         HttpHeaders headers = buildAuthHeaders(accessToken);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        // Include branch in payload
-        String payload = String.format(
-                "{\"message\": \"%s\", \"content\": \"%s\", \"sha\": \"%s\", \"branch\": \"%s\"}",
-                request.getCommitMessage(), request.getContent(), request.getFileSha(), request.getNewBranch()
-        );
+        // Adding `branch` for correct file placement
+        String payload = request.getFileSha() != null
+                ? String.format("{\"message\": \"%s\", \"content\": \"%s\", \"sha\": \"%s\", \"branch\": \"%s\"}",
+                request.getCommitMessage(), request.getContent(), request.getFileSha(), request.getNewBranch())
+                : String.format("{\"message\": \"%s\", \"content\": \"%s\", \"branch\": \"%s\"}",
+                request.getCommitMessage(), request.getContent(), request.getNewBranch());
 
         HttpEntity<String> entity = new HttpEntity<>(payload, headers);
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
@@ -146,9 +130,6 @@ public class GitOperationsController {
         return response.getBody();
     }
 
-    /**
-     * Adds a new file to the repository.
-     */
     private String addFile(String accessToken, GitOperationRequest request) {
         String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
                 + "/contents/" + request.getFilePath();
@@ -156,11 +137,9 @@ public class GitOperationsController {
         HttpHeaders headers = buildAuthHeaders(accessToken);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        // Include branch in payload
-        String payload = String.format(
-                "{\"message\": \"%s\", \"content\": \"%s\", \"branch\": \"%s\"}",
-                request.getCommitMessage(), request.getContent(), request.getNewBranch()
-        );
+        // Adding `branch` for correct file placement
+        String payload = String.format("{\"message\": \"%s\", \"content\": \"%s\", \"branch\": \"%s\"}",
+                request.getCommitMessage(), request.getContent(), request.getNewBranch());
 
         HttpEntity<String> entity = new HttpEntity<>(payload, headers);
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
@@ -168,9 +147,31 @@ public class GitOperationsController {
         return response.getBody();
     }
 
-    /**
-     * Builds and returns HTTP headers with authorization.
-     */
+    private String getDefaultBranch(String accessToken, String owner, String repo) throws IOException {
+        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo;
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        return root.get("default_branch").asText();
+    }
+
+    private String getBranchSha(String accessToken, String owner, String repo, String branchName) throws IOException {
+        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/branches/" + branchName;
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = buildAuthHeaders(accessToken);
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        return root.get("commit").get("sha").asText();
+    }
+
+    private String extractShaFromResponse(String responseBody) throws IOException {
+        JsonNode root = objectMapper.readTree(responseBody);
+        return root.get("sha").asText();
+    }
+
     private HttpHeaders buildAuthHeaders(String accessToken) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "token " + accessToken);
@@ -179,13 +180,5 @@ public class GitOperationsController {
         headers.add("X-CORRELATION-ID", UUID.randomUUID().toString());
         headers.add("X-CLIENT-ID", "UTCAP");
         return headers;
-    }
-
-    /**
-     * Extracts the file SHA from the JSON response returned by the GitHub API.
-     */
-    private String extractShaFromResponse(String responseBody) throws IOException {
-        JsonNode root = objectMapper.readTree(responseBody);
-        return root.get("sha").asText();
     }
 }
