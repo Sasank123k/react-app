@@ -1,114 +1,124 @@
-Below is a complete example of a simple Properties Editor. You can adjust or extend these examples as needed for your project.
+Below is one complete, updated example of a modular Properties Editor. This set of files uses the same API endpoints, headers, and auxiliary components (IngressNavigation and DiaasButton) as in your existing code. You can adapt these examples to your project as needed.
 
 ---
 
-## 1. **PropertiesEditor.jsx**
+## 1. PropertiesEditor.jsx
 
-This is the main component that fetches the key–value pairs from the backend, holds the state, and renders a list of editable rows plus a live preview.  
+This is the main component. It fetches the properties template and requirement details, stores the data in state, and lets the user edit the raw text (which later you can extend into a key–value row UI if desired). It also uses IngressNavigation and DiaasButton for navigation and actions.
 
 ```jsx
+// PropertiesEditor.jsx
 import React, { useEffect, useState } from "react";
-import KeyValuePair from "./KeyValuePair";
-import { getProperties, saveProperties } from "./propertiesActions";
-import { propertiesEndpoint } from "./propertiesEndpoint";
-import "./PropertiesEditor.css"; // optional for styling
+import axios from "axios";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAppGlobalState } from "@wf/react-library";
+import { MICROSERVICE_URL } from "../../../constant";
+import { generateSearchHeader } from "../../../Authentication";
+import IngressNavigation from "../../Workflow/IngressNavigation";
+import DiaasButton from "../../../components/DiaasButton";
+import "./PropertiesEditor.css";
+import {
+  getPropertiesTemplate,
+  getRequirementDetails,
+  createCMPPropFile,
+} from "./propertiesActions";
 
-export default function PropertiesEditor({ requirementId }) {
-  // State to hold the properties data (stored as an array of objects)
-  // Example: [{ key: "key1", value: "value1" }, { key: "key2", value: "value2" }]
-  const [properties, setProperties] = useState([]);
+export default function PropertiesEditor() {
+  const appGlobalState = useAppGlobalState();
+  const [fileName, setFileName] = useState("");
+  const [propData, setPropData] = useState("");
+  const [jiraKey, setJiraKey] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [previewText, setPreviewText] = useState("");
+  const [error, setError] = useState(null);
+  // formData is derived from jiraKey, propData, and fileName
+  const [formData, setFormData] = useState(null);
 
-  // Fetch the properties from the backend when component mounts
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Fetch the template and requirement details on component mount.
   useEffect(() => {
-    getProperties(requirementId)
-      .then((data) => {
-        setProperties(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError("Error fetching properties: " + err.message);
-        setLoading(false);
-      });
-  }, [requirementId]);
+    const fetchData = async () => {
+      try {
+        // 1. Get the default properties template.
+        const templateResponse = await getPropertiesTemplate(appGlobalState);
+        setPropData(templateResponse.templateObjList[0].json);
 
-  // Update the live preview whenever properties change
+        // 2. Get the requirement details using the value passed in location.state.
+        const reqResponse = await getRequirementDetails(location.state, appGlobalState);
+        setFileName(reqResponse.data[0].tableName);
+        setJiraKey(reqResponse.data[0].requirementId);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [location.state, appGlobalState]);
+
+  // Update the composite formData whenever jiraKey, propData, or fileName changes.
   useEffect(() => {
-    // Convert properties array to a string with "key: value" lines
-    const text = properties.map((pair) => `${pair.key}: ${pair.value}`).join("\n");
-    setPreviewText(text);
-  }, [properties]);
+    setFormData({
+      requirementId: jiraKey,
+      parameters: propData,
+      fileName: fileName,
+    });
+  }, [jiraKey, propData, fileName]);
 
-  // Handle changes to a specific key-value pair
-  const handlePairChange = (index, newPair) => {
-    const updated = [...properties];
-    updated[index] = newPair;
-    setProperties(updated);
+  // Handler for text changes in the properties textarea.
+  const handleChange = (e) => {
+    setPropData(e.target.value);
   };
 
-  // Handle removing a pair
-  const handleRemovePair = (index) => {
-    const updated = properties.filter((_, i) => i !== index);
-    setProperties(updated);
+  // Handler for submitting (saving) the properties file.
+  const handleSubmit = async () => {
+    // Use jiraKey as requirementId.
+    const requirement = {
+      requirementId: jiraKey,
+      parameters: propData,
+      fileName: fileName,
+    };
+    try {
+      const response = await createCMPPropFile(requirement, appGlobalState);
+      if (response.data.statusCode === 201) {
+        alert("Properties File created successfully!");
+        navigate("/createdcmpjil", { state: jiraKey });
+      } else {
+        alert(
+          "Error: " +
+            response.data.statusCode +
+            " Properties File creation failed!"
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error creating properties file: " + err.message);
+    }
   };
 
-  // Handle adding a new empty pair
-  const handleAddPair = () => {
-    setProperties([...properties, { key: "", value: "" }]);
-  };
-
-  // Handle saving the updated properties to the backend
-  const handleSave = () => {
-    saveProperties(requirementId, properties)
-      .then(() => {
-        alert("Properties saved successfully!");
-      })
-      .catch((err) => {
-        alert("Error saving properties: " + err.message);
-      });
-  };
-
-  if (loading) {
-    return <div className="editor-container"><h2>Loading properties...</h2></div>;
-  }
-
-  if (error) {
-    return <div className="editor-container"><h2 style={{ color: "red" }}>{error}</h2></div>;
-  }
+  if (loading) return <div>Loading...</div>;
+  if (error)
+    return <div style={{ color: "red" }}>Error: {error.message}</div>;
 
   return (
-    <div className="editor-container">
-      <h2>Properties Editor</h2>
-      
-      {/* Editor Actions */}
-      <div className="editor-actions">
-        <button onClick={handleAddPair}>Add Key-Value Pair</button>
-        <button onClick={handleSave}>Save Properties</button>
-      </div>
-      
-      {/* List of Key-Value Pairs */}
-      <div className="properties-list">
-        {properties.map((pair, index) => (
-          <KeyValuePair
-            key={index}
-            index={index}
-            pair={pair}
-            onChange={handlePairChange}
-            onRemove={handleRemovePair}
-          />
-        ))}
-      </div>
-      
-      {/* Live Preview */}
-      <div className="properties-preview">
-        <h3>Live Preview</h3>
+    <div className="applicationContainer">
+      <IngressNavigation />
+      <h5>Properties File Configuration</h5>
+      <div className="editor-box">
+        <label htmlFor="parameters" className="editor-label">
+          Parameters:
+        </label>
         <textarea
-          readOnly
-          value={previewText}
-          className="preview-textarea"
+          id="parameters"
+          name="parameters"
+          value={propData}
+          onChange={handleChange}
+          className="editor-textarea"
         />
+        <div className="editor-button-container">
+          <DiaasButton title="Generate Properties File" handleChange={handleSubmit} />
+        </div>
       </div>
     </div>
   );
@@ -117,17 +127,17 @@ export default function PropertiesEditor({ requirementId }) {
 
 ---
 
-## 2. **KeyValuePair.jsx**
+## 2. KeyValuePair.jsx
 
-This component renders a single row that shows an editable key and value. It uses callbacks to inform the parent of any changes or removal.
+If later you choose to split the raw textarea into individual editable rows for each key–value pair, you can use a component like this. (For now, the above editor uses a raw textarea.)
 
 ```jsx
+// KeyValuePair.jsx
 import React from "react";
 import PropTypes from "prop-types";
-import "./PropertiesEditor.css"; // Use same CSS if you want to share styling
+import "./PropertiesEditor.css";
 
 export default function KeyValuePair({ index, pair, onChange, onRemove }) {
-  // Handle changes in the key or value input fields
   const handleKeyChange = (e) => {
     onChange(index, { ...pair, key: e.target.value });
   };
@@ -173,91 +183,121 @@ KeyValuePair.propTypes = {
 
 ---
 
-## 3. **propertiesActions.js**
+## 3. propertiesActions.js
 
-This file contains helper functions for API calls and any data processing logic.
+This file centralizes your API calls using axios. It mirrors the endpoints used in your current code.
 
 ```js
 // propertiesActions.js
+import axios from "axios";
+import { MICROSERVICE_URL } from "../../../constant";
+import { generateSearchHeader } from "../../../Authentication";
 
-import { propertiesEndpoint } from "./propertiesEndpoint";
-
-// Fetch properties data from the backend
-export async function getProperties(requirementId) {
-  const response = await fetch(`${propertiesEndpoint.GET}${requirementId}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      // Add additional headers as needed (e.g., authentication)
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch properties: ${response.status}`);
+// Fetch the properties template
+export async function getPropertiesTemplate(appGlobalState) {
+  const response = await axios.get(
+    `${MICROSERVICE_URL}/api/v1/getPropertiesTemplate/COMPMPROP`,
+    {
+      headers: generateSearchHeader(appGlobalState),
+    }
+  );
+  if (response.status !== 200) {
+    throw new Error(`Failed to fetch properties template: ${response.status}`);
   }
-  // Assume the backend returns an array of objects [{ key: 'key1', value: 'value1'}, ...]
-  const data = await response.json();
-  return data;
+  return response.data;
 }
 
-// Save properties data to the backend via PUT
-export async function saveProperties(requirementId, propertiesData) {
-  const response = await fetch(`${propertiesEndpoint.PUT}${requirementId}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      // Additional headers if required
-    },
-    body: JSON.stringify(propertiesData),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to save properties: ${response.status}`);
+// Fetch requirement details by requirement ID (passed via location.state)
+export async function getRequirementDetails(requirementId, appGlobalState) {
+  const response = await axios.get(
+    `${MICROSERVICE_URL}/api/v1/searchRequirementForReqID/${requirementId}`,
+    {
+      headers: generateSearchHeader(appGlobalState),
+    }
+  );
+  if (response.status !== 200) {
+    throw new Error(
+      `Failed to fetch requirement details: ${response.status}`
+    );
   }
-  return response.json();
+  return response;
+}
+
+// Create (POST) the properties file.
+export async function createCMPPropFile(requirement, appGlobalState) {
+  const response = await axios.post(
+    `${MICROSERVICE_URL}/api/v1/createCMPPropFile`,
+    requirement,
+    {
+      headers: generateSearchHeader(appGlobalState),
+    }
+  );
+  return response;
 }
 ```
 
 ---
 
-## 4. **propertiesEndpoint.js**
+## 4. propertiesEndpoint.js
 
-This file defines the endpoints for the properties API. Adjust the URLs as per your backend routes.
+This file holds the endpoint strings. (You might not need this if the endpoints are hard-coded in your actions—but it can centralize configuration.)
 
 ```js
 // propertiesEndpoint.js
-
 export const propertiesEndpoint = {
-  // For example, if the backend URL is '/api/properties/' and it expects a requirementId appended
-  GET: "/api/properties/",   // e.g., GET /api/properties/{requirementId}
-  PUT: "/api/properties/"    // e.g., PUT /api/properties/{requirementId}
+  GET_TEMPLATE: "/api/v1/getPropertiesTemplate/COMPMPROP", // Template for properties
+  GET_REQUIREMENT: "/api/v1/searchRequirementForReqID/",     // Append requirementId
+  CREATE_FILE: "/api/v1/createCMPPropFile",                  // Create file endpoint
 };
 ```
 
 ---
 
-## 5. **PropertiesEditor.css**
+## 5. PropertiesEditor.css
 
-A simple CSS file for styling the editor. You can adjust the styling to match your design.
+A simple CSS file for styling your Properties Editor. You can adjust these styles as needed.
 
 ```css
 /* PropertiesEditor.css */
 
-.editor-container {
+.applicationContainer {
   max-width: 800px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 20px;
   font-family: Arial, sans-serif;
 }
 
-.editor-actions {
+.editor-box {
+  width: 100%;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.editor-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.editor-textarea {
+  width: 100%;
+  height: 400px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.editor-button-container {
   display: flex;
-  gap: 10px;
-  margin-bottom: 16px;
+  justify-content: center;
+  margin-top: 20px;
 }
 
-.properties-list {
-  margin-bottom: 24px;
-}
-
+/* Styles for KeyValuePair (if used) */
 .pair-row {
   display: flex;
   align-items: center;
@@ -285,44 +325,74 @@ A simple CSS file for styling the editor. You can adjust the styling to match yo
 .remove-button:hover {
   background-color: #e04343;
 }
+```
 
-.properties-preview {
-  margin-top: 20px;
-}
+---
 
-.preview-textarea {
-  width: 100%;
-  height: 200px;
-  padding: 8px;
-  font-family: monospace;
-  resize: vertical;
+## 6. IngressNavigation.jsx (Stub)
+
+Below is a minimal stub for IngressNavigation. In your actual project, this component will have its own logic and styling.
+
+```jsx
+// IngressNavigation.jsx
+import React from "react";
+
+export default function IngressNavigation() {
+  return (
+    <nav style={{ padding: "10px", backgroundColor: "#eee" }}>
+      <span>Ingress Navigation</span>
+    </nav>
+  );
 }
 ```
 
 ---
 
-## **How It All Fits Together**
+## 7. DiaasButton.jsx (Stub)
 
-1. **PropertiesEditor.jsx**  
-   - Fetches the data from the backend using `getProperties` (from propertiesActions.js) and sets the state.
-   - Renders a list of key–value rows (each from KeyValuePair.jsx) and a live preview.
-   - Provides buttons to add new pairs and save the entire properties file.
+Below is a minimal version of DiaasButton. Adjust its props and style as needed.
 
-2. **KeyValuePair.jsx**  
-   - Renders each row with editable inputs for key and value.
-   - Calls back to the parent to update the state when a user makes a change.
+```jsx
+// DiaasButton.jsx
+import React from "react";
+import PropTypes from "prop-types";
 
-3. **propertiesActions.js**  
-   - Contains API calls for fetching and saving properties data.
+export default function DiaasButton({ title, handleChange }) {
+  return (
+    <button onClick={handleChange} style={{ padding: "10px 20px", fontSize: "16px" }}>
+      {title}
+    </button>
+  );
+}
 
-4. **propertiesEndpoint.js**  
-   - Holds the API endpoint strings for easy configuration.
-
-5. **PropertiesEditor.css**  
-   - Provides the basic styling for the editor layout.
+DiaasButton.propTypes = {
+  title: PropTypes.string.isRequired,
+  handleChange: PropTypes.func.isRequired,
+};
+```
 
 ---
 
-This modular setup should help you quickly build and test the properties editor. Once you’re comfortable with it, you can move on to the more complex JIL editor by following a similar structure—with the additional step of creating and using a metadata schema.
+## How It All Fits Together
 
-Let me know if you have any questions or need further assistance!
+1. **PropertiesEditor.jsx**  
+   - On mount, it calls functions from **propertiesActions.js** to fetch the properties template and requirement details.
+   - It stores the fetched data in state and builds a composite object (`formData`).
+   - The user can edit the properties in a textarea.
+   - Clicking the DiaasButton calls `handleSubmit`, which posts the data using the `createCMPPropFile` API.
+
+2. **propertiesActions.js & propertiesEndpoint.js**  
+   - These files centralize the API calls and endpoints.
+   - They use axios along with the custom header generator.
+
+3. **IngressNavigation.jsx & DiaasButton.jsx**  
+   - These components provide navigation and action button functionality.
+
+4. **PropertiesEditor.css**  
+   - Provides a simple layout and style for the editor.
+
+---
+
+This complete set of files should give you a strong starting point to build and refine your Properties Editor. You can later extend this modular design (for example, by replacing the raw textarea with a more granular key–value row approach using KeyValuePair.jsx) as your needs evolve.
+
+Feel free to ask if you need further adjustments or additional details!
