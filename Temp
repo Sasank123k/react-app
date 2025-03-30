@@ -1,232 +1,328 @@
-package com.wellsfargo.utcap.controller;
+Below is a complete example of a simple Properties Editor. You can adjust or extend these examples as needed for your project.
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wellsfargo.utcap.dto.GitOperationRequest;
-import jakarta.servlet.http.HttpSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.*;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+---
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.UUID;
+## 1. **PropertiesEditor.jsx**
 
-/**
- * Controller for handling Git operations.
- */
-@RestController
-@RequestMapping("/ghe")
-public class GitOperationsController {
+This is the main component that fetches the key–value pairs from the backend, holds the state, and renders a list of editable rows plus a live preview.  
 
-    private static final Logger log = LoggerFactory.getLogger(GitOperationsController.class);
-    private static final String GHE_API_BASE = "https://api.github.com/";
-    private final ObjectMapper objectMapper = new ObjectMapper();
+```jsx
+import React, { useEffect, useState } from "react";
+import KeyValuePair from "./KeyValuePair";
+import { getProperties, saveProperties } from "./propertiesActions";
+import { propertiesEndpoint } from "./propertiesEndpoint";
+import "./PropertiesEditor.css"; // optional for styling
 
-    // Removed PathConstructorService dependency since paths now come from the frontend.
+export default function PropertiesEditor({ requirementId }) {
+  // State to hold the properties data (stored as an array of objects)
+  // Example: [{ key: "key1", value: "value1" }, { key: "key2", value: "value2" }]
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [previewText, setPreviewText] = useState("");
 
-    /**
-     * Endpoint to perform Git operations based on the operation type.
-     * Expects the payload to contain the final file path.
-     */
-    @PostMapping("/operation")
-    public ResponseEntity<?> performOperation(@RequestBody GitOperationRequest request, HttpSession session) {
-        String accessToken = (String) session.getAttribute("GHE_ACCESS_TOKEN");
-        if (accessToken == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
-        }
+  // Fetch the properties from the backend when component mounts
+  useEffect(() => {
+    getProperties(requirementId)
+      .then((data) => {
+        setProperties(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError("Error fetching properties: " + err.message);
+        setLoading(false);
+      });
+  }, [requirementId]);
 
-        try {
-            String result;
-            switch (request.getOperation()) {
-                case "createBranch":
-                    result = createBranch(accessToken, request);
-                    break;
-                case "pushFile":
-                    // Previously, the path was computed using PathConstructorService.
-                    // Now, the filePath is expected to be provided in the payload.
-                    log.info("pushFile: Using provided filePath: {}", request.getFilePath());
-                    result = pushFile(accessToken, request);
-                    break;
-                case "updateFile":
-                    result = updateFile(accessToken, request);
-                    break;
-                case "addFile":
-                    result = addFile(accessToken, request);
-                    break;
-                case "mergeBranch":
-                    result = mergeBranch(accessToken, request);
-                    break;
-                default:
-                    return ResponseEntity.badRequest().body("Invalid operation: " + request.getOperation());
-            }
-            log.info("performOperation: Operation result: {}", result);
-            return ResponseEntity.ok(result);
-        } catch (Exception ex) {
-            log.error("performOperation: Operation failed", ex);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Operation failed: " + ex.getMessage());
-        }
-    }
+  // Update the live preview whenever properties change
+  useEffect(() => {
+    // Convert properties array to a string with "key: value" lines
+    const text = properties.map((pair) => `${pair.key}: ${pair.value}`).join("\n");
+    setPreviewText(text);
+  }, [properties]);
 
-    private String createBranch(String accessToken, GitOperationRequest request) throws IOException {
-        String owner = request.getOwner();
-        String repo = request.getRepo();
-        String newBranch = request.getNewBranch();
+  // Handle changes to a specific key-value pair
+  const handlePairChange = (index, newPair) => {
+    const updated = [...properties];
+    updated[index] = newPair;
+    setProperties(updated);
+  };
 
-        String branchUrl = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/branches/" + newBranch;
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = buildAuthHeaders(accessToken);
-        HttpEntity<?> getEntity = new HttpEntity<>(headers);
-        try {
-            ResponseEntity<String> branchResponse = restTemplate.exchange(branchUrl, HttpMethod.GET, getEntity, String.class);
-            if (branchResponse.getStatusCode() == HttpStatus.OK) {
-                log.info("createBranch: Branch {} already exists.", newBranch);
-                return "Branch " + newBranch + " already exists.";
-            }
-        } catch (HttpClientErrorException e) {
-            if (e.getStatusCode() != HttpStatus.NOT_FOUND) {
-                throw e;
-            }
-        }
+  // Handle removing a pair
+  const handleRemovePair = (index) => {
+    const updated = properties.filter((_, i) => i !== index);
+    setProperties(updated);
+  };
 
-        String defaultBranch = getDefaultBranch(accessToken, owner, repo);
-        String baseSha = getBranchSha(accessToken, owner, repo, defaultBranch);
-        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/git/refs";
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        String payload = String.format(
-                "{\"ref\": \"refs/heads/%s\", \"sha\": \"%s\"}",
-                newBranch, baseSha
-        );
-        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-        log.info("createBranch: Create branch response: {}", response.getBody());
-        return response.getBody();
-    }
+  // Handle adding a new empty pair
+  const handleAddPair = () => {
+    setProperties([...properties, { key: "", value: "" }]);
+  };
 
-    private String pushFile(String accessToken, GitOperationRequest request) throws IOException {
-        String owner = request.getOwner();
-        String repo = request.getRepo();
-        String filePath = request.getFilePath();
-        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/contents/" + filePath + "?ref=" + request.getNewBranch();
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = buildAuthHeaders(accessToken);
-        HttpEntity<?> entity = new HttpEntity<>(headers);
+  // Handle saving the updated properties to the backend
+  const handleSave = () => {
+    saveProperties(requirementId, properties)
+      .then(() => {
+        alert("Properties saved successfully!");
+      })
+      .catch((err) => {
+        alert("Error saving properties: " + err.message);
+      });
+  };
 
-        try {
-            ResponseEntity<String> getResponse = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-            log.info("pushFile: GET response for file update: {}", getResponse.getBody());
-            String existingFileSha = extractShaFromResponse(getResponse.getBody());
-            request.setFileSha(existingFileSha);
-            log.info("pushFile: File exists. Proceeding with update. SHA: {}", existingFileSha);
-            return updateFile(accessToken, request);
-        } catch (HttpClientErrorException e) {
-            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                log.info("pushFile: File does not exist in branch {}. Proceeding with add.", request.getNewBranch());
-                return addFile(accessToken, request);
-            } else {
-                throw e;
-            }
-        }
-    }
+  if (loading) {
+    return <div className="editor-container"><h2>Loading properties...</h2></div>;
+  }
 
-    private String updateFile(String accessToken, GitOperationRequest request) {
-        String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
-                + "/contents/" + request.getFilePath();
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = buildAuthHeaders(accessToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        String payload = String.format(
-                "{\"message\": \"%s\", \"content\": \"%s\", \"sha\": \"%s\", \"branch\": \"%s\"}",
-                request.getCommitMessage(), request.getContent(), request.getFileSha(), request.getNewBranch()
-        );
-        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
-        log.info("updateFile: Update file response: {}", response.getBody());
-        return response.getBody();
-    }
+  if (error) {
+    return <div className="editor-container"><h2 style={{ color: "red" }}>{error}</h2></div>;
+  }
 
-    private String addFile(String accessToken, GitOperationRequest request) {
-        String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo()
-                + "/contents/" + request.getFilePath();
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = buildAuthHeaders(accessToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        String payload = String.format(
-                "{\"message\": \"%s\", \"content\": \"%s\", \"branch\": \"%s\"}",
-                request.getCommitMessage(), request.getContent(), request.getNewBranch()
-        );
-        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
-        log.info("addFile: Add file response: {}", response.getBody());
-        return response.getBody();
-    }
-
-    private String mergeBranch(String accessToken, GitOperationRequest request) {
-        String url = GHE_API_BASE + "/repos/" + request.getOwner() + "/" + request.getRepo() + "/merges";
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = buildAuthHeaders(accessToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        String payload = String.format(
-                "{\"base\": \"%s\", \"head\": \"%s\", \"commit_message\": \"%s\"}",
-                request.getBaseBranch(), request.getHeadBranch(), request.getCommitMessage()
-        );
-        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-        log.info("mergeBranch: Merge branch response: {}", response.getBody());
-        return response.getBody();
-    }
-
-    private String getDefaultBranch(String accessToken, String owner, String repo) throws IOException {
-        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo;
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = buildAuthHeaders(accessToken);
-        HttpEntity<?> entity = new HttpEntity<>(headers);
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-        JsonNode root = objectMapper.readTree(response.getBody());
-        String defaultBranch = root.get("default_branch").asText();
-        log.info("getDefaultBranch: Default branch for {}/{}: {}", owner, repo, defaultBranch);
-        return defaultBranch;
-    }
-
-    private String getBranchSha(String accessToken, String owner, String repo, String branchName) throws IOException {
-        String url = GHE_API_BASE + "/repos/" + owner + "/" + repo + "/branches/" + branchName;
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = buildAuthHeaders(accessToken);
-        HttpEntity<?> entity = new HttpEntity<>(headers);
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-        JsonNode root = objectMapper.readTree(response.getBody());
-        String sha = root.get("commit").get("sha").asText();
-        log.info("getBranchSha: SHA for branch {} in {}/{}: {}", branchName, owner, repo, sha);
-        return sha;
-    }
-
-    private String extractShaFromResponse(String responseBody) throws IOException {
-        JsonNode root = objectMapper.readTree(responseBody);
-        if (root.isArray() && root.size() > 0) {
-            String sha = root.get(0).get("sha").asText();
-            log.info("extractShaFromResponse: Extracted SHA from array: {}", sha);
-            return sha;
-        } else if (root.isObject() && root.has("sha")) {
-            String sha = root.get("sha").asText();
-            log.info("extractShaFromResponse: Extracted SHA from object: {}", sha);
-            return sha;
-        } else {
-            log.error("extractShaFromResponse: Unable to extract sha from response: {}", responseBody);
-            throw new IOException("SHA not found in GitHub response.");
-        }
-    }
-
-    private HttpHeaders buildAuthHeaders(String accessToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "token " + accessToken);
-        headers.setAccept(Collections.singletonList(MediaType.parseMediaType("application/vnd.github.v3+json")));
-        headers.add("X-REQUEST-ID", UUID.randomUUID().toString());
-        headers.add("X-CORRELATION-ID", UUID.randomUUID().toString());
-        headers.add("X-CLIENT-ID", "UTCAP");
-        return headers;
-    }
+  return (
+    <div className="editor-container">
+      <h2>Properties Editor</h2>
+      
+      {/* Editor Actions */}
+      <div className="editor-actions">
+        <button onClick={handleAddPair}>Add Key-Value Pair</button>
+        <button onClick={handleSave}>Save Properties</button>
+      </div>
+      
+      {/* List of Key-Value Pairs */}
+      <div className="properties-list">
+        {properties.map((pair, index) => (
+          <KeyValuePair
+            key={index}
+            index={index}
+            pair={pair}
+            onChange={handlePairChange}
+            onRemove={handleRemovePair}
+          />
+        ))}
+      </div>
+      
+      {/* Live Preview */}
+      <div className="properties-preview">
+        <h3>Live Preview</h3>
+        <textarea
+          readOnly
+          value={previewText}
+          className="preview-textarea"
+        />
+      </div>
+    </div>
+  );
 }
+```
+
+---
+
+## 2. **KeyValuePair.jsx**
+
+This component renders a single row that shows an editable key and value. It uses callbacks to inform the parent of any changes or removal.
+
+```jsx
+import React from "react";
+import PropTypes from "prop-types";
+import "./PropertiesEditor.css"; // Use same CSS if you want to share styling
+
+export default function KeyValuePair({ index, pair, onChange, onRemove }) {
+  // Handle changes in the key or value input fields
+  const handleKeyChange = (e) => {
+    onChange(index, { ...pair, key: e.target.value });
+  };
+
+  const handleValueChange = (e) => {
+    onChange(index, { ...pair, value: e.target.value });
+  };
+
+  return (
+    <div className="pair-row">
+      <input
+        type="text"
+        placeholder="Key"
+        value={pair.key}
+        onChange={handleKeyChange}
+        className="pair-input"
+      />
+      <span className="colon-separator">:</span>
+      <input
+        type="text"
+        placeholder="Value"
+        value={pair.value}
+        onChange={handleValueChange}
+        className="pair-input"
+      />
+      <button onClick={() => onRemove(index)} className="remove-button">
+        Remove
+      </button>
+    </div>
+  );
+}
+
+KeyValuePair.propTypes = {
+  index: PropTypes.number.isRequired,
+  pair: PropTypes.shape({
+    key: PropTypes.string,
+    value: PropTypes.string,
+  }).isRequired,
+  onChange: PropTypes.func.isRequired,
+  onRemove: PropTypes.func.isRequired,
+};
+```
+
+---
+
+## 3. **propertiesActions.js**
+
+This file contains helper functions for API calls and any data processing logic.
+
+```js
+// propertiesActions.js
+
+import { propertiesEndpoint } from "./propertiesEndpoint";
+
+// Fetch properties data from the backend
+export async function getProperties(requirementId) {
+  const response = await fetch(`${propertiesEndpoint.GET}${requirementId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      // Add additional headers as needed (e.g., authentication)
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch properties: ${response.status}`);
+  }
+  // Assume the backend returns an array of objects [{ key: 'key1', value: 'value1'}, ...]
+  const data = await response.json();
+  return data;
+}
+
+// Save properties data to the backend via PUT
+export async function saveProperties(requirementId, propertiesData) {
+  const response = await fetch(`${propertiesEndpoint.PUT}${requirementId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      // Additional headers if required
+    },
+    body: JSON.stringify(propertiesData),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to save properties: ${response.status}`);
+  }
+  return response.json();
+}
+```
+
+---
+
+## 4. **propertiesEndpoint.js**
+
+This file defines the endpoints for the properties API. Adjust the URLs as per your backend routes.
+
+```js
+// propertiesEndpoint.js
+
+export const propertiesEndpoint = {
+  // For example, if the backend URL is '/api/properties/' and it expects a requirementId appended
+  GET: "/api/properties/",   // e.g., GET /api/properties/{requirementId}
+  PUT: "/api/properties/"    // e.g., PUT /api/properties/{requirementId}
+};
+```
+
+---
+
+## 5. **PropertiesEditor.css**
+
+A simple CSS file for styling the editor. You can adjust the styling to match your design.
+
+```css
+/* PropertiesEditor.css */
+
+.editor-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: Arial, sans-serif;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.properties-list {
+  margin-bottom: 24px;
+}
+
+.pair-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.pair-input {
+  padding: 6px;
+  margin-right: 4px;
+  flex: 1;
+}
+
+.colon-separator {
+  margin-right: 4px;
+}
+
+.remove-button {
+  background-color: #ff4d4f;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.remove-button:hover {
+  background-color: #e04343;
+}
+
+.properties-preview {
+  margin-top: 20px;
+}
+
+.preview-textarea {
+  width: 100%;
+  height: 200px;
+  padding: 8px;
+  font-family: monospace;
+  resize: vertical;
+}
+```
+
+---
+
+## **How It All Fits Together**
+
+1. **PropertiesEditor.jsx**  
+   - Fetches the data from the backend using `getProperties` (from propertiesActions.js) and sets the state.
+   - Renders a list of key–value rows (each from KeyValuePair.jsx) and a live preview.
+   - Provides buttons to add new pairs and save the entire properties file.
+
+2. **KeyValuePair.jsx**  
+   - Renders each row with editable inputs for key and value.
+   - Calls back to the parent to update the state when a user makes a change.
+
+3. **propertiesActions.js**  
+   - Contains API calls for fetching and saving properties data.
+
+4. **propertiesEndpoint.js**  
+   - Holds the API endpoint strings for easy configuration.
+
+5. **PropertiesEditor.css**  
+   - Provides the basic styling for the editor layout.
+
+---
+
+This modular setup should help you quickly build and test the properties editor. Once you’re comfortable with it, you can move on to the more complex JIL editor by following a similar structure—with the additional step of creating and using a metadata schema.
+
+Let me know if you have any questions or need further assistance!
