@@ -1,13 +1,21 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+await fetch(`${MICROSERVICE_URL}/api/v1/createCMPPropFile`, {
+  method: "POST",
+  headers: generateSearchHeader(appGlobalState),
+  body: JSON.stringify(requirement),
+})
+  .then((response) => response.json())
+  .then((responseJson) => {
+    console.log("Response JSON:", responseJson);
+    if (responseJson && responseJson.statusCode === 201) {
+      alert("Properties File created successfully !!");
+      let path = "/createdcmpjil";
+      navigate(path, { state: reqValue });
+    } else {
+      const code = responseJson ? responseJson.statusCode : "undefined";
+      alert("Errorcode:" + code + " Properties File creation failed !!");
+    }
+    return responseJson;
+  })
+  .catch((error) => {
+    console.error("Error creating properties file:", error);
+  });
