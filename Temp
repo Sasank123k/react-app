@@ -1,20 +1,48 @@
-Below is a complete, updated example of a modular Properties Editor that meets your requirements. In this version, we:
+To split each line by the "=" character (so that everything left of "=" becomes the key and everything right becomes the value), you can update your helper functions. For example, modify your parsing function as follows:
 
-- Fetch a default properties template and requirement details from your backend (using your headers and endpoints).
-- Convert the default properties (a raw string) into an array of key–value pairs.
-- Render each key–value pair in its own row (using a separate component).
-- Provide a live preview pane on the right.
-- Use your auxiliary components (IngressNavigation and DiaasButton).
+```js
+// Helper to parse a raw properties string into an array of key-value objects using "=" as separator.
+function parsePropertiesString(str) {
+  if (!str) return [];
+  const lines = str.split("\n");
+  const pairs = lines.map(line => {
+    const equalIndex = line.indexOf("=");
+    if (equalIndex !== -1) {
+      const key = line.slice(0, equalIndex).trim();
+      const value = line.slice(equalIndex + 1).trim();
+      return { key, value };
+    } else {
+      // If no "=" found, treat the whole line as key and leave value empty.
+      return { key: line.trim(), value: "" };
+    }
+  });
+  return pairs;
+}
 
-You can adjust the code and endpoints as needed.
+// Helper to convert an array of key-value pairs back to a properties string using "=".
+function propertiesArrayToString(pairs) {
+  return pairs.map(pair => `${pair.key}=${pair.value}`).join("\n");
+}
+```
 
----
+### How It Works:
+- **parsePropertiesString:**  
+  - Splits the input text by newline.
+  - For each line, it looks for the first occurrence of `"="`.
+  - If found, it extracts everything before as the key and everything after as the value.
+  - If no "=" is found, the entire line is treated as the key and the value is set to an empty string.
 
-### 1. **PropertiesEditor.jsx**
+- **propertiesArrayToString:**  
+  - Converts each key–value object back into a line formatted as `key=value`.
+  - Joins all lines with newline characters.
+
+### Updated Code in Context
+
+Below is the updated `PropertiesEditor.jsx` file that uses these helper functions:
 
 ```jsx
 // PropertiesEditor.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAppGlobalState } from "@wf/react-library";
@@ -30,15 +58,15 @@ import {
 } from "./propertiesActions";
 import KeyValuePair from "./KeyValuePair";
 
-// Helper to parse a raw properties string into an array of key-value objects.
+// Updated helper to parse a raw properties string using "=" as separator.
 function parsePropertiesString(str) {
   if (!str) return [];
   const lines = str.split("\n");
   const pairs = lines.map(line => {
-    const colonIndex = line.indexOf(":");
-    if (colonIndex !== -1) {
-      const key = line.slice(0, colonIndex).trim();
-      const value = line.slice(colonIndex + 1).trim();
+    const equalIndex = line.indexOf("=");
+    if (equalIndex !== -1) {
+      const key = line.slice(0, equalIndex).trim();
+      const value = line.slice(equalIndex + 1).trim();
       return { key, value };
     } else {
       return { key: line.trim(), value: "" };
@@ -47,9 +75,9 @@ function parsePropertiesString(str) {
   return pairs;
 }
 
-// Helper to convert an array of key-value pairs back to a string.
+// Updated helper to convert an array of key-value pairs back to a properties string.
 function propertiesArrayToString(pairs) {
-  return pairs.map(pair => `${pair.key}: ${pair.value}`).join("\n");
+  return pairs.map(pair => `${pair.key}=${pair.value}`).join("\n");
 }
 
 export default function PropertiesEditor() {
@@ -65,7 +93,9 @@ export default function PropertiesEditor() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Fetch the default template and requirement details on mount.
+  // Memoize location.state so that the effect doesn't run repeatedly.
+  const stableLocationState = useMemo(() => location.state, [location.state]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -84,8 +114,8 @@ export default function PropertiesEditor() {
           throw new Error("No template object found in the response");
         }
 
-        // 2. Get requirement details using location.state.
-        const reqResponse = await getRequirementDetails(location.state, appGlobalState);
+        // 2. Get requirement details using stableLocationState.
+        const reqResponse = await getRequirementDetails(stableLocationState, appGlobalState);
         console.log("Requirement Response Data:", reqResponse.data);
         if (reqResponse && reqResponse.data && reqResponse.data.length > 0) {
           setFileName(reqResponse.data[0].tableName);
@@ -100,7 +130,7 @@ export default function PropertiesEditor() {
       }
     };
     fetchData();
-  }, [location.state, appGlobalState]);
+  }, [stableLocationState, appGlobalState]);
 
   // Update composite formData and live preview whenever jiraKey, fileName, or pairs change.
   useEffect(() => {
@@ -198,9 +228,9 @@ export default function PropertiesEditor() {
 }
 ```
 
----
-
 ### 2. **KeyValuePair.jsx**
+
+*(No changes needed here other than ensuring the styling matches the "=" format.)*
 
 ```jsx
 // KeyValuePair.jsx
@@ -226,7 +256,7 @@ export default function KeyValuePair({ index, pair, onChange, onRemove }) {
         onChange={handleKeyChange}
         className="pair-input"
       />
-      <span className="colon-separator">:</span>
+      <span className="colon-separator">=</span>
       <input
         type="text"
         placeholder="Value"
@@ -252,9 +282,9 @@ KeyValuePair.propTypes = {
 };
 ```
 
----
-
 ### 3. **propertiesActions.js**
+
+*(Same as before, with no change related to the "=" parsing.)*
 
 ```js
 // propertiesActions.js
@@ -276,7 +306,7 @@ export async function getPropertiesTemplate(appGlobalState) {
   return response.data;
 }
 
-// Fetch requirement details by requirement ID (passed via location.state).
+// Fetch requirement details by requirement ID.
 export async function getRequirementDetails(requirementId, appGlobalState) {
   const response = await axios.get(
     `${MICROSERVICE_URL}/api/v1/searchRequirementForReqID/${requirementId}`,
@@ -303,9 +333,7 @@ export async function createCMPPropFile(requirement, appGlobalState) {
 }
 ```
 
----
-
-### 4. **propertiesEndpoint.js** (Optional)
+### 4. **propertiesEndpoint.js** *(Optional)*
 
 ```js
 // propertiesEndpoint.js
@@ -315,8 +343,6 @@ export const propertiesEndpoint = {
   CREATE_FILE: "/api/v1/createCMPPropFile",
 };
 ```
-
----
 
 ### 5. **PropertiesEditor.css**
 
@@ -403,8 +429,6 @@ export const propertiesEndpoint = {
 }
 ```
 
----
-
 ### 6. **IngressNavigation.jsx (Stub)**
 
 ```jsx
@@ -419,8 +443,6 @@ export default function IngressNavigation() {
   );
 }
 ```
-
----
 
 ### 7. **DiaasButton.jsx (Stub)**
 
@@ -445,26 +467,11 @@ DiaasButton.propTypes = {
 
 ---
 
-### How It All Fits Together
+### Explanation Recap
 
-1. **PropertiesEditor.jsx**  
-   - On mount, it fetches the default properties template and requirement details.  
-   - It converts the raw template string into an array of key–value pairs (using `parsePropertiesString`), which are rendered using the **KeyValuePair** component.  
-   - As the user edits or adds/removes pairs, the state updates and a live preview (a formatted text view) is displayed in the right pane.  
-   - When the user clicks the **DiaasButton**, the updated properties file is submitted to the backend.
+- The **helper functions** now split lines using `"="` instead of `":"`.
+- The **PropertiesEditor** fetches the template and requirement details once (using memoized dependencies) and converts the template string into an array of key–value pairs.
+- The UI displays these pairs on the left side (editable rows using the **KeyValuePair** component) and a live preview (converted back to a string with "=") on the right.
+- The **DiaasButton** triggers the submission, which sends the updated properties back to the backend.
 
-2. **KeyValuePair.jsx**  
-   - Renders each row with inputs for the key and value and a button to remove that row.
-
-3. **propertiesActions.js**  
-   - Contains the API calls for fetching the template, requirement details, and for creating the properties file.
-
-4. **IngressNavigation.jsx** and **DiaasButton.jsx**  
-   - Provide basic navigation and button functionality as used in your project.
-
-5. **PropertiesEditor.css**  
-   - Provides styling for a two-column layout with an editable left panel and a live preview right panel.
-
----
-
-This complete set of files should serve as a robust starting point for your Properties Editor. Feel free to modify or extend these files to better suit your project’s requirements. Let me know if you need any further adjustments or clarifications!
+This complete set of updated code files should meet your requirements. Let me know if you need further adjustments or clarifications!
