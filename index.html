@@ -573,6 +573,58 @@ This setup satisfies all your stated requirements:
 5. Scroll in each panel and the generate button below.
 
 
-
 Feel free to tweak any naming or minor details as needed!
+
+
+package com.yourcompany.controller;
+
+import com.yourcompany.model.PropertiesFile;
+import com.yourcompany.model.JSONTemplate;
+import com.yourcompany.repository.PropertiesFileRepository;
+import com.yourcompany.repository.JSONTemplateRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1")
+public class PropertiesController {
+
+    @Autowired
+    private PropertiesFileRepository propertiesFileRepository;
+
+    @Autowired
+    private JSONTemplateRepository jsonTemplateRepository;
+
+    /**
+     * This endpoint returns either the updated properties file for the given requirementId 
+     * (if it exists in the PropertiesFile collection) or the default template from the JSONTemplate repository.
+     *
+     * @param requirementId The requirement id to look up.
+     * @return The updated properties file or default template.
+     */
+    @GetMapping("/getPropertiesFileOrTemplate/{requirementId}")
+    public ResponseEntity<?> getPropertiesFileOrTemplate(@PathVariable("requirementId") String requirementId) {
+        // 1. Check if an updated properties file exists in the PropertiesFile collection
+        List<PropertiesFile> updatedFiles = propertiesFileRepository.findByRequirementId(requirementId);
+        if (updatedFiles != null && !updatedFiles.isEmpty()) {
+            // Return the first updated file
+            return ResponseEntity.ok(updatedFiles.get(0));
+        } else {
+            // 2. No updated file exists; fetch the default template from the JSONTemplate repository.
+            List<JSONTemplate> templates = jsonTemplateRepository.findByTemplateName("COMPMPROP");
+            if (templates != null && !templates.isEmpty()) {
+                return ResponseEntity.ok(templates.get(0));
+            } else {
+                // 3. If neither an updated file nor a default template is found, return a 404 response.
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("No properties file or default template found for requirementId: " + requirementId);
+            }
+        }
+    }
+}
+                
 
