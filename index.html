@@ -1,97 +1,11 @@
-Below is a complete solution that includes:
-
-1. A new backend endpoint (getPropertiesFileOrTemplate) that checks for an updated file by requirement ID. If found, it returns that; otherwise, it falls back to the default template.
-
-
-2. Updated frontend code (4 files) that:
-
-Uses =…,\ in the live preview only (appending ,\ at the end of each value in the preview).
-
-Strips any trailing ,\ when parsing the data back into the editable fields.
-
-Shows a small button with a cross for removal.
-
-Has larger width for key/value inputs.
-
-Places the “Generate Properties File” button below the two-column layout.
-
-
-
-
-Feel free to adapt the naming conventions and references (e.g., PropertiesController, JSONTemplateRepository) to match your existing code.
+Below is an updated version of the two frontend files. In this update, we add a new API call (via a function in the actions file) to fetch the requirement details so we can extract the table name. Then, in the PropertiesEditor component, after fetching the properties file/template, we call this new function to get the table name and then set the file name as <tablename>_gcp.properties.
 
 
 ---
 
-1. Backend: New Endpoint
+1. Updated propertiesActions.js
 
-Below is a pseudo-code snippet you can add to your existing controller (e.g., ApplicationAuthorizerController or a new PropertiesController). It uses a repository method that returns a List<PropertiesFile> by requirement ID. If the list is not empty, we return the first updated file; otherwise, we fall back to the default template.
-
-@RestController
-@RequestMapping("/api/v1")
-public class PropertiesController {
-
-    @Autowired
-    private PropertiesFileRepository propertiesFileRepository;
-
-    @Autowired
-    private JSONTemplateRepository jsonTemplateRepository; 
-    // Or a service that fetches your default template
-
-    @GetMapping("/getPropertiesFileOrTemplate/{requirementId}")
-    public ResponseEntity<?> getPropertiesFileOrTemplate(@PathVariable("requirementId") String requirementId) {
-        // 1) Check if a user-updated file exists in your "PropertiesFile_Dev" collection
-        List<PropertiesFile> updatedFiles = propertiesFileRepository.findByRequirementId(requirementId);
-        if (!updatedFiles.isEmpty()) {
-            // Return the first matching updated file
-            return ResponseEntity.ok(updatedFiles.get(0));
-        } else {
-            // 2) If no updated file => fetch the default template
-            String templateName = "COMPMPROP"; // or whichever template name you use
-            Optional<JSONTemplate> defaultTemplateOpt = jsonTemplateRepository.findByTemplateName(templateName);
-            if (defaultTemplateOpt.isPresent()) {
-                return ResponseEntity.ok(defaultTemplateOpt.get());
-            } else {
-                // 3) If even the default is missing, respond with 404
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("No updated file or default template found for requirementId: " + requirementId);
-            }
-        }
-    }
-}
-
-Repository Example (if returning a List):
-
-@Repository
-public interface PropertiesFileRepository extends MongoRepository<PropertiesFile, String> {
-    List<PropertiesFile> findByRequirementId(String requirementId);
-}
-
-With this endpoint in place, your frontend can call:
-
-GET /api/v1/getPropertiesFileOrTemplate/{requirementId}
-
-and automatically receive the updated file if it exists, or the default template otherwise.
-
-
----
-
-2. Frontend Code (4 Files)
-
-Below is fully updated code that:
-
-Fetches from the new endpoint (/getPropertiesFileOrTemplate/{requirementId}) instead of always getting the default template.
-
-Appends ,\ to each value in the preview only.
-
-Strips ,\ when parsing back into the editor fields, so the user doesn’t see those extra characters in the text fields.
-
-Displays a small cross button for removal.
-
-Places the “Generate Properties File” button below the two-column layout.
-
-
-2.1 propertiesActions.js
+This file now includes a new function getRequirementDetails that calls your endpoint (which returns a list where response.data[0].tablename is the table name). The function returns the data (so the caller can extract the table name).
 
 // propertiesActions.js
 import axios from "axios";
@@ -99,7 +13,7 @@ import { MICROSERVICE_URL } from "../../../constant";
 import { generateSearchHeader } from "../../../Authentication";
 
 /**
- * GET the updated file or default template for a requirement
+ * GET the updated file or default template for a requirement.
  * Endpoint: /api/v1/getPropertiesFileOrTemplate/{requirementId}
  */
 export async function getPropertiesFileOrTemplate(requirementId, appGlobalState) {
@@ -109,16 +23,31 @@ export async function getPropertiesFileOrTemplate(requirementId, appGlobalState)
       headers: generateSearchHeader(appGlobalState),
     }
   );
-  // If not 200, 201, or if error, handle accordingly
   if (response.status !== 200 && response.status !== 201) {
     throw new Error(`Failed to fetch properties: ${response.status}`);
   }
-  // Return the data (which could be the updated file or the default template)
   return response.data;
 }
 
 /**
- * POST to create (or update) the properties file
+ * GET the requirement details to derive the file name.
+ * Expected response: an array with at least one object having a field "tablename".
+ */
+export async function getRequirementDetails(requirementId, appGlobalState) {
+  const response = await axios.get(
+    `${MICROSERVICE_URL}/api/v1/searchRequirementForReqID/${requirementId}`,
+    {
+      headers: generateSearchHeader(appGlobalState),
+    }
+  );
+  if (response.status !== 200 && response.status !== 201) {
+    throw new Error(`Failed to fetch requirement details: ${response.status}`);
+  }
+  return response.data;
+}
+
+/**
+ * POST to create (or update) the properties file.
  * Endpoint: /api/v1/createCMPPropFile
  */
 export async function createCMPPropFile(requirement, appGlobalState) {
@@ -130,14 +59,14 @@ export async function createCMPPropFile(requirement, appGlobalState) {
   return response.json();
 }
 
-> Note: We removed references to the old getPropertiesTemplate or getRequirementDetails if you no longer need them. If you still need to fetch the requirement details from another endpoint, you can keep that logic.
-
-
-
 
 ---
 
-2.2 PropertiesEditor.jsx
+2. Updated PropertiesEditor.jsx
+
+In this file, we now call the new getRequirementDetails API to get the table name. We then set the file name as <tablename>_gcp.properties. (We assume that the location.state now holds the requirement ID that we need.)
+
+We also keep all our previous UI and parsing logic.
 
 // PropertiesEditor.jsx
 import React, { useEffect, useState, useMemo } from "react";
@@ -148,12 +77,16 @@ import { generateSearchHeader } from "../../../Authentication";
 import IngressNavigation from "../../Workflow/IngressNavigation";
 import DiaasButton from "../../../components/DiaasButton";
 import "./PropertiesEditor.css";
-import { getPropertiesFileOrTemplate, createCMPPropFile } from "./propertiesActions";
+import { 
+  getPropertiesFileOrTemplate, 
+  getRequirementDetails, 
+  createCMPPropFile 
+} from "./propertiesActions";
 import KeyValuePair from "./KeyValuePair";
 
 /**
- * We append ",\" to each value in the preview only.
- * In parse, we strip trailing ",\" so the user doesn't see it in the editor fields.
+ * When parsing the properties string, we use "=" as the separator.
+ * Also, if a value ends with ",\" (as added in preview), we remove it for editing.
  */
 function parsePropertiesString(str) {
   if (!str) return [];
@@ -166,11 +99,10 @@ function parsePropertiesString(str) {
       key = line.slice(0, equalIndex).trim();
       value = line.slice(equalIndex + 1).trim();
     } else {
-      // No "=" found
       key = line.trim();
       value = "";
     }
-    // Remove trailing ",\" if present
+    // Strip trailing ",\" if present
     if (value.endsWith(",\\")) {
       value = value.slice(0, -2).trim();
     }
@@ -179,13 +111,13 @@ function parsePropertiesString(str) {
 }
 
 /**
- * Convert array of {key, value} to a properties string,
- * appending ",\" to each value in the preview only.
+ * Converts an array of key-value pairs back to a properties string.
+ * In the preview, each value gets appended with ",\".
  */
 function propertiesArrayToString(pairs) {
   return pairs
     .map(({ key, value }) => {
-      // If there's a value, append ",\"
+      // Append delimiter only in the preview representation if a value exists
       const finalValue = value ? `${value},\\` : value;
       return `${key}=${finalValue}`;
     })
@@ -194,8 +126,9 @@ function propertiesArrayToString(pairs) {
 
 export default function PropertiesEditor() {
   const appGlobalState = useAppGlobalState();
-  const [pairs, setPairs] = useState([]); // array of { key, value }
+  const [pairs, setPairs] = useState([]); // Array of { key, value }
   const [requirementId, setRequirementId] = useState("");
+  const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [previewText, setPreviewText] = useState("");
@@ -203,33 +136,30 @@ export default function PropertiesEditor() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Memoize location.state so we don't re-trigger effect constantly
-  const stableLocationState = useMemo(() => location.state, [location.state]);
+  // Assume location.state holds the requirementId.
+  const stableRequirementId = useMemo(() => location.state, [location.state]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1) Use the new endpoint to get updated or default properties
-        const result = await getPropertiesFileOrTemplate(stableLocationState, appGlobalState);
-        /**
-         * result might look like:
-         * {
-         *   "requirementId": "JIRA-123",
-         *   "json": "key1=value1\nkey2=value2"
-         * }
-         * or if it's a default template, might be something else like:
-         * { "templateObjList": [ { "json": ... } ] }  -> depends on how your backend returns it
-         *
-         * Adjust parsing accordingly.
-         */
-        // For simplicity, let's assume the returned object has a "json" field with the properties
+        // 1. Fetch the properties file (updated file or default template)
+        const result = await getPropertiesFileOrTemplate(stableRequirementId, appGlobalState);
         if (!result.json) {
-          throw new Error("No 'json' field found in response");
+          throw new Error("No 'json' field found in the properties response");
         }
-        setRequirementId(result.requirementId || stableLocationState);
-        // parse the properties
+        // Set requirementId from the response if available, otherwise use the one passed in
+        setRequirementId(result.requirementId || stableRequirementId);
         const parsedPairs = parsePropertiesString(result.json);
         setPairs(parsedPairs);
+
+        // 2. Fetch the requirement details to derive the file name.
+        const reqDetails = await getRequirementDetails(stableRequirementId, appGlobalState);
+        if (reqDetails && reqDetails.length > 0 && reqDetails[0].tablename) {
+          const tableName = reqDetails[0].tablename;
+          setFileName(`${tableName}_gcp.properties`);
+        } else {
+          throw new Error("No requirement details (tablename) found");
+        }
       } catch (err) {
         setError(err);
       } finally {
@@ -237,19 +167,19 @@ export default function PropertiesEditor() {
       }
     };
     fetchData();
-  }, [stableLocationState, appGlobalState]);
+  }, [stableRequirementId, appGlobalState]);
 
-  // Whenever pairs changes, update preview
+  // Update live preview when pairs change
   useEffect(() => {
     const preview = propertiesArrayToString(pairs);
     setPreviewText(preview);
   }, [pairs]);
 
-  // Handlers for editing pairs
+  // Handlers for key-value pair changes
   const handlePairChange = (index, newPair) => {
-    const updated = [...pairs];
-    updated[index] = newPair;
-    setPairs(updated);
+    const updatedPairs = [...pairs];
+    updatedPairs[index] = newPair;
+    setPairs(updatedPairs);
   };
 
   const handleRemovePair = (index) => {
@@ -260,27 +190,23 @@ export default function PropertiesEditor() {
     setPairs([...pairs, { key: "", value: "" }]);
   };
 
-  // Generate/Save properties file
+  // Handler for submitting the properties file
   const handleSubmit = async () => {
-    // Convert pairs to final string
     const finalString = propertiesArrayToString(pairs);
-    // Build request body
     const requirement = {
       requirementId,
-      // The backend might expect a field named "json" or "parameters"
-      // depending on your existing logic. Adjust accordingly.
+      // Assuming the backend expects the properties string under the "json" field.
       json: finalString,
-      fileName: "PropertiesFile_" + requirementId, // or whatever naming logic
+      fileName,
     };
     try {
       const response = await createCMPPropFile(requirement, appGlobalState);
-      console.log("Create response:", response);
       if (response && response.statusCode === 201) {
         alert("Properties File created successfully!");
         navigate("/createdcmpjil", { state: requirementId });
       } else {
         const code = response ? response.statusCode : "undefined";
-        alert("Errorcode:" + code + " - Creation failed!");
+        alert("Errorcode:" + code + " - Properties File creation failed!");
       }
     } catch (err) {
       console.error("Error creating properties file:", err);
@@ -296,14 +222,14 @@ export default function PropertiesEditor() {
       <IngressNavigation />
       <h5>Properties File Configuration</h5>
       <div className="editor-container">
-        {/* Left panel: key-value pairs */}
+        {/* Left panel: Editable key-value pairs */}
         <div className="editor-left">
           <h6>Edit Key-Value Pairs</h6>
           <div className="pairs-scroll">
-            {pairs.map((pair, idx) => (
+            {pairs.map((pair, index) => (
               <KeyValuePair
-                key={idx}
-                index={idx}
+                key={index}
+                index={index}
                 pair={pair}
                 onChange={handlePairChange}
                 onRemove={handleRemovePair}
@@ -314,8 +240,7 @@ export default function PropertiesEditor() {
             Add New Pair
           </button>
         </div>
-
-        {/* Right panel: live preview */}
+        {/* Right panel: Live preview */}
         <div className="editor-right">
           <h6>Live Preview</h6>
           <div className="preview-scroll">
@@ -327,8 +252,7 @@ export default function PropertiesEditor() {
           </div>
         </div>
       </div>
-
-      {/* Generate button placed below the two-column layout */}
+      {/* Generate button placed below the editor container */}
       <div className="generate-button-container">
         <DiaasButton title="Generate Properties File" handleChange={handleSubmit} />
       </div>
@@ -336,295 +260,20 @@ export default function PropertiesEditor() {
   );
 }
 
-> Important:
-
-The exact JSON structure returned by getPropertiesFileOrTemplate might differ from the snippet above. Adjust how you extract result.json or result.requirementId to match your actual response structure.
-
-If your backend uses parameters instead of json, or another field name, update accordingly.
-
-
-
-
 
 ---
 
-2.3 KeyValuePair.jsx
+Explanation of Changes
 
-// KeyValuePair.jsx
-import React from "react";
-import PropTypes from "prop-types";
-import "./PropertiesEditor.css";
+Requirement Details:
+The new function getRequirementDetails in the actions file is called in the PropertiesEditor component. We extract the table name from response.data[0].tablename and set the file name as <tablename>_gcp.properties.
 
-export default function KeyValuePair({ index, pair, onChange, onRemove }) {
-  const handleKeyChange = (e) => {
-    onChange(index, { ...pair, key: e.target.value });
-  };
+Requirement ID:
+The updated endpoint that returns the properties file now includes the requirement ID. If the returned object does not include it, we default to the requirement ID passed via location.state.
 
-  const handleValueChange = (e) => {
-    onChange(index, { ...pair, value: e.target.value });
-  };
+UI:
+The overall UI layout remains the two-column structure with scrollable panels and the generate button below the editor container.
 
-  return (
-    <div className="pair-row">
-      <input
-        type="text"
-        placeholder="Key"
-        value={pair.key}
-        onChange={handleKeyChange}
-        className="pair-input"
-      />
-      <span className="colon-separator">=</span>
-      <input
-        type="text"
-        placeholder="Value"
-        value={pair.value}
-        onChange={handleValueChange}
-        className="pair-input"
-      />
-      <button onClick={() => onRemove(index)} className="remove-button">
-        ×
-      </button>
-    </div>
-  );
-}
 
-KeyValuePair.propTypes = {
-  index: PropTypes.number.isRequired,
-  pair: PropTypes.shape({
-    key: PropTypes.string,
-    value: PropTypes.string,
-  }).isRequired,
-  onChange: PropTypes.func.isRequired,
-  onRemove: PropTypes.func.isRequired,
-};
-
-
----
-
-2.4 PropertiesEditor.css
-
-/* PropertiesEditor.css */
-
-.applicationContainer {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-}
-
-.editor-container {
-  display: flex;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-/* Left panel styling */
-.editor-left {
-  flex: 1;
-  border: 1px solid #ccc;
-  padding: 15px;
-  border-radius: 5px;
-  height: 500px;
-  overflow-y: auto;
-}
-
-.editor-right {
-  flex: 1;
-  border: 1px solid #ccc;
-  padding: 15px;
-  border-radius: 5px;
-  height: 500px;
-  overflow-y: auto;
-}
-
-.pair-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-/* Double the width of key-value input boxes */
-.pair-input {
-  padding: 8px;
-  margin-right: 8px;
-  flex: 1;
-  min-width: 300px;
-}
-
-.colon-separator {
-  margin-right: 8px;
-}
-
-/* Small cross button for removal */
-.remove-button {
-  background-color: transparent;
-  color: red;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-
-.remove-button:hover {
-  color: darkred;
-}
-
-.add-button {
-  margin-top: 10px;
-  padding: 8px 12px;
-  cursor: pointer;
-}
-
-.generate-button-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
-.preview-textarea {
-  width: 100%;
-  height: 100%;
-  padding: 10px;
-  font-family: monospace;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  resize: none;
-}
-
-.pairs-scroll {
-  height: 100%;
-  overflow-y: auto;
-}
-
-.preview-scroll {
-  height: 100%;
-  overflow-y: auto;
-}
-
-
----
-
-How It All Works
-
-1. Backend
-
-getPropertiesFileOrTemplate/{requirementId} checks if there’s a row in your “PropertiesFile_Dev” (or whichever) collection for that requirement. If yes, returns it; if no, returns the default.
-
-The returned object should have a .json or .parameters field containing the actual properties text.
-
-
-
-2. Frontend
-
-PropertiesEditor.jsx calls the new endpoint.
-
-It parses the returned .json text, removing any trailing ,\ so the user sees a clean value.
-
-The live preview appends ,\ to each value.
-
-The user can add or remove pairs, then click Generate to save.
-
-createCMPPropFile is called, sending the final string (with ,\ in each value) to the backend.
-
-
-
-3. UI
-
-Two columns: left for pairs, right for preview. Each scrolls if content exceeds 500px.
-
-The remove button is a small cross, and the key/value inputs have been widened.
-
-
-
-
-
----
-
-Final Thoughts
-
-Adjust the .json or .parameters property names to match what your backend expects.
-
-If you still need to fetch requirement details (like tableName) from a separate endpoint, you can keep or combine that logic.
-
-Test both scenarios:
-
-1. A requirement that already has an updated file in MongoDB.
-
-
-2. A requirement with no updated file (should fall back to default).
-
-
-
-
-This setup satisfies all your stated requirements:
-
-1. New endpoint returning either updated or default.
-
-
-2. Extra characters (,\) only in preview.
-
-
-3. Cross button for removal.
-
-
-4. Wider key-value input fields.
-
-
-5. Scroll in each panel and the generate button below.
-
-
-Feel free to tweak any naming or minor details as needed!
-
-
-package com.yourcompany.controller;
-
-import com.yourcompany.model.PropertiesFile;
-import com.yourcompany.model.JSONTemplate;
-import com.yourcompany.repository.PropertiesFileRepository;
-import com.yourcompany.repository.JSONTemplateRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-
-@RestController
-@RequestMapping("/api/v1")
-public class PropertiesController {
-
-    @Autowired
-    private PropertiesFileRepository propertiesFileRepository;
-
-    @Autowired
-    private JSONTemplateRepository jsonTemplateRepository;
-
-    /**
-     * This endpoint returns either the updated properties file for the given requirementId 
-     * (if it exists in the PropertiesFile collection) or the default template from the JSONTemplate repository.
-     *
-     * @param requirementId The requirement id to look up.
-     * @return The updated properties file or default template.
-     */
-    @GetMapping("/getPropertiesFileOrTemplate/{requirementId}")
-    public ResponseEntity<?> getPropertiesFileOrTemplate(@PathVariable("requirementId") String requirementId) {
-        // 1. Check if an updated properties file exists in the PropertiesFile collection
-        List<PropertiesFile> updatedFiles = propertiesFileRepository.findByRequirementId(requirementId);
-        if (updatedFiles != null && !updatedFiles.isEmpty()) {
-            // Return the first updated file
-            return ResponseEntity.ok(updatedFiles.get(0));
-        } else {
-            // 2. No updated file exists; fetch the default template from the JSONTemplate repository.
-            List<JSONTemplate> templates = jsonTemplateRepository.findByTemplateName("COMPMPROP");
-            if (templates != null && !templates.isEmpty()) {
-                return ResponseEntity.ok(templates.get(0));
-            } else {
-                // 3. If neither an updated file nor a default template is found, return a 404 response.
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("No properties file or default template found for requirementId: " + requirementId);
-            }
-        }
-    }
-}
-                
+Let me know if you need further adjustments or additional clarifications!
 
