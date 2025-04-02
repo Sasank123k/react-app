@@ -1,279 +1,180 @@
-Below is an updated version of the two frontend files. In this update, we add a new API call (via a function in the actions file) to fetch the requirement details so we can extract the table name. Then, in the PropertiesEditor component, after fetching the properties file/template, we call this new function to get the table name and then set the file name as <tablename>_gcp.properties.
+aBelow is a sample test file (ValueDriverAddDetails.test.js) that demonstrates how you might test the component shown in your screenshot. (The code in the screenshot appears to be a React component named ValueDriverAddDetails, which uses some custom fields like Input, Select, TextArea, etc.)
+
+I’ll walk you through:
+
+1. Setting up the test file
+
+
+2. Writing some basic tests (rendering, checking elements, etc.)
+
+
+3. How to run the tests and check coverage
+
+
 
 
 ---
 
-1. Updated propertiesActions.js
+1. Example Test File: ValueDriverAddDetails.test.js
 
-This file now includes a new function getRequirementDetails that calls your endpoint (which returns a list where response.data[0].tablename is the table name). The function returns the data (so the caller can extract the table name).
+> Note: Adjust the import paths (../common/fields/... or the path to ValueDriverAddDetails) to match your project’s structure.
 
-// propertiesActions.js
-import axios from "axios";
-import { MICROSERVICE_URL } from "../../../constant";
-import { generateSearchHeader } from "../../../Authentication";
+
 
 /**
- * GET the updated file or default template for a requirement.
- * Endpoint: /api/v1/getPropertiesFileOrTemplate/{requirementId}
+ * @file ValueDriverAddDetails.test.js
  */
-export async function getPropertiesFileOrTemplate(requirementId, appGlobalState) {
-  const response = await axios.get(
-    `${MICROSERVICE_URL}/api/v1/getPropertiesFileOrTemplate/${requirementId}`,
-    {
-      headers: generateSearchHeader(appGlobalState),
-    }
-  );
-  if (response.status !== 200 && response.status !== 201) {
-    throw new Error(`Failed to fetch properties: ${response.status}`);
-  }
-  return response.data;
-}
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
-/**
- * GET the requirement details to derive the file name.
- * Expected response: an array with at least one object having a field "tablename".
- */
-export async function getRequirementDetails(requirementId, appGlobalState) {
-  const response = await axios.get(
-    `${MICROSERVICE_URL}/api/v1/searchRequirementForReqID/${requirementId}`,
-    {
-      headers: generateSearchHeader(appGlobalState),
-    }
-  );
-  if (response.status !== 200 && response.status !== 201) {
-    throw new Error(`Failed to fetch requirement details: ${response.status}`);
-  }
-  return response.data;
-}
+// If you're using React Router or other context providers,
+// you may need to import and wrap your component accordingly.
+// import { MemoryRouter } from 'react-router-dom';
 
-/**
- * POST to create (or update) the properties file.
- * Endpoint: /api/v1/createCMPPropFile
- */
-export async function createCMPPropFile(requirement, appGlobalState) {
-  const response = await fetch(`${MICROSERVICE_URL}/api/v1/createCMPPropFile`, {
-    method: "POST",
-    headers: generateSearchHeader(appGlobalState),
-    body: JSON.stringify(requirement),
+// Import your component
+import ValueDriverAddDetails from './ValueDriverAddDetails';
+
+describe('ValueDriverAddDetails Component', () => {
+  test('renders without crashing', () => {
+    render(<ValueDriverAddDetails />);
+    // Check if "Header" text is in the document
+    expect(screen.getByText(/Header/i)).toBeInTheDocument();
   });
-  return response.json();
-}
 
-
----
-
-2. Updated PropertiesEditor.jsx
-
-In this file, we now call the new getRequirementDetails API to get the table name. We then set the file name as <tablename>_gcp.properties. (We assume that the location.state now holds the requirement ID that we need.)
-
-We also keep all our previous UI and parsing logic.
-
-// PropertiesEditor.jsx
-import React, { useEffect, useState, useMemo } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useAppGlobalState } from "@wf/react-library";
-import { MICROSERVICE_URL } from "../../../constant";
-import { generateSearchHeader } from "../../../Authentication";
-import IngressNavigation from "../../Workflow/IngressNavigation";
-import DiaasButton from "../../../components/DiaasButton";
-import "./PropertiesEditor.css";
-import { 
-  getPropertiesFileOrTemplate, 
-  getRequirementDetails, 
-  createCMPPropFile 
-} from "./propertiesActions";
-import KeyValuePair from "./KeyValuePair";
-
-/**
- * When parsing the properties string, we use "=" as the separator.
- * Also, if a value ends with ",\" (as added in preview), we remove it for editing.
- */
-function parsePropertiesString(str) {
-  if (!str) return [];
-  const lines = str.split("\n");
-  return lines.map((line) => {
-    const equalIndex = line.indexOf("=");
-    let key = "";
-    let value = "";
-    if (equalIndex !== -1) {
-      key = line.slice(0, equalIndex).trim();
-      value = line.slice(equalIndex + 1).trim();
-    } else {
-      key = line.trim();
-      value = "";
-    }
-    // Strip trailing ",\" if present
-    if (value.endsWith(",\\")) {
-      value = value.slice(0, -2).trim();
-    }
-    return { key, value };
+  test('renders Server Name input', () => {
+    render(<ValueDriverAddDetails />);
+    // Check for label or placeholder text
+    const serverNameInput = screen.getByLabelText(/Server Name/i);
+    expect(serverNameInput).toBeInTheDocument();
+    // Optionally, you can check that it’s an input field of type text
+    expect(serverNameInput).toHaveAttribute('type', 'text');
   });
-}
 
-/**
- * Converts an array of key-value pairs back to a properties string.
- * In the preview, each value gets appended with ",\".
- */
-function propertiesArrayToString(pairs) {
-  return pairs
-    .map(({ key, value }) => {
-      // Append delimiter only in the preview representation if a value exists
-      const finalValue = value ? `${value},\\` : value;
-      return `${key}=${finalValue}`;
-    })
-    .join("\n");
-}
+  test('renders ID input', () => {
+    render(<ValueDriverAddDetails />);
+    // Check for label or placeholder text
+    const idInput = screen.getByLabelText(/ID/i);
+    expect(idInput).toBeInTheDocument();
+  });
 
-export default function PropertiesEditor() {
-  const appGlobalState = useAppGlobalState();
-  const [pairs, setPairs] = useState([]); // Array of { key, value }
-  const [requirementId, setRequirementId] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [previewText, setPreviewText] = useState("");
+  test('renders approvalStatus select', () => {
+    render(<ValueDriverAddDetails />);
+    // Because it's a Select component, we might look for something like:
+    // an element with a role="combobox", or a label
+    // Adjust the query based on how your `Select` component is implemented
+    // For example:
+    const approvalStatusSelect = screen.getByLabelText(/approvalStatus/i);
+    expect(approvalStatusSelect).toBeInTheDocument();
+  });
 
-  const location = useLocation();
-  const navigate = useNavigate();
+  test('renders action TextArea', () => {
+    render(<ValueDriverAddDetails />);
+    // Similarly, check for label or placeholder
+    const actionTextArea = screen.getByLabelText(/action/i);
+    expect(actionTextArea).toBeInTheDocument();
+  });
 
-  // Assume location.state holds the requirementId.
-  const stableRequirementId = useMemo(() => location.state, [location.state]);
+  test('allows user to type in serverName input', async () => {
+    render(<ValueDriverAddDetails />);
+    const serverNameInput = screen.getByLabelText(/Server Name/i);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // 1. Fetch the properties file (updated file or default template)
-        const result = await getPropertiesFileOrTemplate(stableRequirementId, appGlobalState);
-        if (!result.json) {
-          throw new Error("No 'json' field found in the properties response");
-        }
-        // Set requirementId from the response if available, otherwise use the one passed in
-        setRequirementId(result.requirementId || stableRequirementId);
-        const parsedPairs = parsePropertiesString(result.json);
-        setPairs(parsedPairs);
+    await userEvent.type(serverNameInput, 'Test Server');
+    expect(serverNameInput).toHaveValue('Test Server');
+  });
 
-        // 2. Fetch the requirement details to derive the file name.
-        const reqDetails = await getRequirementDetails(stableRequirementId, appGlobalState);
-        if (reqDetails && reqDetails.length > 0 && reqDetails[0].tablename) {
-          const tableName = reqDetails[0].tablename;
-          setFileName(`${tableName}_gcp.properties`);
-        } else {
-          throw new Error("No requirement details (tablename) found");
-        }
-      } catch (err) {
-        setError(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [stableRequirementId, appGlobalState]);
+  // Add more tests as needed:
+  // - Checking if fetchData or side effects are called
+  // - Testing user interactions with dropdowns, text areas, etc.
+});
 
-  // Update live preview when pairs change
-  useEffect(() => {
-    const preview = propertiesArrayToString(pairs);
-    setPreviewText(preview);
-  }, [pairs]);
+Things to Notice
 
-  // Handlers for key-value pair changes
-  const handlePairChange = (index, newPair) => {
-    const updatedPairs = [...pairs];
-    updatedPairs[index] = newPair;
-    setPairs(updatedPairs);
-  };
+We’re using @testing-library/react to render the component and query elements.
 
-  const handleRemovePair = (index) => {
-    setPairs(pairs.filter((_, i) => i !== index));
-  };
+We’re using @testing-library/user-event to simulate user actions (like typing).
 
-  const handleAddPair = () => {
-    setPairs([...pairs, { key: "", value: "" }]);
-  };
+The tests focus on what the user sees and does rather than the internal implementation details of the component.
 
-  // Handler for submitting the properties file
-  const handleSubmit = async () => {
-    const finalString = propertiesArrayToString(pairs);
-    const requirement = {
-      requirementId,
-      // Assuming the backend expects the properties string under the "json" field.
-      json: finalString,
-      fileName,
-    };
-    try {
-      const response = await createCMPPropFile(requirement, appGlobalState);
-      if (response && response.statusCode === 201) {
-        alert("Properties File created successfully!");
-        navigate("/createdcmpjil", { state: requirementId });
-      } else {
-        const code = response ? response.statusCode : "undefined";
-        alert("Errorcode:" + code + " - Properties File creation failed!");
-      }
-    } catch (err) {
-      console.error("Error creating properties file:", err);
-      alert("Error: " + err.message);
-    }
-  };
-
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div style={{ color: "red" }}>Error: {error.message}</div>;
-
-  return (
-    <div className="applicationContainer">
-      <IngressNavigation />
-      <h5>Properties File Configuration</h5>
-      <div className="editor-container">
-        {/* Left panel: Editable key-value pairs */}
-        <div className="editor-left">
-          <h6>Edit Key-Value Pairs</h6>
-          <div className="pairs-scroll">
-            {pairs.map((pair, index) => (
-              <KeyValuePair
-                key={index}
-                index={index}
-                pair={pair}
-                onChange={handlePairChange}
-                onRemove={handleRemovePair}
-              />
-            ))}
-          </div>
-          <button onClick={handleAddPair} className="add-button">
-            Add New Pair
-          </button>
-        </div>
-        {/* Right panel: Live preview */}
-        <div className="editor-right">
-          <h6>Live Preview</h6>
-          <div className="preview-scroll">
-            <textarea
-              readOnly
-              value={previewText}
-              className="preview-textarea"
-            />
-          </div>
-        </div>
-      </div>
-      {/* Generate button placed below the editor container */}
-      <div className="generate-button-container">
-        <DiaasButton title="Generate Properties File" handleChange={handleSubmit} />
-      </div>
-    </div>
-  );
-}
 
 
 ---
 
-Explanation of Changes
+2. How to Run the Tests
 
-Requirement Details:
-The new function getRequirementDetails in the actions file is called in the PropertiesEditor component. We extract the table name from response.data[0].tablename and set the file name as <tablename>_gcp.properties.
+1. Install Dependencies (if not already installed):
 
-Requirement ID:
-The updated endpoint that returns the properties file now includes the requirement ID. If the returned object does not include it, we default to the requirement ID passed via location.state.
+npm install --save-dev @testing-library/react @testing-library/jest-dom @testing-library/user-event jest
 
-UI:
-The overall UI layout remains the two-column structure with scrollable panels and the generate button below the editor container.
+Or with Yarn:
+
+yarn add --dev @testing-library/react @testing-library/jest-dom @testing-library/user-event jest
 
 
-Let me know if you need further adjustments or additional clarifications!
+2. Check Your package.json Scripts
+Ensure you have a test script in your package.json:
+
+{
+  "scripts": {
+    "test": "react-scripts test"
+  }
+}
+
+(If you’re using Create React App, this is typically set up by default.)
+
+
+3. Run the Test Command
+
+npm test
+
+or
+
+yarn test
+
+This will look for files with names like *.test.js or *.spec.js and run them.
+
+
+
+
+---
+
+3. Checking Test Coverage
+
+To check coverage (i.e., which lines of your code are tested), you can add the --coverage flag:
+
+npm test -- --coverage
+
+or
+
+yarn test --coverage
+
+This will generate a coverage report in your console and often create a coverage folder in your project directory with a detailed HTML report. You can open that report in a browser to see line-by-line coverage for each file.
+
+
+---
+
+Tips for Increasing Test Coverage
+
+Test All Branches: If your component has conditionals (e.g., if/else), ensure your tests cover both scenarios.
+
+Mock API Calls: If your component calls an API on useEffect, consider mocking those calls with Jest (using jest.mock or msw for more advanced scenarios).
+
+Event Handlers: Test form submissions, button clicks, dropdown selections, etc.
+
+Error States: If your code handles errors or invalid inputs, include tests for those scenarios too.
+
+
+
+---
+
+Final Thoughts
+
+Start Simple: Verify the component renders without crashing and that basic fields are present.
+
+Iterate: Add tests for user interactions, edge cases, and conditional rendering as you gain familiarity with the codebase.
+
+Refactor If Needed: If the code is hard to understand, small refactors often help you write clearer tests.
+
+
+Feel free to send more of your code or any questions you have about specific testing scenarios!
 
