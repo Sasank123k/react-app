@@ -1,479 +1,376 @@
-a{
-  "document": "JIL Editor v1",
-  "metaData": {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Autosys JIL File Metadata",
-    "description": "Common metadata schema for JIL files (union of Ingress and EDL flows).",
-    "type": "object",
-    "properties": {
-      "mainBox": {
-        "$ref": "#/definitions/MainBOX"
+Below is the Phase 1 code for your JIL editor. We’ll create three files under your new folder (e.g., JilEditor) as follows:
+
+
+---
+
+1. JilEditorContext.jsx
+
+This file sets up the global context for your JIL editor. It stores the array of JIL files, the active file index, the metadata (JSON schema), and the requirement ID.
+
+// File: JilEditor/JilEditorContext.jsx
+import React, { createContext, useState } from "react";
+
+export const JilEditorContext = createContext(null);
+
+export const JilEditorProvider = ({ children }) => {
+  const [jilFiles, setJilFiles] = useState([]);      // Array of JIL file objects
+  const [activeIndex, setActiveIndex] = useState(0);   // Currently active file index
+  const [metadata, setMetadata] = useState(null);      // The JIL metadata (JSON schema)
+  const [requirementId, setRequirementId] = useState(null); // Requirement ID from Jira
+
+  const contextValue = {
+    jilFiles,
+    setJilFiles,
+    activeIndex,
+    setActiveIndex,
+    metadata,
+    setMetadata,
+    requirementId,
+    setRequirementId,
+  };
+
+  return (
+    <JilEditorContext.Provider value={contextValue}>
+      {children}
+    </JilEditorContext.Provider>
+  );
+};
+
+export default JilEditorContext;
+
+
+---
+
+2. JilEditor.jsx
+
+This is the main editor component. It:
+
+Accepts props (e.g., requirementId and flowType).
+
+Fetches metadata (here simulated) and initializes the default JIL files (1 for EDL, 3 for Ingress).
+
+Displays navigation controls for switching files.
+
+Shows a left panel (placeholder for the structured editor) and a right panel (live JSON preview).
+
+
+// File: JilEditor/JilEditor.jsx
+import React, { useContext, useState, useEffect } from "react";
+import { JilEditorContext } from "./JilEditorContext";
+
+export default function JilEditor(props) {
+  // Expect props: { requirementId, flowType } where flowType is either "EDL" or "Ingress"
+  const { requirementId: reqId, flowType } = props;
+  const {
+    jilFiles,
+    setJilFiles,
+    activeIndex,
+    setActiveIndex,
+    metadata,
+    setMetadata,
+    setRequirementId,
+  } = useContext(JilEditorContext);
+
+  const [rawJil, setRawJil] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // Set requirement ID from props
+  useEffect(() => {
+    setRequirementId(reqId);
+  }, [reqId, setRequirementId]);
+
+  // Simulate fetching metadata from backend
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        // Simulate delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        // For now, assign a dummy metadata object
+        // In a real implementation, fetch the JSON schema from your API
+        const dummyMetadata = {
+          mainBox: {
+            // In Phase 2, you'll use the full schema; here we just put a placeholder.
+            properties: {} 
+          },
+        };
+        setMetadata(dummyMetadata);
+      } catch (error) {
+        setErrorMessage("Failed to load metadata.");
+      } finally {
+        setLoading(false);
       }
-    },
-    "required": [
-      "mainBox"
-    ],
-    "definitions": {
-      "MainBOX": {
-        "type": "object",
-        "description": "Main BOX job (top-level).",
-        "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the main box",
-            "default": "<job name>"
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "BOX"
-            ],
-            "description": "Job type for the main box",
-            "default": "BOX"
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": "<owner name>"
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": "me,mx,ge,gx,we,wx"
-          },
-          "date_condition": {
-            "type": "number",
-            "description": "Date condition flag",
-            "default": 0
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": "<description>"
-          },
-          "alarm_if_fail": {
-            "type": "number",
-            "description": "Alarm if job fails",
-            "default": 0
-          },
-          "alarm_if_terminated": {
-            "type": "number",
-            "description": "Alarm if job is terminated",
-            "default": 0
-          },
-          "timezone": {
-            "type": "string",
-            "description": "Timezone",
-            "default": "US/Pacific"
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": "<group name>"
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": "<app name>"
-          },
-          "properties": {
-            "type": "array",
-            "description": "Nested jobs within the main box (sub-boxes, CMD, FW)",
-            "default": [],
-            "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/definitions/SubBOX"
-                },
-                {
-                  "$ref": "#/definitions/CMD"
-                },
-                {
-                  "$ref": "#/definitions/FW"
-                }
-              ]
-            }
-          }
-        },
-        "required": [
-          "insert_job",
-          "job_type",
-          "owner",
-          "permission",
-          "date_condition",
-          "description",
-          "alarm_if_fail",
-          "alarm_if_terminated",
-          "timezone",
-          "group",
-          "application",
-          "properties"
-        ]
-      },
-      "SubBOX": {
-        "type": "object",
-        "description": "Sub BOX job (nested box within another box).",
-        "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the sub-box",
-            "default": "<job name>"
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "BOX"
-            ],
-            "description": "Job type for the sub-box",
-            "default": "BOX"
-          },
-          "box_name": {
-            "type": "string",
-            "description": "Name of the parent box (should match main box's insert_job)",
-            "default": "<parent job name>"
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": "<owner name>"
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": "me,mx,ge,gx,we,wx"
-          },
-          "date_condition": {
-            "type": "number",
-            "description": "Date condition flag",
-            "default": 0
-          },
-          "condition": {
-            "type": "string",
-            "description": "Condition for the sub-box",
-            "default": "<condition>"
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": "<description>"
-          },
-          "alarm_if_fail": {
-            "type": "number",
-            "description": "Alarm if job fails",
-            "default": 0
-          },
-          "alarm_if_terminated": {
-            "type": "number",
-            "description": "Alarm if job is terminated",
-            "default": 0
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": "<group name>"
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": "<app name>"
-          },
-          "properties": {
-            "type": "array",
-            "description": "Nested jobs within this sub-box",
-            "default": [],
-            "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/definitions/SubBOX"
-                },
-                {
-                  "$ref": "#/definitions/CMD"
-                },
-                {
-                  "$ref": "#/definitions/FW"
-                }
-              ]
-            }
-          }
-        },
-        "required": [
-          "insert_job",
-          "job_type",
-          "box_name",
-          "owner",
-          "permission",
-          "date_condition",
-          "condition",
-          "description",
-          "alarm_if_fail",
-          "alarm_if_terminated",
-          "group",
-          "application",
-          "properties"
-        ]
-      },
-      "CMD": {
-        "type": "object",
-        "description": "CMD job (command job).",
-        "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the CMD job",
-            "default": "<job name>"
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "CMD"
-            ],
-            "description": "Job type for CMD",
-            "default": "CMD"
-          },
-          "box_name": {
-            "type": "string",
-            "description": "Name of the parent sub-box",
-            "default": "<parent sub-box job name>"
-          },
-          "command": {
-            "type": "string",
-            "description": "Command to execute",
-            "default": "<command>"
-          },
-          "machine": {
-            "type": "string",
-            "description": "Machine name",
-            "default": "<machine name>"
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": "<owner name>"
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": "me,mx,ge,gx,we,wx"
-          },
-          "date_condition": {
-            "type": "number",
-            "description": "Date condition flag",
-            "default": 0
-          },
-          "condition": {
-            "type": "string",
-            "description": "Condition for the CMD job",
-            "default": "<condition>"
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": "<description>"
-          },
-          "std_out_file": {
-            "type": "string",
-            "description": "Standard output file",
-            "default": "<filename>"
-          },
-          "std_err_file": {
-            "type": "string",
-            "description": "Standard error file",
-            "default": "<filename>"
-          },
-          "alarm_if_fail": {
-            "type": "number",
-            "description": "Alarm if job fails",
-            "default": 1
-          },
-          "profile": {
-            "type": "string",
-            "description": "Profile name",
-            "default": "<profile name>"
-          },
-          "job_load": {
-            "type": "number",
-            "description": "Job load",
-            "default": 30
-          },
-          "priority": {
-            "type": "number",
-            "description": "Job priority",
-            "default": 290
-          },
-          "alarm_if_terminated": {
-            "type": "number",
-            "description": "Alarm if job is terminated",
-            "default": 1
-          },
-          "timezone": {
-            "type": "string",
-            "description": "Timezone",
-            "default": "US/Pacific"
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": "<group name>"
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": "<app name>"
-          }
-        },
-        "required": [
-          "insert_job",
-          "job_type",
-          "box_name",
-          "command",
-          "machine",
-          "owner",
-          "permission",
-          "date_condition",
-          "condition",
-          "description",
-          "std_out_file",
-          "std_err_file",
-          "alarm_if_fail",
-          "profile",
-          "job_load",
-          "priority",
-          "alarm_if_terminated",
-          "timezone",
-          "group",
-          "application"
-        ]
-      },
-      "FW": {
-        "type": "object",
-        "description": "FW job (file watcher job).",
-        "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the FW job",
-            "default": "<job name>"
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "FW"
-            ],
-            "description": "Job type for FW",
-            "default": "FW"
-          },
-          "box_name": {
-            "type": "string",
-            "description": "Name of the parent box",
-            "default": "<parent box job name>"
-          },
-          "machine": {
-            "type": "string",
-            "description": "Machine name",
-            "default": "<machine name>"
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": "<owner name>"
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": "me,mx,ge,gx,we,wx"
-          },
-          "date_condition": {
-            "type": "number",
-            "description": "Date condition flag",
-            "default": 0
-          },
-          "condition": {
-            "type": "string",
-            "description": "Condition for the FW job",
-            "default": "<condition>"
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": "<description>"
-          },
-          "term_run_time": {
-            "type": "number",
-            "description": "Terminal run time",
-            "default": 240
-          },
-          "max_run_alarm": {
-            "type": "number",
-            "description": "Maximum run alarm time",
-            "default": 180
-          },
-          "alarm_if_fail": {
-            "type": "number",
-            "description": "Alarm if job fails",
-            "default": 1
-          },
-          "profile": {
-            "type": "string",
-            "description": "Profile name",
-            "default": "<profile name>"
-          },
-          "priority": {
-            "type": "number",
-            "description": "Job priority",
-            "default": 215
-          },
-          "alarm_if_terminated": {
-            "type": "number",
-            "description": "Alarm if job is terminated",
-            "default": 1
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": "<group name>"
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": "<app name>"
-          },
-          "watch_file": {
-            "type": "string",
-            "description": "File to watch",
-            "default": "<some content>"
-          },
-          "watch_file_min_size": {
-            "type": "number",
-            "description": "Minimum file size to trigger",
-            "default": 10
-          },
-          "watch_interval": {
-            "type": "number",
-            "description": "Watch interval (in seconds)",
-            "default": 300
-          }
-        },
-        "required": [
-          "insert_job",
-          "job_type",
-          "box_name",
-          "machine",
-          "owner",
-          "permission",
-          "date_condition",
-          "condition",
-          "description",
-          "term_run_time",
-          "max_run_alarm",
-          "alarm_if_fail",
-          "profile",
-          "priority",
-          "alarm_if_terminated",
-          "group",
-          "application",
-          "watch_file",
-          "watch_file_min_size",
-          "watch_interval"
-        ]
+    };
+
+    fetchMetadata();
+  }, [setMetadata]);
+
+  // Initialize default JIL files based on flow type once metadata and requirementId are ready
+  useEffect(() => {
+    if (!metadata || !reqId) return;
+    if (jilFiles.length === 0) {
+      let defaults = [];
+      if (flowType === "EDL") {
+        // For EDL, create one default JIL file
+        defaults.push(initializeDefaultJil(metadata));
+      } else if (flowType === "Ingress") {
+        // For Ingress, create three default JIL files
+        defaults.push(initializeDefaultJil(metadata));
+        defaults.push(initializeDefaultJil(metadata));
+        defaults.push(initializeDefaultJil(metadata));
       }
+      setJilFiles(defaults);
+      setActiveIndex(0);
     }
+  }, [metadata, reqId, flowType, jilFiles, setJilFiles, setActiveIndex]);
+
+  // Helper function: Initialize a default JIL file from metadata.
+  // In a full implementation, this would use the metadata to build a default object.
+  const initializeDefaultJil = (metadata) => {
+    return {
+      mainBox: {
+        insert_job: "<job name>",
+        job_type: "BOX",
+        owner: "<owner name>",
+        permission: "me,mx,ge,gx,we,wx",
+        date_condition: 0,
+        description: "<description>",
+        alarm_if_fail: 0,
+        alarm_if_terminated: 0,
+        timezone: "US/Pacific",
+        group: "<group name>",
+        application: "<app name>",
+        properties: [
+          // Default nested CMD job inside the main box
+          {
+            insert_job: "<job name>",
+            job_type: "CMD",
+            box_name: "<parent box job name>",
+            command: "<command>",
+            machine: "<machine name>",
+            owner: "<owner name>",
+            permission: "me,mx,ge,gx,we,wx",
+            date_condition: 0,
+            condition: "<condition>",
+            description: "<description>",
+            std_out_file: "<filename>",
+            std_err_file: "<filename>",
+            alarm_if_fail: 1,
+            profile: "<profile name>",
+            job_load: 30,
+            priority: 290,
+            alarm_if_terminated: 1,
+            timezone: "US/Pacific",
+            group: "<group name>",
+            application: "<app name>",
+          },
+        ],
+      },
+    };
+  };
+
+  // Update raw JSON preview whenever the active JIL file changes
+  useEffect(() => {
+    if (jilFiles.length > 0) {
+      setRawJil(JSON.stringify(jilFiles[activeIndex], null, 2));
+    }
+  }, [jilFiles, activeIndex]);
+
+  if (loading) {
+    return <div>Loading JIL Editor...</div>;
+  }
+
+  if (errorMessage) {
+    return <div style={{ color: "red" }}>{errorMessage}</div>;
+  }
+
+  return (
+    <div className="jil-editor-container" style={{ padding: "20px" }}>
+      <h3>JIL Editor</h3>
+      {/* Navigation Controls */}
+      <div className="jil-editor-controls" style={{ marginBottom: "10px" }}>
+        <button
+          onClick={() =>
+            setActiveIndex(activeIndex > 0 ? activeIndex - 1 : activeIndex)
+          }
+        >
+          Prev
+        </button>
+        <span style={{ margin: "0 10px" }}>
+          Active File: {activeIndex + 1} / {jilFiles.length}
+        </span>
+        <button
+          onClick={() =>
+            setActiveIndex(
+              activeIndex < jilFiles.length - 1 ? activeIndex + 1 : activeIndex
+            )
+          }
+        >
+          Next
+        </button>
+        <button
+          style={{ marginLeft: "20px" }}
+          onClick={() => {
+            const newFile = initializeDefaultJil(metadata);
+            setJilFiles([...jilFiles, newFile]);
+            setActiveIndex(jilFiles.length); // New file becomes active
+          }}
+        >
+          Add New JIL File
+        </button>
+      </div>
+
+      <div
+        className="jil-editor-body"
+        style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}
+      >
+        {/* Left Panel: Structured Editor (to be built in Phase 2) */}
+        <div
+          className="jil-editor-leftPanel"
+          style={{
+            flex: 1,
+            border: "1px solid #ccc",
+            padding: "10px",
+            minHeight: "400px",
+          }}
+        >
+          <h5>Structured Editor</h5>
+          <p>
+            {/* In Phase 2, render the dynamic form using components like JilFieldRenderer */}
+            Form goes here...
+          </p>
+        </div>
+        {/* Right Panel: Live JSON Preview */}
+        <div
+          className="jil-editor-rightPanel"
+          style={{
+            flex: 1,
+            border: "1px solid #ccc",
+            padding: "10px",
+            minHeight: "400px",
+          }}
+        >
+          <h5>Live JSON Preview</h5>
+          <textarea
+            style={{ width: "100%", height: "100%" }}
+            value={rawJil}
+            readOnly
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+---
+
+3. jilPathUtils.js
+
+This file includes utility functions (similar to your JSON editor) to build paths, generate default data from a schema, and fill missing fields. You can expand these later as needed.
+
+// File: JilEditor/jilPathUtils.js
+
+/**
+ * Computes the full path array by appending the current property name.
+ */
+export function computeFullPath(pathArray, propName) {
+  return pathArray && Array.isArray(pathArray) && pathArray.length > 0
+    ? [...pathArray, propName]
+    : [propName];
+}
+
+/**
+ * Builds initial data for a given schema.
+ */
+export function buildInitialData(schema) {
+  if (!schema) return null;
+  if (schema.default !== undefined) return JSON.parse(JSON.stringify(schema.default));
+  switch (schema.type) {
+    case "object":
+      return buildInitialObject(schema);
+    case "array":
+      return buildInitialArray(schema);
+    case "boolean":
+      return false;
+    case "number":
+      return 0;
+    case "string":
+    default:
+      return "";
   }
 }
+
+function buildInitialObject(schema) {
+  const obj = {};
+  const props = schema.properties || {};
+  Object.keys(props).forEach((key) => {
+    const prop = props[key];
+    if (prop.required || prop.default !== undefined) {
+      obj[key] = buildInitialData(prop);
+    }
+  });
+  return obj;
+}
+
+function buildInitialArray(schema) {
+  if (schema.items) return [buildInitialData(schema.items)];
+  return [];
+}
+
+/**
+ * Fills in missing required fields based on schema.
+ */
+export function fillMissingRequired(data, schema) {
+  if (!schema) return data;
+  if (schema.required && (data === undefined || data === null)) {
+    return buildInitialData(schema);
+  }
+  switch (schema.type) {
+    case "object":
+      return fillMissingRequiredObject(data, schema);
+    case "array":
+      return fillMissingRequiredArray(data, schema);
+    default:
+      return data;
+  }
+}
+
+function fillMissingRequiredObject(data, schema) {
+  data = typeof data === "object" && data !== null && !Array.isArray(data) ? data : {};
+  const props = schema.properties || {};
+  Object.keys(props).forEach((key) => {
+    const propSchema = props[key];
+    if (data[key] === undefined) {
+      data[key] = buildInitialData(propSchema);
+    } else {
+      data[key] = fillMissingRequired(data[key], propSchema);
+    }
+  });
+  return data;
+}
+
+function fillMissingRequiredArray(data, schema) {
+  data = Array.isArray(data) ? data : [];
+  if (schema.items) {
+    data = data.map((item) => fillMissingRequired(item, schema.items));
+  }
+  return data;
+}
+
+
+---
+
+Summary
+
+In Phase 1, we created:
+
+JilEditorContext.jsx: Provides global state for JIL files, active index, metadata, and requirement ID.
+
+JilEditor.jsx: The main editor component that initializes files based on flow, handles basic navigation, and displays a placeholder for the structured editor plus a live JSON preview.
+
+jilPathUtils.js: Utility functions for handling schema-driven initial data and path construction.
+
+
+This foundational structure lets you build out the dynamic form in Phase 2 using components inspired by your JSON editor. Let me know if you need further adjustments or if you're ready to move on to the next phase!
+
