@@ -1,3 +1,8 @@
+aBelow is an updated version of JilFileBuilder.java that uses repository methods returning lists instead of Optionals. In this example, for the Jira story we call (for example) findByRequirementId(requirementId) (or whichever method returns a List) and then use the first element if available. Similarly, for the SOR data we assume that the method returns a List. Adjust the method names if necessary.
+
+
+---
+
 // File: src/main/java/com/wellsfargo/utcap/service/JilFileBuilder.java
 package com.wellsfargo.utcap.service;
 
@@ -21,93 +26,120 @@ public class JilFileBuilder {
 
     /**
      * Builds default JIL files for a given requirement.
-     * For now, this method builds a JIL file with a main box and one CMD job,
-     * merging actual values from the Jira story and SOR collections.
+     * Merges actual values from the Jira story and SOR documents (if found),
+     * otherwise uses placeholder or default values.
      *
-     * @param requirementId The requirement ID.
-     * @return A list containing one JIL file represented as a Map.
+     * @param requirementId The requirement ID (e.g., "BZLS-4501").
+     * @return A list containing one JIL file (main box + one CMD job).
      */
     public List<Map<String, Object>> buildJilFiles(String requirementId) {
-        // Fetch the Jira story
-        Optional<JiraStoryIntake> jiraOpt = jiraRepo.findById(requirementId);
-        if (!jiraOpt.isPresent()) {
+        // 1. Fetch Jira Story using a repository method that returns a List
+        List<JiraStoryIntake> jiraList = jiraRepo.findByRequirementId(requirementId);
+        if (jiraList == null || jiraList.isEmpty()) {
             throw new RuntimeException("Jira story not found for requirementId: " + requirementId);
         }
-        JiraStoryIntake jira = jiraOpt.get();
+        JiraStoryIntake jira = jiraList.get(0);
 
-        // Fetch the corresponding SOR document using applicationSorName from the Jira story.
-        // Adjust the field/method names as needed.
-        Optional<Sor> sorOpt = sorRepo.findBySorName(jira.getApplicationSorName());
-        if (!sorOpt.isPresent()) {
-            throw new RuntimeException("SOR not found for applicationSorName: " + jira.getApplicationSorName());
+        // 2. Fetch SOR by name from the Jira story.
+        //    Assuming the Jira story has a field named applicationSorName.
+        String sorName = jira.getApplicationSorName(); // e.g., "BMG"
+        List<Sor> sorList = sorRepo.findBySorName(sorName);
+        if (sorList == null || sorList.isEmpty()) {
+            throw new RuntimeException("SOR not found for sorName: " + sorName);
         }
-        Sor sor = sorOpt.get();
+        Sor sor = sorList.get(0);
 
-        // Build Main Box insert_job
-        String appName = jira.getApplicationName();                     // e.g., "CNAPP"
-        String appSorName = jira.getApplicationSorName();                 // e.g., "BMG"
-        String targetTable = jira.getTargetTableName();                   // e.g., "acct_pma_rel_hist_cdb"
-        String targetTableUpper = targetTable.toUpperCase();              // e.g., "ACCT_PMA_REL_HIST_CDB"
-        String mainBoxInsertJob = appName + "_" + appSorName + "PMC_MB001_" + targetTableUpper + "BX";
+        // 3. Construct values for main box
+        String appName = jira.getApplicationName();            // e.g., "CNAPP"
+        String targetTable = jira.getTargetTableName();        // e.g., "acct_pma_rel_hist_cdb"
+        String targetTableUpper = (targetTable != null) ? targetTable.toUpperCase() : "UNKNOWN";
 
-        // Build CMD insert_job
-        String cmdInsertJob = appName + "_" + appSorName + "PMC_C0001_" + targetTableUpper + "_CMD";
+        // Build Main Box insert_job: e.g., "CNAPP_BMGPMC_MB001_ACCT_PMA_REL_HIST_CDBBX"
+        String mainBoxInsertJob = String.format("%s_%sPMC_MB001_%sBX",
+                appName,
+                sorName,
+                targetTableUpper);
 
-        // Build CMD command using SOR's wrapperScriptName
-        String wrapperScript = sor.getWrapperScriptName();                // e.g., "ref_outlet_injest_wrapper.ksh"
-        String cmdCommand = "sh -x " + wrapperScript + " " + appSorName + " " 
-                            + targetTableUpper + ".json ref_outlet_ingest_connection.json medium";
+        // 4. Construct values for CMD job
+        // Build CMD insert_job: e.g., "CNAPP_BMGPMC_C0001_ACCT_PMA_REL_HIST_CDB_CMD"
+        String cmdInsertJob = String.format("%s_%sPMC_C0001_%s_CMD",
+                appName,
+                sorName,
+                targetTableUpper);
 
-        // Build Main Box Map
+        // Build CMD command using SOR's wrapperScriptName.
+        String wrapperScript = (sor.getWrapperScriptName() != null) ? sor.getWrapperScriptName() : "ref_outlet_injest_wrapper.ksh";
+        String cmdCommand = String.format("sh -x %s %s %s.json ref_outlet_ingest_connection.json medium",
+                wrapperScript,
+                sorName,
+                targetTableUpper);
+
+        // 5. Build the main box map
         Map<String, Object> mainBox = new HashMap<>();
         mainBox.put("insert_job", mainBoxInsertJob);
         mainBox.put("job_type", "BOX");
-        mainBox.put("owner", sor.getOwner() != null ? sor.getOwner() : "<owner name>");
+        mainBox.put("owner", (sor.getOwner() != null) ? sor.getOwner() : "<owner name>");
         mainBox.put("permission", "me,mx,ge,gx,we,wx");
         mainBox.put("date_condition", 0);
-        mainBox.put("description", jira.getDescription() != null ? jira.getDescription() : "<description>");
+        mainBox.put("description", (jira.getDescription() != null) ? jira.getDescription() : "<description>");
         mainBox.put("alarm_if_fail", 0);
         mainBox.put("alarm_if_terminated", 0);
         mainBox.put("timezone", "US/Pacific");
         mainBox.put("group", "<group name>");
-        mainBox.put("application", "<app name>");
+        mainBox.put("application", (appName != null) ? appName : "<app name>");
 
-        // Build CMD Map
+        // 6. Build the CMD job map
         Map<String, Object> cmdJob = new HashMap<>();
         cmdJob.put("insert_job", cmdInsertJob);
         cmdJob.put("job_type", "CMD");
-        cmdJob.put("box_name", mainBoxInsertJob);  // The CMD job's parent box name
+        cmdJob.put("box_name", mainBoxInsertJob);
         cmdJob.put("command", cmdCommand);
-        cmdJob.put("machine", sor.getMachineName() != null ? sor.getMachineName() : "<machine name>");
-        cmdJob.put("owner", sor.getOwner() != null ? sor.getOwner() : "<owner name>");
+        cmdJob.put("machine", (sor.getMachineName() != null) ? sor.getMachineName() : "<machine name>");
+        cmdJob.put("owner", (sor.getOwner() != null) ? sor.getOwner() : "<owner name>");
         cmdJob.put("permission", "me,mx,ge,gx,we,wx");
         cmdJob.put("date_condition", 0);
-        cmdJob.put("condition", jira.getDependenciesCondition() != null ? jira.getDependenciesCondition() : "<condition>");
-        cmdJob.put("description", jira.getDescription() != null ? jira.getDescription() : "<description>");
-        cmdJob.put("std_out_file", "<filename>");  // You may replace with a specific template string
+        cmdJob.put("condition", (jira.getDependenciesCondition() != null) ? jira.getDependenciesCondition() : "<condition>");
+        cmdJob.put("description", (jira.getDescription() != null) ? jira.getDescription() : "<description>");
+        cmdJob.put("std_out_file", "<filename>");
         cmdJob.put("std_err_file", "<filename>");
         cmdJob.put("alarm_if_fail", 1);
-        cmdJob.put("profile", sor.getProfilePath() != null ? sor.getProfilePath() : "<profile name>");
+        cmdJob.put("profile", (sor.getProfilePath() != null) ? sor.getProfilePath() : "<profile name>");
         cmdJob.put("job_load", 30);
         cmdJob.put("priority", 290);
         cmdJob.put("alarm_if_terminated", 1);
-        // Based on your sample, CMD timezone might be "US/Central"
         cmdJob.put("timezone", "US/Central");
         cmdJob.put("group", "<group name>");
-        cmdJob.put("application", "<app name>");
+        cmdJob.put("application", (appName != null) ? appName : "<app name>");
 
-        // Build the properties array for the main box and add the CMD job as its default nested job.
+        // 7. Attach the CMD job to the main box "properties"
         List<Map<String, Object>> properties = new ArrayList<>();
         properties.add(cmdJob);
         mainBox.put("properties", properties);
 
-        // Build the final JIL file structure as a Map with a key "mainBox"
+        // 8. Wrap the main box in a top-level "mainBox" key
         Map<String, Object> jilFile = new HashMap<>();
         jilFile.put("mainBox", mainBox);
 
-        // Return a list containing the single default JIL file
+        // 9. Return a list with one JIL file
         List<Map<String, Object>> jilFiles = new ArrayList<>();
         jilFiles.add(jilFile);
         return jilFiles;
     }
 }
+
+
+---
+
+Explanation
+
+For the Jira story, instead of using an Optional, we call a method that returns a List (e.g., findByRequirementId(requirementId)) and then check if the list is empty. If it is, we throw an exception; otherwise, we use the first element.
+
+Similarly, for the SOR document, we call sorRepo.findBySorName(sorName) and then check if the list is empty.
+
+The rest of the logic remains as before, constructing the main box and CMD job fields based on data from the Jira story and SOR document.
+
+Constant defaults or placeholders are used when necessary.
+
+
+This updated code should work with your repositories that return a List. Let me know if you need any further modifications or have any additional questions!
+
