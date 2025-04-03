@@ -1,45 +1,27 @@
-aBelow is an end‐to‐end example of how you can set up your JIL metadata storage using Spring Boot with MongoDB. In Spring Data MongoDB the collection is automatically created on first write if it doesn’t exist, so you don’t have to create it manually in Mongo Compass.
-
-Below are the complete code examples for:
-
-1. Model (JilMetadata.java)
-
-
-2. Repository (JilMetadataRepository.java)
-
-
-3. Service (JilMetadataService.java)
-
-
-4. Controller (JilMetadataController.java)
-
-
-
-You can adjust the package names as needed. In this example, we’ll assume the base package is com.example.jil.
+aBelow are the updated, complete files using your package structure (com.wellsfargo.utcap.*). In Java you can’t alias imports, so we’ll use the fully qualified annotation for Spring’s @Document to avoid conflicts with org.bson.Document.
 
 
 ---
 
 1. Model – JilMetadata.java
 
-This model represents a document in the jilMetadata collection.
-We’re using org.bson.Document to store the JSON schema.
+Location: com/wellsfargo/utcap/model/JilMetadata.java
 
-package com.example.jil.model;
+package com.wellsfargo.utcap.model;
 
 import org.bson.Document;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document as MongoDocument;
 
-@MongoDocument(collection = "jilMetadata")
+// Use fully qualified name for the annotation to avoid conflict with org.bson.Document.
+@org.springframework.data.mongodb.core.mapping.Document(collection = "jilMetadata")
 public class JilMetadata {
 
     @Id
     private String id;
-
-    // A descriptor or name for the metadata document, e.g., "JIL Editor v1"
+    
+    // A descriptor for this metadata document (e.g., "JIL Editor v1")
     private String document;
-
+    
     // The actual metadata JSON schema stored as a BSON Document.
     private Document metaData;
 
@@ -53,7 +35,6 @@ public class JilMetadata {
     }
 
     // Getters and Setters
-
     public String getId() {
         return id;
     }
@@ -84,17 +65,17 @@ public class JilMetadata {
 
 2. Repository – JilMetadataRepository.java
 
-This interface extends MongoRepository to provide basic CRUD operations and custom query methods if needed.
+Location: com/wellsfargo/utcap/repository/JilMetadataRepository.java
 
-package com.example.jil.repository;
+package com.wellsfargo.utcap.repository;
 
+import com.wellsfargo.utcap.model.JilMetadata;
 import org.springframework.data.mongodb.repository.MongoRepository;
-import com.example.jil.model.JilMetadata;
 import java.util.Optional;
 
 public interface JilMetadataRepository extends MongoRepository<JilMetadata, String> {
 
-    // Example of a custom query to find by document name
+    // Custom query method to find by document name
     Optional<JilMetadata> findByDocument(String document);
 }
 
@@ -103,15 +84,14 @@ public interface JilMetadataRepository extends MongoRepository<JilMetadata, Stri
 
 3. Service – JilMetadataService.java
 
-The service layer encapsulates business logic and calls repository methods. It provides methods for creating, reading, updating, and deleting metadata.
+Location: com/wellsfargo/utcap/service/JilMetadataService.java
 
-package com.example.jil.service;
+package com.wellsfargo.utcap.service;
 
-import com.example.jil.model.JilMetadata;
-import com.example.jil.repository.JilMetadataRepository;
+import com.wellsfargo.utcap.model.JilMetadata;
+import com.wellsfargo.utcap.repository.JilMetadataRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -167,13 +147,12 @@ public class JilMetadataService {
 
 4. Controller – JilMetadataController.java
 
-The REST controller exposes endpoints for the frontend (or other services) to interact with your JIL metadata.
-Endpoints include GET (all and by id), POST (create), PUT (update), and DELETE (delete).
+Location: com/wellsfargo/utcap/controller/JilMetadataController.java
 
-package com.example.jil.controller;
+package com.wellsfargo.utcap.controller;
 
-import com.example.jil.model.JilMetadata;
-import com.example.jil.service.JilMetadataService;
+import com.wellsfargo.utcap.model.JilMetadata;
+import com.wellsfargo.utcap.service.JilMetadataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -236,46 +215,28 @@ public class JilMetadataController {
 
 ---
 
-Summary of Steps
+Additional Notes
 
-1. Dependencies & Configuration:
+Automatic Collection Creation:
+When you first save a document via the repository, Spring Data MongoDB will automatically create the jilMetadata collection if it does not already exist.
 
-Ensure you have the Spring Data MongoDB dependency.
+Package Structure:
+Ensure that your project’s directory structure reflects the package names:
 
-Configure your MongoDB connection in application.properties (or application.yml).
+Model: com/wellsfargo/utcap/model
 
+Repository: com/wellsfargo/utcap/repository
 
+Service: com/wellsfargo/utcap/service
 
-2. Create the Model:
-
-The JilMetadata class represents your metadata document.
-
-
-
-3. Create the Repository:
-
-The JilMetadataRepository interface provides CRUD methods.
+Controller: com/wellsfargo/utcap/controller
 
 
+MongoDB Configuration:
+In your application.properties (or application.yml), configure your MongoDB URI, for example:
 
-4. Create the Service:
-
-The JilMetadataService class contains methods for creating, reading, updating, and deleting metadata.
-
-
-
-5. Create the Controller:
-
-The JilMetadataController class exposes REST endpoints to interact with the metadata.
+spring.data.mongodb.uri=mongodb://localhost:27017/yourDatabaseName
 
 
-
-6. Automatic Collection Creation:
-
-When you first save a document using the repository, Spring Data MongoDB will automatically create the jilMetadata collection if it does not already exist.
-
-
-
-
-This complete setup will allow you to store and manage your JIL metadata in MongoDB via your Spring Boot application. If you need additional customizations or run into any issues, feel free to ask!
+With these files in place, you’ll have a full CRUD REST API for storing and managing your JIL metadata in the MongoDB collection named jilMetadata. Let me know if you need further adjustments or have any questions!
 
