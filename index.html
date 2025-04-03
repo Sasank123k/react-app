@@ -1,11 +1,15 @@
-Below is the Phase 1 code for your JIL editor. We’ll create three files under your new folder (e.g., JilEditor) as follows:
+aBelow is a proposed file structure and full code for both Phase 1 and Phase 2 of your JIL editor. We’re using a dedicated CSS file (named JilEditor.css) with class names prefixed with jileditor- so that the styles won’t collide with other parts of your project.
+
+You can create a folder called JilEditor and place the following files inside it.
 
 
 ---
 
+Phase 1 Files
+
 1. JilEditorContext.jsx
 
-This file sets up the global context for your JIL editor. It stores the array of JIL files, the active file index, the metadata (JSON schema), and the requirement ID.
+This file sets up the global context to share state (such as the list of JIL files, active file index, metadata, and requirement ID) across the editor.
 
 // File: JilEditor/JilEditorContext.jsx
 import React, { createContext, useState } from "react";
@@ -43,23 +47,15 @@ export default JilEditorContext;
 
 2. JilEditor.jsx
 
-This is the main editor component. It:
-
-Accepts props (e.g., requirementId and flowType).
-
-Fetches metadata (here simulated) and initializes the default JIL files (1 for EDL, 3 for Ingress).
-
-Displays navigation controls for switching files.
-
-Shows a left panel (placeholder for the structured editor) and a right panel (live JSON preview).
-
+This is the main editor component. It receives props (e.g. requirementId and flowType) from its parent. It fetches metadata (here simulated) and initializes the default JIL files based on the flow (one file for EDL; three files for Ingress). It also provides basic navigation and shows a left placeholder (for the structured editor) plus a live JSON preview.
 
 // File: JilEditor/JilEditor.jsx
 import React, { useContext, useState, useEffect } from "react";
 import { JilEditorContext } from "./JilEditorContext";
+import "./JilEditor.css"; // Import CSS for styling
 
 export default function JilEditor(props) {
-  // Expect props: { requirementId, flowType } where flowType is either "EDL" or "Ingress"
+  // Props: requirementId and flowType (either "EDL" or "Ingress")
   const { requirementId: reqId, flowType } = props;
   const {
     jilFiles,
@@ -75,23 +71,22 @@ export default function JilEditor(props) {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Set requirement ID from props
+  // Set the requirement ID from props
   useEffect(() => {
     setRequirementId(reqId);
   }, [reqId, setRequirementId]);
 
-  // Simulate fetching metadata from backend
+  // Simulate fetching metadata (in real app, call your API)
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
         // Simulate delay
         await new Promise((resolve) => setTimeout(resolve, 500));
-        // For now, assign a dummy metadata object
-        // In a real implementation, fetch the JSON schema from your API
+        // Dummy metadata object (replace with full schema later)
         const dummyMetadata = {
           mainBox: {
-            // In Phase 2, you'll use the full schema; here we just put a placeholder.
-            properties: {} 
+            // In Phase 2, you'll use the full JSON schema for JIL metadata.
+            properties: {}
           },
         };
         setMetadata(dummyMetadata);
@@ -105,7 +100,7 @@ export default function JilEditor(props) {
     fetchMetadata();
   }, [setMetadata]);
 
-  // Initialize default JIL files based on flow type once metadata and requirementId are ready
+  // Initialize default JIL files once metadata and requirementId are ready
   useEffect(() => {
     if (!metadata || !reqId) return;
     if (jilFiles.length === 0) {
@@ -124,8 +119,7 @@ export default function JilEditor(props) {
     }
   }, [metadata, reqId, flowType, jilFiles, setJilFiles, setActiveIndex]);
 
-  // Helper function: Initialize a default JIL file from metadata.
-  // In a full implementation, this would use the metadata to build a default object.
+  // Helper: Initialize a default JIL file from metadata.
   const initializeDefaultJil = (metadata) => {
     return {
       mainBox: {
@@ -141,7 +135,7 @@ export default function JilEditor(props) {
         group: "<group name>",
         application: "<app name>",
         properties: [
-          // Default nested CMD job inside the main box
+          // Default nested CMD job inside mainBox
           {
             insert_job: "<job name>",
             job_type: "CMD",
@@ -169,7 +163,7 @@ export default function JilEditor(props) {
     };
   };
 
-  // Update raw JSON preview whenever the active JIL file changes
+  // Update raw JSON preview whenever the active file changes
   useEffect(() => {
     if (jilFiles.length > 0) {
       setRawJil(JSON.stringify(jilFiles[activeIndex], null, 2));
@@ -177,18 +171,18 @@ export default function JilEditor(props) {
   }, [jilFiles, activeIndex]);
 
   if (loading) {
-    return <div>Loading JIL Editor...</div>;
+    return <div className="jileditor-container">Loading JIL Editor...</div>;
   }
 
   if (errorMessage) {
-    return <div style={{ color: "red" }}>{errorMessage}</div>;
+    return <div className="jileditor-container" style={{ color: "red" }}>{errorMessage}</div>;
   }
 
   return (
-    <div className="jil-editor-container" style={{ padding: "20px" }}>
+    <div className="jileditor-container">
       <h3>JIL Editor</h3>
       {/* Navigation Controls */}
-      <div className="jil-editor-controls" style={{ marginBottom: "10px" }}>
+      <div className="jileditor-controls">
         <button
           onClick={() =>
             setActiveIndex(activeIndex > 0 ? activeIndex - 1 : activeIndex)
@@ -196,7 +190,7 @@ export default function JilEditor(props) {
         >
           Prev
         </button>
-        <span style={{ margin: "0 10px" }}>
+        <span className="jileditor-activeIndicator">
           Active File: {activeIndex + 1} / {jilFiles.length}
         </span>
         <button
@@ -209,7 +203,7 @@ export default function JilEditor(props) {
           Next
         </button>
         <button
-          style={{ marginLeft: "20px" }}
+          className="jileditor-button"
           onClick={() => {
             const newFile = initializeDefaultJil(metadata);
             setJilFiles([...jilFiles, newFile]);
@@ -220,39 +214,20 @@ export default function JilEditor(props) {
         </button>
       </div>
 
-      <div
-        className="jil-editor-body"
-        style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}
-      >
-        {/* Left Panel: Structured Editor (to be built in Phase 2) */}
-        <div
-          className="jil-editor-leftPanel"
-          style={{
-            flex: 1,
-            border: "1px solid #ccc",
-            padding: "10px",
-            minHeight: "400px",
-          }}
-        >
+      <div className="jileditor-body">
+        {/* Left Panel: Structured Editor (to be implemented in Phase 2) */}
+        <div className="jileditor-leftPanel">
           <h5>Structured Editor</h5>
           <p>
-            {/* In Phase 2, render the dynamic form using components like JilFieldRenderer */}
+            {/* In Phase 2, render dynamic form components like JilFieldRenderer here */}
             Form goes here...
           </p>
         </div>
         {/* Right Panel: Live JSON Preview */}
-        <div
-          className="jil-editor-rightPanel"
-          style={{
-            flex: 1,
-            border: "1px solid #ccc",
-            padding: "10px",
-            minHeight: "400px",
-          }}
-        >
+        <div className="jileditor-rightPanel">
           <h5>Live JSON Preview</h5>
           <textarea
-            style={{ width: "100%", height: "100%" }}
+            className="jileditor-textarea"
             value={rawJil}
             readOnly
           />
@@ -267,7 +242,7 @@ export default function JilEditor(props) {
 
 3. jilPathUtils.js
 
-This file includes utility functions (similar to your JSON editor) to build paths, generate default data from a schema, and fill missing fields. You can expand these later as needed.
+This file provides utility functions for building default objects from your schema, constructing path arrays, and filling missing fields. (No changes required for CSS.)
 
 // File: JilEditor/jilPathUtils.js
 
@@ -361,16 +336,655 @@ function fillMissingRequiredArray(data, schema) {
 
 ---
 
+JilEditor.css
+
+Create a CSS file to style the JIL editor. Place this file in the same folder (JilEditor).
+
+/* File: JilEditor/JilEditor.css */
+.jileditor-container {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.jileditor-controls {
+  margin-bottom: 10px;
+}
+
+.jileditor-controls button {
+  margin-right: 10px;
+}
+
+.jileditor-activeIndicator {
+  margin: 0 10px;
+  font-weight: bold;
+}
+
+.jileditor-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.jileditor-leftPanel,
+.jileditor-rightPanel {
+  flex: 1;
+  border: 1px solid #ccc;
+  padding: 10px;
+  min-height: 400px;
+}
+
+.jileditor-leftPanel h5,
+.jileditor-rightPanel h5 {
+  margin-bottom: 10px;
+}
+
+.jileditor-textarea {
+  width: 100%;
+  height: 100%;
+}
+
+/* Phase 2: Additional styling for form components */
+.jileditor-objectContainer {
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.jileditor-headerRow {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+  background: #f7f7f7;
+  padding: 5px;
+}
+
+.jileditor-toggle {
+  font-weight: bold;
+}
+
+.jileditor-arrayContainer {
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.jileditor-arrayText {
+  margin-bottom: 8px;
+}
+
+.jileditor-button {
+  padding: 4px 8px;
+  font-size: 0.9em;
+}
+
+
+---
+
+Phase 2 Files
+
+In Phase 2, we build the render pipeline for the dynamic form. These files closely mirror your existing JSON editor components, with class names prefixed by jileditor-.
+
+1. JilFieldRenderer.jsx
+
+This component decides which editor to render based on the schema (object, array, primitive, or oneOf).
+
+// File: JilEditor/JilFieldRenderer.jsx
+import React from "react";
+import JilObjectEditor from "./JilObjectEditor";
+import JilArrayEditor from "./JilArrayEditor";
+import JilPrimitiveEditor from "./JilPrimitiveEditor";
+import JilOneOfEditor from "./JilOneOfEditor";
+import { computeFullPath } from "./jilPathUtils";
+
+export default function JilFieldRenderer({
+  schema,
+  data,
+  propName,
+  pathArray,
+  onFieldChange,
+  onAddOptional,
+  onAddArrayItem,
+  onRemoveArrayItem,
+  onReplaceData,
+}) {
+  const fullPathArray = computeFullPath(pathArray, propName);
+  if (!schema) return null;
+
+  // Handle oneOf first
+  if (schema.oneOf && schema.oneOf.length > 0) {
+    return (
+      <JilOneOfEditor
+        schema={schema}
+        data={data}
+        path={fullPathArray}
+        onReplaceData={onReplaceData}
+        onFieldChange={onFieldChange}
+        onAddOptional={onAddOptional}
+        onAddArrayItem={onAddArrayItem}
+        onRemoveArrayItem={onRemoveArrayItem}
+      />
+    );
+  }
+
+  if (!schema.type) {
+    return (
+      <JilPrimitiveEditor
+        schema={{ type: "string" }}
+        data={data}
+        pathArray={fullPathArray}
+        propName={propName}
+        onFieldChange={onFieldChange}
+      />
+    );
+  }
+
+  switch (schema.type) {
+    case "object":
+      return (
+        <JilObjectEditor
+          schema={schema}
+          data={data}
+          pathArray={fullPathArray}
+          onFieldChange={onFieldChange}
+          onAddOptional={onAddOptional}
+          onAddArrayItem={onAddArrayItem}
+          onRemoveArrayItem={onRemoveArrayItem}
+          onReplaceData={onReplaceData}
+        />
+      );
+    case "array":
+      return (
+        <JilArrayEditor
+          schema={schema}
+          data={data}
+          pathArray={fullPathArray}
+          onFieldChange={onFieldChange}
+          onAddOptional={onAddOptional}
+          onAddArrayItem={onAddArrayItem}
+          onRemoveArrayItem={onRemoveArrayItem}
+          onReplaceData={onReplaceData}
+        />
+      );
+    case "string":
+    case "number":
+    case "boolean":
+    default:
+      return (
+        <JilPrimitiveEditor
+          schema={schema}
+          data={data}
+          pathArray={fullPathArray}
+          propName={propName}
+          onFieldChange={onFieldChange}
+        />
+      );
+  }
+}
+
+
+---
+
+2. JilObjectEditor.jsx
+
+This component renders an object’s fields in the order defined by the schema. It includes a dropdown to add missing optional fields.
+
+// File: JilEditor/JilObjectEditor.jsx
+import React, { useContext, useState } from "react";
+import PropTypes from "prop-types";
+import { JilEditorContext } from "./JilEditorContext";
+import JilFieldRenderer from "./JilFieldRenderer";
+
+export default function JilObjectEditor({
+  schema,
+  data,
+  pathArray,
+  onFieldChange,
+  onAddOptional,
+  onAddArrayItem,
+  onRemoveArrayItem,
+  onReplaceData,
+}) {
+  const { jilFiles, setJilFiles } = useContext(JilEditorContext);
+  const [expanded, setExpanded] = useState(false);
+  const toggleExpand = () => setExpanded(!expanded);
+
+  const properties = schema.properties || {};
+  const propertyNamesInSchemaOrder = Object.keys(properties);
+
+  // Identify optional properties not yet present in data
+  const optionalProps = propertyNamesInSchemaOrder.filter(
+    (key) => !properties[key].required
+  );
+  const missingOptionalProps = optionalProps.filter((k) => data[k] === undefined);
+
+  const arrow = expanded ? "▾" : "▸";
+
+  return (
+    <div className="jileditor-objectContainer">
+      <div className="jileditor-headerRow" onClick={toggleExpand}>
+        <span className="jileditor-headerLabel">
+          {pathArray[pathArray.length - 1]} :
+        </span>
+        <span className="jileditor-toggle">{arrow}</span>
+      </div>
+
+      {expanded && (
+        <div style={{ marginLeft: "16px", marginTop: "6px" }}>
+          {propertyNamesInSchemaOrder.map((key) => {
+            const propSchema = properties[key];
+            const value = data[key];
+            const isPropertyPresent = value !== undefined;
+            const isRequired = !!propSchema.required;
+
+            if (isPropertyPresent) {
+              return (
+                <div key={key} style={{ marginBottom: "8px" }}>
+                  <JilFieldRenderer
+                    schema={propSchema}
+                    data={value}
+                    pathArray={[...pathArray, key]}
+                    propName={key}
+                    onFieldChange={onFieldChange}
+                    onAddOptional={onAddOptional}
+                    onAddArrayItem={onAddArrayItem}
+                    onRemoveArrayItem={onRemoveArrayItem}
+                    onReplaceData={onReplaceData}
+                  />
+                </div>
+              );
+            } else if (isRequired) {
+              return (
+                <div key={key} style={{ marginBottom: "8px", color: "red" }}>
+                  <em>Missing required field: {key}</em>
+                </div>
+              );
+            }
+            return null;
+          })}
+          {missingOptionalProps.length > 0 && (
+            <div style={{ marginTop: "6px" }}>
+              <label style={{ marginRight: "8px" }}>
+                Add optional property:
+              </label>
+              <select
+                defaultValue=""
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    onAddOptional(jilFiles, setJilFiles, pathArray, {
+                      propertyName: e.target.value,
+                      propSchema: properties[e.target.value],
+                    });
+                    e.target.value = "";
+                  }
+                }}
+              >
+                <option value="" disabled hidden>
+                  Select...
+                </option>
+                {missingOptionalProps.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+JilObjectEditor.propTypes = {
+  schema: PropTypes.shape({
+    properties: PropTypes.object.isRequired,
+  }).isRequired,
+  data: PropTypes.object.isRequired,
+  pathArray: PropTypes.array.isRequired,
+  onFieldChange: PropTypes.func.isRequired,
+  onAddOptional: PropTypes.func.isRequired,
+  onAddArrayItem: PropTypes.func.isRequired,
+  onRemoveArrayItem: PropTypes.func.isRequired,
+  onReplaceData: PropTypes.func.isRequired,
+};
+
+
+---
+
+3. JilArrayEditor.jsx
+
+This component handles arrays in the schema (for nested jobs) and provides controls to add or remove items.
+
+// File: JilEditor/JilArrayEditor.jsx
+import React, { useContext, useState } from "react";
+import PropTypes from "prop-types";
+import JilFieldRenderer from "./JilFieldRenderer";
+import { JilEditorContext } from "./JilEditorContext";
+
+export default function JilArrayEditor({
+  data,
+  schema,
+  pathArray,
+  onFieldChange,
+  onAddOptional,
+  onAddArrayItem,
+  onRemoveArrayItem,
+  onReplaceData,
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const toggleExpand = () => setExpanded(!expanded);
+  const { setJilFiles } = useContext(JilEditorContext);
+
+  const arrow = expanded ? "▾" : "▸";
+  const arrayData = Array.isArray(data) ? data : [];
+
+  return (
+    <div className="jileditor-arrayContainer">
+      <input
+        type="button"
+        className="jileditor-headerRow"
+        value={`${arrow} ${pathArray[pathArray.length - 1]}`}
+        onClick={toggleExpand}
+      />
+      {expanded && (
+        <div style={{ marginLeft: "16px", marginTop: "6px" }}>
+          {arrayData.map((item, index) => (
+            <div key={index} className="jileditor-arrayText">
+              <div
+                style={{
+                  fontWeight: "bold",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {pathArray.length > 1 && `[${index}]`}
+                <button
+                  className="jileditor-button"
+                  style={{ marginLeft: "auto" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveArrayItem(setJilFiles, pathArray, index);
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+              <div style={{ marginLeft: "16px", marginTop: "4px" }}>
+                <JilFieldRenderer
+                  schema={schema.items || {}}
+                  data={item}
+                  pathArray={[...pathArray, index]}
+                  onFieldChange={onFieldChange}
+                  onAddOptional={onAddOptional}
+                  onAddArrayItem={onAddArrayItem}
+                  onRemoveArrayItem={onRemoveArrayItem}
+                  onReplaceData={onReplaceData}
+                />
+              </div>
+            </div>
+          ))}
+          <button
+            className="jileditor-button"
+            style={{ marginTop: "6px" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddArrayItem(setJilFiles, pathArray, schema.items || {});
+            }}
+          >
+            Add Item
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+JilArrayEditor.propTypes = {
+  schema: PropTypes.shape({
+    items: PropTypes.object,
+  }).isRequired,
+  data: PropTypes.array,
+  pathArray: PropTypes.array.isRequired,
+  onFieldChange: PropTypes.func.isRequired,
+  onAddOptional: PropTypes.func,
+  onAddArrayItem: PropTypes.func.isRequired,
+  onRemoveArrayItem: PropTypes.func.isRequired,
+  onReplaceData: PropTypes.func.isRequired,
+};
+
+
+---
+
+4. JilPrimitiveEditor.jsx
+
+This component handles editing of primitive fields (string, number, boolean). The class names and styles are updated with the jileditor- prefix.
+
+// File: JilEditor/JilPrimitiveEditor.jsx
+import React, { useContext } from "react";
+import { JilEditorContext } from "./JilEditorContext";
+
+export default function JilPrimitiveEditor({
+  schema,
+  data,
+  pathArray,
+  propName,
+  onFieldChange,
+}) {
+  const { jilFiles, setJilFiles } = useContext(JilEditorContext);
+
+  const handleChange = (e) => {
+    let rawValue = e.target.value;
+    if (schema.type === "number") {
+      const val = parseFloat(rawValue);
+      onFieldChange(jilFiles, setJilFiles, pathArray, isNaN(val) ? "" : val);
+      return;
+    }
+    if (schema.type === "boolean") {
+      onFieldChange(jilFiles, setJilFiles, pathArray, rawValue === "true");
+      return;
+    }
+    if (schema.enum) {
+      onFieldChange(jilFiles, setJilFiles, pathArray, rawValue);
+      return;
+    }
+    onFieldChange(jilFiles, setJilFiles, pathArray, rawValue);
+  };
+
+  // If enum
+  if (schema.enum) {
+    return (
+      <div className="jileditor-primitiveEditor" style={{ display: "flex", flexDirection: "column", width: "100%", margin: "4px 0" }}>
+        <label style={{ width: "100px", marginRight: "6px", color: "black", marginBottom: "4px" }}>{propName}</label>
+        <select style={{ padding: "4px", maxWidth: "60%" }} value={data || ""} onChange={handleChange}>
+          {schema.enum.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  // If boolean
+  if (schema.type === "boolean") {
+    return (
+      <div className="jileditor-primitiveEditor" style={{ display: "flex", flexDirection: "column", width: "100%", margin: "8px 0" }}>
+        <label style={{ fontWeight: "bold", marginBottom: "4px", color: "black" }}>{propName}</label>
+        <select style={{ padding: "6px", maxWidth: "60%" }} value={data ? "true" : "false"} onChange={handleChange}>
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      </div>
+    );
+  }
+
+  // If number
+  if (schema.type === "number") {
+    return (
+      <div className="jileditor-primitiveEditor" style={{ display: "flex", flexDirection: "column", width: "100%", margin: "8px 0" }}>
+        <label style={{ fontWeight: "bold", marginBottom: "4px", color: "black" }}>{propName}</label>
+        <input
+          type="number"
+          onChange={handleChange}
+          value={data === undefined ? "" : data}
+          style={{ padding: "6px" }}
+        />
+      </div>
+    );
+  }
+
+  // If textarea
+  if (schema.type === "string" && schema.format === "textarea") {
+    return (
+      <div className="jileditor-primitiveEditor" style={{ display: "flex", flexDirection: "column", width: "100%", margin: "8px 0" }}>
+        <label style={{ fontWeight: "bold", marginBottom: "4px", color: "black" }}>{propName}</label>
+        <textarea
+          style={{ width: "100%", height: "120px", padding: "6px", resize: "vertical" }}
+          value={data || ""}
+          onChange={handleChange}
+        />
+      </div>
+    );
+  }
+
+  // Default: text input
+  return (
+    <div className="jileditor-primitiveEditor" style={{ display: "flex", flexDirection: "column", width: "100%", margin: "8px 0" }}>
+      <label style={{ marginRight: "6px", color: "black" }}>{propName}</label>
+      <input
+        type="text"
+        value={data || ""}
+        onChange={handleChange}
+        style={{ width: "100%", padding: "6px" }}
+      />
+    </div>
+  );
+}
+
+
+---
+
+5. JilOneOfEditor.jsx
+
+This component lets the user choose among multiple schema options (BOX, CMD, FW) and renders the appropriate editor.
+
+// File: JilEditor/JilOneOfEditor.jsx
+import React, { useState, useEffect } from "react";
+import JilObjectEditor from "./JilObjectEditor";
+
+export default function JilOneOfEditor({
+  schema,
+  data,
+  path,
+  onReplaceData,
+  onFieldChange,
+  onAddOptional,
+  onAddArrayItem,
+  onRemoveArrayItem,
+}) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  useEffect(() => {
+    determineCurrentIndex();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  function determineCurrentIndex() {
+    if (!schema || !schema.oneOf) return;
+    let idx = selectedIndex;
+    // Simple logic for now; can be enhanced to match current data to a sub-schema.
+    setSelectedIndex(idx);
+  }
+
+  const handleSelect = (e) => {
+    const newIdx = parseInt(e.target.value, 10);
+    setSelectedIndex(newIdx);
+    const chosen = schema.oneOf[newIdx];
+    const newData = buildOneOfData(chosen);
+    onReplaceData(path, newData);
+  };
+
+  if (!schema.oneOf) return null;
+
+  const subSchema = schema.oneOf[selectedIndex];
+
+  return (
+    <div className="jileditor-oneOfEditor" style={{ border: "1px dashed #aaa", padding: "6px", marginBottom: "6px" }}>
+      <label style={{ marginRight: "6px" }}>OneOf type:</label>
+      <select value={selectedIndex} onChange={handleSelect}>
+        {schema.oneOf.map((s, i) => (
+          <option key={i} value={i}>
+            {s.title || `Option ${i + 1}`}
+          </option>
+        ))}
+      </select>
+      <JilObjectEditor
+        schema={subSchema}
+        data={data}
+        pathArray={path}
+        onFieldChange={onFieldChange}
+        onAddOptional={onAddOptional}
+        onAddArrayItem={onAddArrayItem}
+        onRemoveArrayItem={onRemoveArrayItem}
+        onReplaceData={onReplaceData}
+      />
+    </div>
+  );
+}
+
+// Helper function to build default data from a oneOf sub-schema.
+function buildOneOfData(schema) {
+  if (!schema) return null;
+  if (schema.default !== undefined) return JSON.parse(JSON.stringify(schema.default));
+  switch (schema.type) {
+    case "object":
+      return {};
+    case "array":
+      return [];
+    case "number":
+      return 0;
+    case "boolean":
+      return false;
+    case "string":
+    default:
+      return "";
+  }
+}
+
+
+---
+
 Summary
 
-In Phase 1, we created:
+Phase 1 Files:
 
-JilEditorContext.jsx: Provides global state for JIL files, active index, metadata, and requirement ID.
+JilEditorContext.jsx (global context)
 
-JilEditor.jsx: The main editor component that initializes files based on flow, handles basic navigation, and displays a placeholder for the structured editor plus a live JSON preview.
+JilEditor.jsx (main editor component with navigation, live preview, and initialization logic)
 
-jilPathUtils.js: Utility functions for handling schema-driven initial data and path construction.
+jilPathUtils.js (utility functions)
 
 
-This foundational structure lets you build out the dynamic form in Phase 2 using components inspired by your JSON editor. Let me know if you need further adjustments or if you're ready to move on to the next phase!
+Phase 2 Files:
+
+JilFieldRenderer.jsx (dispatches to the correct editor component)
+
+JilObjectEditor.jsx (renders object fields with optional property support)
+
+JilArrayEditor.jsx (handles arrays for nested jobs)
+
+JilPrimitiveEditor.jsx (for editing primitive fields)
+
+JilOneOfEditor.jsx (handles oneOf schema choices)
+
+
+CSS File:
+
+JilEditor.css (styles all components using class names prefixed with “jileditor-”)
+
+
+
+This roadmap and file set should give you a solid foundation to build the dynamic, multi-file JIL editor that works for both EDL and Ingress flows. Let me know if you have any questions or need further adjustments before moving ahead!
 
