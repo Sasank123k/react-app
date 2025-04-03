@@ -1,438 +1,281 @@
-Below is the full updated set of code files (except for endpoint.js, IngressNavigation, and DiaasButton, which you already have) with the UI changes you described. This version:
+aBelow is an end‐to‐end example of how you can set up your JIL metadata storage using Spring Boot with MongoDB. In Spring Data MongoDB the collection is automatically created on first write if it doesn’t exist, so you don’t have to create it manually in Mongo Compass.
 
-1. Increases the width of the key–value input boxes (doubling their previous width).
-2. Uses a small cross (“×”) for the remove button.
-3. Sets both the left (pairs) and right (live preview) panels to a fixed height of 500px with vertical scrolling.
-4. Places the “Generate Properties File” button below the two-column editor container.
+Below are the complete code examples for:
 
-Review the code below and let me know if you have any questions.
+1. Model (JilMetadata.java)
+
+
+2. Repository (JilMetadataRepository.java)
+
+
+3. Service (JilMetadataService.java)
+
+
+4. Controller (JilMetadataController.java)
+
+
+
+You can adjust the package names as needed. In this example, we’ll assume the base package is com.example.jil.
+
 
 ---
 
-### 1. PropertiesEditor.jsx
+1. Model – JilMetadata.java
 
-```jsx
-// PropertiesEditor.jsx
-import React, { useEffect, useState, useMemo } from "react";
-import axios from "axios";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useAppGlobalState } from "@wf/react-library";
-import { MICROSERVICE_URL } from "../../../constant";
-import { generateSearchHeader } from "../../../Authentication";
-import IngressNavigation from "../../Workflow/IngressNavigation";
-import DiaasButton from "../../../components/DiaasButton";
-import "./PropertiesEditor.css";
-import {
-  getPropertiesTemplate,
-  getRequirementDetails,
-  createCMPPropFile,
-} from "./propertiesActions";
-import KeyValuePair from "./KeyValuePair";
+This model represents a document in the jilMetadata collection.
+We’re using org.bson.Document to store the JSON schema.
 
-// Helper to parse a raw properties string using "=" as separator.
-function parsePropertiesString(str) {
-  if (!str) return [];
-  const lines = str.split("\n");
-  const pairs = lines.map(line => {
-    const equalIndex = line.indexOf("=");
-    if (equalIndex !== -1) {
-      const key = line.slice(0, equalIndex).trim();
-      const value = line.slice(equalIndex + 1).trim();
-      return { key, value };
-    } else {
-      return { key: line.trim(), value: "" };
+package com.example.jil.model;
+
+import org.bson.Document;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document as MongoDocument;
+
+@MongoDocument(collection = "jilMetadata")
+public class JilMetadata {
+
+    @Id
+    private String id;
+
+    // A descriptor or name for the metadata document, e.g., "JIL Editor v1"
+    private String document;
+
+    // The actual metadata JSON schema stored as a BSON Document.
+    private Document metaData;
+
+    // Constructors
+    public JilMetadata() {
     }
-  });
-  return pairs;
+
+    public JilMetadata(String document, Document metaData) {
+        this.document = document;
+        this.metaData = metaData;
+    }
+
+    // Getters and Setters
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+       this.id = id;
+    }
+
+    public String getDocument() {
+        return document;
+    }
+
+    public void setDocument(String document) {
+        this.document = document;
+    }
+
+    public Document getMetaData() {
+        return metaData;
+    }
+
+    public void setMetaData(Document metaData) {
+        this.metaData = metaData;
+    }
 }
 
-// Helper to convert an array of key-value pairs back to a properties string.
-function propertiesArrayToString(pairs) {
-  return pairs.map(pair => `${pair.key}=${pair.value}`).join("\n");
+
+---
+
+2. Repository – JilMetadataRepository.java
+
+This interface extends MongoRepository to provide basic CRUD operations and custom query methods if needed.
+
+package com.example.jil.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import com.example.jil.model.JilMetadata;
+import java.util.Optional;
+
+public interface JilMetadataRepository extends MongoRepository<JilMetadata, String> {
+
+    // Example of a custom query to find by document name
+    Optional<JilMetadata> findByDocument(String document);
 }
 
-export default function PropertiesEditor() {
-  const appGlobalState = useAppGlobalState();
-  const [fileName, setFileName] = useState("");
-  const [pairs, setPairs] = useState([]); // Array of { key, value }
-  const [jiraKey, setJiraKey] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [formData, setFormData] = useState(null);
-  const [previewText, setPreviewText] = useState("");
 
-  const location = useLocation();
-  const navigate = useNavigate();
+---
 
-  // Memoize location.state so that it remains stable
-  const stableLocationState = useMemo(() => location.state, [location.state]);
+3. Service – JilMetadataService.java
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // 1. Fetch the default properties template.
-        const templateResponse = await getPropertiesTemplate(appGlobalState);
-        console.log("Template Response Data:", templateResponse);
-        if (
-          templateResponse &&
-          templateResponse.templateObjList &&
-          templateResponse.templateObjList.length > 0
-        ) {
-          const templateStr = templateResponse.templateObjList[0].json;
-          const parsedPairs = parsePropertiesString(templateStr);
-          setPairs(parsedPairs);
-        } else {
-          throw new Error("No template object found in the response");
+The service layer encapsulates business logic and calls repository methods. It provides methods for creating, reading, updating, and deleting metadata.
+
+package com.example.jil.service;
+
+import com.example.jil.model.JilMetadata;
+import com.example.jil.repository.JilMetadataRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class JilMetadataService {
+
+    private final JilMetadataRepository repository;
+
+    @Autowired
+    public JilMetadataService(JilMetadataRepository repository) {
+        this.repository = repository;
+    }
+
+    // Create new metadata
+    public JilMetadata createMetadata(JilMetadata metadata) {
+        return repository.save(metadata);
+    }
+
+    // Retrieve all metadata documents
+    public List<JilMetadata> getAllMetadata() {
+        return repository.findAll();
+    }
+
+    // Retrieve metadata by id
+    public Optional<JilMetadata> getMetadataById(String id) {
+        return repository.findById(id);
+    }
+
+    // Retrieve metadata by document name
+    public Optional<JilMetadata> getMetadataByDocument(String document) {
+        return repository.findByDocument(document);
+    }
+
+    // Update metadata by id
+    public JilMetadata updateMetadata(String id, JilMetadata newMetadata) {
+        return repository.findById(id)
+                .map(existing -> {
+                    existing.setDocument(newMetadata.getDocument());
+                    existing.setMetaData(newMetadata.getMetaData());
+                    return repository.save(existing);
+                })
+                .orElseThrow(() -> new RuntimeException("Metadata not found with id: " + id));
+    }
+
+    // Delete metadata by id
+    public void deleteMetadata(String id) {
+        repository.deleteById(id);
+    }
+}
+
+
+---
+
+4. Controller – JilMetadataController.java
+
+The REST controller exposes endpoints for the frontend (or other services) to interact with your JIL metadata.
+Endpoints include GET (all and by id), POST (create), PUT (update), and DELETE (delete).
+
+package com.example.jil.controller;
+
+import com.example.jil.model.JilMetadata;
+import com.example.jil.service.JilMetadataService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/jilMetadata")
+public class JilMetadataController {
+
+    private final JilMetadataService service;
+
+    @Autowired
+    public JilMetadataController(JilMetadataService service) {
+        this.service = service;
+    }
+
+    // Get all metadata documents
+    @GetMapping
+    public ResponseEntity<List<JilMetadata>> getAllMetadata() {
+        List<JilMetadata> metadataList = service.getAllMetadata();
+        return ResponseEntity.ok(metadataList);
+    }
+
+    // Get metadata by id
+    @GetMapping("/{id}")
+    public ResponseEntity<JilMetadata> getMetadataById(@PathVariable String id) {
+        Optional<JilMetadata> metadata = service.getMetadataById(id);
+        return metadata.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    // Create new metadata
+    @PostMapping
+    public ResponseEntity<JilMetadata> createMetadata(@RequestBody JilMetadata metadata) {
+        JilMetadata created = service.createMetadata(metadata);
+        return ResponseEntity.ok(created);
+    }
+
+    // Update existing metadata
+    @PutMapping("/{id}")
+    public ResponseEntity<JilMetadata> updateMetadata(@PathVariable String id, @RequestBody JilMetadata metadata) {
+        try {
+            JilMetadata updated = service.updateMetadata(id, metadata);
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.notFound().build();
         }
-
-        // 2. Fetch requirement details using the stable location state.
-        const reqResponse = await getRequirementDetails(stableLocationState, appGlobalState);
-        console.log("Requirement Response Data:", reqResponse.data);
-        if (reqResponse && reqResponse.data && reqResponse.data.length > 0) {
-          setFileName(reqResponse.data[0].tableName);
-          setJiraKey(reqResponse.data[0].requirementId);
-        } else {
-          throw new Error("No requirement details found");
-        }
-      } catch (err) {
-        setError(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [stableLocationState, appGlobalState]);
-
-  // Update formData and live preview when jiraKey, fileName, or pairs change.
-  useEffect(() => {
-    const parameters = propertiesArrayToString(pairs);
-    setFormData({
-      requirementId: jiraKey,
-      parameters,
-      fileName,
-    });
-    setPreviewText(parameters);
-  }, [jiraKey, fileName, pairs]);
-
-  // Handlers for key-value pair changes.
-  const handlePairChange = (index, newPair) => {
-    const updatedPairs = [...pairs];
-    updatedPairs[index] = newPair;
-    setPairs(updatedPairs);
-  };
-
-  const handleRemovePair = (index) => {
-    const updatedPairs = pairs.filter((_, i) => i !== index);
-    setPairs(updatedPairs);
-  };
-
-  const handleAddPair = () => {
-    setPairs([...pairs, { key: "", value: "" }]);
-  };
-
-  // Submit updated properties file.
-  const handleSubmit = async () => {
-    const requirement = {
-      requirementId: jiraKey,
-      parameters: propertiesArrayToString(pairs),
-      fileName: fileName,
-    };
-    setFormData(requirement);
-    try {
-      const response = await createCMPPropFile(requirement, appGlobalState);
-      console.log("Response from createCMPPropFile:", response.data);
-      if (response.data.statusCode === 201) {
-        alert("Properties File created successfully!");
-        navigate("/createdcmpjil", { state: jiraKey });
-      } else {
-        alert(
-          "Error: " +
-            response.data.statusCode +
-            " Properties File creation failed!"
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error creating properties file: " + err.message);
     }
-  };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div style={{ color: "red" }}>Error: {error.message}</div>;
-
-  return (
-    <div className="applicationContainer">
-      <IngressNavigation />
-      <h5>Properties File Configuration</h5>
-      <div className="editor-container">
-        {/* Left panel: Editable key-value pairs */}
-        <div className="editor-left">
-          <h6>Edit Key-Value Pairs</h6>
-          <div className="pairs-scroll">
-            {pairs.map((pair, index) => (
-              <KeyValuePair
-                key={index}
-                index={index}
-                pair={pair}
-                onChange={handlePairChange}
-                onRemove={handleRemovePair}
-              />
-            ))}
-          </div>
-          <button onClick={handleAddPair} className="add-button">
-            Add New Pair
-          </button>
-        </div>
-        {/* Right panel: Live preview */}
-        <div className="editor-right">
-          <h6>Live Preview</h6>
-          <div className="preview-scroll">
-            <textarea
-              readOnly
-              value={previewText}
-              className="preview-textarea"
-            />
-          </div>
-        </div>
-      </div>
-      {/* Generate button placed below the editor container */}
-      <div className="generate-button-container">
-        <DiaasButton title="Generate Properties File" handleChange={handleSubmit} />
-      </div>
-    </div>
-  );
-}
-```
-
----
-
-### 2. KeyValuePair.jsx
-
-```jsx
-// KeyValuePair.jsx
-import React from "react";
-import PropTypes from "prop-types";
-import "./PropertiesEditor.css";
-
-export default function KeyValuePair({ index, pair, onChange, onRemove }) {
-  const handleKeyChange = (e) => {
-    onChange(index, { ...pair, key: e.target.value });
-  };
-
-  const handleValueChange = (e) => {
-    onChange(index, { ...pair, value: e.target.value });
-  };
-
-  return (
-    <div className="pair-row">
-      <input
-        type="text"
-        placeholder="Key"
-        value={pair.key}
-        onChange={handleKeyChange}
-        className="pair-input"
-      />
-      <span className="colon-separator">=</span>
-      <input
-        type="text"
-        placeholder="Value"
-        value={pair.value}
-        onChange={handleValueChange}
-        className="pair-input"
-      />
-      <button onClick={() => onRemove(index)} className="remove-button">
-        ×
-      </button>
-    </div>
-  );
-}
-
-KeyValuePair.propTypes = {
-  index: PropTypes.number.isRequired,
-  pair: PropTypes.shape({
-    key: PropTypes.string,
-    value: PropTypes.string,
-  }).isRequired,
-  onChange: PropTypes.func.isRequired,
-  onRemove: PropTypes.func.isRequired,
-};
-```
-
----
-
-### 3. propertiesActions.js
-
-```js
-// propertiesActions.js
-import axios from "axios";
-import { MICROSERVICE_URL } from "../../../constant";
-import { generateSearchHeader } from "../../../Authentication";
-
-// Fetch the properties template.
-export async function getPropertiesTemplate(appGlobalState) {
-  const response = await axios.get(
-    `${MICROSERVICE_URL}/api/v1/getPropertiesTemplate/COMPMPROP`,
-    {
-      headers: generateSearchHeader(appGlobalState),
+    // Delete metadata by id
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteMetadata(@PathVariable String id) {
+        service.deleteMetadata(id);
+        return ResponseEntity.noContent().build();
     }
-  );
-  if (response.status !== 200 && response.status !== 201) {
-    throw new Error(`Failed to fetch properties template: ${response.status}`);
-  }
-  return response.data;
 }
 
-// Fetch requirement details by requirement ID.
-export async function getRequirementDetails(requirementId, appGlobalState) {
-  const response = await axios.get(
-    `${MICROSERVICE_URL}/api/v1/searchRequirementForReqID/${requirementId}`,
-    {
-      headers: generateSearchHeader(appGlobalState),
-    }
-  );
-  if (response.status !== 200 && response.status !== 201) {
-    throw new Error(`Failed to fetch requirement details: ${response.status}`);
-  }
-  return response;
-}
-
-// Create (POST) the properties file using fetch.
-export async function createCMPPropFile(requirement, appGlobalState) {
-  const response = await fetch(`${MICROSERVICE_URL}/api/v1/createCMPPropFile`, {
-    method: "POST",
-    headers: generateSearchHeader(appGlobalState),
-    body: JSON.stringify(requirement),
-  });
-  return response.json();
-}
-```
 
 ---
 
-### 4. PropertiesEditor.css
+Summary of Steps
 
-```css
-/* PropertiesEditor.css */
+1. Dependencies & Configuration:
 
-.applicationContainer {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-}
+Ensure you have the Spring Data MongoDB dependency.
 
-.editor-container {
-  display: flex;
-  gap: 20px;
-  margin-top: 20px;
-}
+Configure your MongoDB connection in application.properties (or application.yml).
 
-/* Left panel styling */
-.editor-left {
-  flex: 1;
-  border: 1px solid #ccc;
-  padding: 15px;
-  border-radius: 5px;
-  /* Set fixed height and enable vertical scroll */
-  height: 500px;
-  overflow-y: auto;
-}
 
-/* Right panel styling */
-.editor-right {
-  flex: 1;
-  border: 1px solid #ccc;
-  padding: 15px;
-  border-radius: 5px;
-  /* Set fixed height and enable vertical scroll */
-  height: 500px;
-  overflow-y: auto;
-}
 
-.pair-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
+2. Create the Model:
 
-/* Increase width of key-value input boxes (double the previous width) */
-.pair-input {
-  padding: 8px; /* slightly increased padding */
-  margin-right: 8px;
-  flex: 1;
-  min-width: 300px;  /* assuming previous was around 150px */
-}
+The JilMetadata class represents your metadata document.
 
-.colon-separator {
-  margin-right: 8px;
-}
 
-/* Small cross button for removal */
-.remove-button {
-  background-color: transparent;
-  color: red;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 2px 6px;
-}
 
-.remove-button:hover {
-  color: darkred;
-}
+3. Create the Repository:
 
-.add-button {
-  margin-top: 10px;
-  padding: 8px 12px;
-  cursor: pointer;
-}
+The JilMetadataRepository interface provides CRUD methods.
 
-.generate-button-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
 
-/* Styling for live preview textarea */
-.preview-textarea {
-  width: 100%;
-  height: 100%;
-  padding: 10px;
-  font-family: monospace;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  resize: none;
-}
 
-/* Add scroll containers if needed */
-.pairs-scroll {
-  height: 100%;
-  overflow-y: auto;
-}
+4. Create the Service:
 
-.preview-scroll {
-  height: 100%;
-  overflow-y: auto;
-}
-```
+The JilMetadataService class contains methods for creating, reading, updating, and deleting metadata.
 
----
 
-### Explanation Recap
 
-- **PropertiesEditor.jsx:**  
-  - Uses memoization to avoid infinite API calls.  
-  - Fetches the template and requirement details, then parses the properties string using "=" as the separator.  
-  - Renders a two-column layout with the left panel showing editable key–value pairs (via KeyValuePair components) and the right panel displaying a live preview.  
-  - Places the generate button outside of the scrollable panels.
+5. Create the Controller:
 
-- **KeyValuePair.jsx:**  
-  - Renders each pair with larger input boxes and a small cross button for removal.
+The JilMetadataController class exposes REST endpoints to interact with the metadata.
 
-- **propertiesActions.js:**  
-  - Uses axios for GET endpoints and fetch for the POST endpoint (mimicking the old behavior).
 
-- **PropertiesEditor.css:**  
-  - Adjusts widths, sets a fixed height (500px) with scrollable areas, and applies updated styling as requested.
 
-Feel free to adjust any dimensions or styles further as needed. Let me know if you need any more changes or further clarifications!
+6. Automatic Collection Creation:
+
+When you first save a document using the repository, Spring Data MongoDB will automatically create the jilMetadata collection if it does not already exist.
+
+
+
+
+This complete setup will allow you to store and manage your JIL metadata in MongoDB via your Spring Boot application. If you need additional customizations or run into any issues, feel free to ask!
+
