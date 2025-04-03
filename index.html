@@ -1,180 +1,454 @@
-aBelow is a sample test file (ValueDriverAddDetails.test.js) that demonstrates how you might test the component shown in your screenshot. (The code in the screenshot appears to be a React component named ValueDriverAddDetails, which uses some custom fields like Input, Select, TextArea, etc.)
-
-I’ll walk you through:
-
-1. Setting up the test file
-
-
-2. Writing some basic tests (rendering, checking elements, etc.)
-
-
-3. How to run the tests and check coverage
-
-
-
-
----
-
-1. Example Test File: ValueDriverAddDetails.test.js
-
-> Note: Adjust the import paths (../common/fields/... or the path to ValueDriverAddDetails) to match your project’s structure.
-
-
-
-/**
- * @file ValueDriverAddDetails.test.js
- */
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-
-// If you're using React Router or other context providers,
-// you may need to import and wrap your component accordingly.
-// import { MemoryRouter } from 'react-router-dom';
-
-// Import your component
-import ValueDriverAddDetails from './ValueDriverAddDetails';
-
-describe('ValueDriverAddDetails Component', () => {
-  test('renders without crashing', () => {
-    render(<ValueDriverAddDetails />);
-    // Check if "Header" text is in the document
-    expect(screen.getByText(/Header/i)).toBeInTheDocument();
-  });
-
-  test('renders Server Name input', () => {
-    render(<ValueDriverAddDetails />);
-    // Check for label or placeholder text
-    const serverNameInput = screen.getByLabelText(/Server Name/i);
-    expect(serverNameInput).toBeInTheDocument();
-    // Optionally, you can check that it’s an input field of type text
-    expect(serverNameInput).toHaveAttribute('type', 'text');
-  });
-
-  test('renders ID input', () => {
-    render(<ValueDriverAddDetails />);
-    // Check for label or placeholder text
-    const idInput = screen.getByLabelText(/ID/i);
-    expect(idInput).toBeInTheDocument();
-  });
-
-  test('renders approvalStatus select', () => {
-    render(<ValueDriverAddDetails />);
-    // Because it's a Select component, we might look for something like:
-    // an element with a role="combobox", or a label
-    // Adjust the query based on how your `Select` component is implemented
-    // For example:
-    const approvalStatusSelect = screen.getByLabelText(/approvalStatus/i);
-    expect(approvalStatusSelect).toBeInTheDocument();
-  });
-
-  test('renders action TextArea', () => {
-    render(<ValueDriverAddDetails />);
-    // Similarly, check for label or placeholder
-    const actionTextArea = screen.getByLabelText(/action/i);
-    expect(actionTextArea).toBeInTheDocument();
-  });
-
-  test('allows user to type in serverName input', async () => {
-    render(<ValueDriverAddDetails />);
-    const serverNameInput = screen.getByLabelText(/Server Name/i);
-
-    await userEvent.type(serverNameInput, 'Test Server');
-    expect(serverNameInput).toHaveValue('Test Server');
-  });
-
-  // Add more tests as needed:
-  // - Checking if fetchData or side effects are called
-  // - Testing user interactions with dropdowns, text areas, etc.
-});
-
-Things to Notice
-
-We’re using @testing-library/react to render the component and query elements.
-
-We’re using @testing-library/user-event to simulate user actions (like typing).
-
-The tests focus on what the user sees and does rather than the internal implementation details of the component.
-
-
-
----
-
-2. How to Run the Tests
-
-1. Install Dependencies (if not already installed):
-
-npm install --save-dev @testing-library/react @testing-library/jest-dom @testing-library/user-event jest
-
-Or with Yarn:
-
-yarn add --dev @testing-library/react @testing-library/jest-dom @testing-library/user-event jest
-
-
-2. Check Your package.json Scripts
-Ensure you have a test script in your package.json:
-
 {
-  "scripts": {
-    "test": "react-scripts test"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Autosys JIL File Metadata",
+  "description": "Common metadata schema for JIL files (union of Ingress and EDL flows).",
+  "type": "object",
+  "properties": {
+    "mainBox": {
+      "$ref": "#/definitions/MainBOX"
+    }
+  },
+  "required": ["mainBox"],
+  "definitions": {
+    "MainBOX": {
+      "type": "object",
+      "description": "Main BOX job (top-level).",
+      "properties": {
+        "insert_job": {
+          "type": "string",
+          "description": "Job name for the main box",
+          "default": "<job name>"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": ["BOX"],
+          "description": "Job type for the main box",
+          "default": "BOX"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Owner of the job",
+          "default": "<owner name>"
+        },
+        "permission": {
+          "type": "string",
+          "description": "Permissions",
+          "default": "me,mx,ge,gx,we,wx"
+        },
+        "date_condition": {
+          "type": "number",
+          "description": "Date condition flag",
+          "default": 0
+        },
+        "description": {
+          "type": "string",
+          "description": "Job description",
+          "default": "<description>"
+        },
+        "alarm_if_fail": {
+          "type": "number",
+          "description": "Alarm if job fails",
+          "default": 0
+        },
+        "alarm_if_terminated": {
+          "type": "number",
+          "description": "Alarm if job is terminated",
+          "default": 0
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone",
+          "default": "US/Pacific"
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name",
+          "default": "<group name>"
+        },
+        "application": {
+          "type": "string",
+          "description": "Application name",
+          "default": "<app name>"
+        },
+        "properties": {
+          "type": "array",
+          "description": "Nested jobs within the main box (sub-boxes, CMD, FW)",
+          "default": [],
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/SubBOX" },
+              { "$ref": "#/definitions/CMD" },
+              { "$ref": "#/definitions/FW" }
+            ]
+          }
+        }
+      },
+      "required": [
+        "insert_job",
+        "job_type",
+        "owner",
+        "permission",
+        "date_condition",
+        "description",
+        "alarm_if_fail",
+        "alarm_if_terminated",
+        "timezone",
+        "group",
+        "application",
+        "properties"
+      ]
+    },
+    "SubBOX": {
+      "type": "object",
+      "description": "Sub BOX job (nested box within another box).",
+      "properties": {
+        "insert_job": {
+          "type": "string",
+          "description": "Job name for the sub-box",
+          "default": "<job name>"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": ["BOX"],
+          "description": "Job type for the sub-box",
+          "default": "BOX"
+        },
+        "box_name": {
+          "type": "string",
+          "description": "Name of the parent box (should match main box's insert_job)",
+          "default": "<parent job name>"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Owner of the job",
+          "default": "<owner name>"
+        },
+        "permission": {
+          "type": "string",
+          "description": "Permissions",
+          "default": "me,mx,ge,gx,we,wx"
+        },
+        "date_condition": {
+          "type": "number",
+          "description": "Date condition flag",
+          "default": 0
+        },
+        "condition": {
+          "type": "string",
+          "description": "Condition for the sub-box",
+          "default": "<condition>"
+        },
+        "description": {
+          "type": "string",
+          "description": "Job description",
+          "default": "<description>"
+        },
+        "alarm_if_fail": {
+          "type": "number",
+          "description": "Alarm if job fails",
+          "default": 0
+        },
+        "alarm_if_terminated": {
+          "type": "number",
+          "description": "Alarm if job is terminated",
+          "default": 0
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name",
+          "default": "<group name>"
+        },
+        "application": {
+          "type": "string",
+          "description": "Application name",
+          "default": "<app name>"
+        },
+        "properties": {
+          "type": "array",
+          "description": "Nested jobs within this sub-box",
+          "default": [],
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/SubBOX" },
+              { "$ref": "#/definitions/CMD" },
+              { "$ref": "#/definitions/FW" }
+            ]
+          }
+        }
+      },
+      "required": [
+        "insert_job",
+        "job_type",
+        "box_name",
+        "owner",
+        "permission",
+        "date_condition",
+        "condition",
+        "description",
+        "alarm_if_fail",
+        "alarm_if_terminated",
+        "group",
+        "application",
+        "properties"
+      ]
+    },
+    "CMD": {
+      "type": "object",
+      "description": "CMD job (command job).",
+      "properties": {
+        "insert_job": {
+          "type": "string",
+          "description": "Job name for the CMD job",
+          "default": "<job name>"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": ["CMD"],
+          "description": "Job type for CMD",
+          "default": "CMD"
+        },
+        "box_name": {
+          "type": "string",
+          "description": "Name of the parent sub-box",
+          "default": "<parent sub-box job name>"
+        },
+        "command": {
+          "type": "string",
+          "description": "Command to execute",
+          "default": "<command>"
+        },
+        "machine": {
+          "type": "string",
+          "description": "Machine name",
+          "default": "<machine name>"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Owner of the job",
+          "default": "<owner name>"
+        },
+        "permission": {
+          "type": "string",
+          "description": "Permissions",
+          "default": "me,mx,ge,gx,we,wx"
+        },
+        "date_condition": {
+          "type": "number",
+          "description": "Date condition flag",
+          "default": 0
+        },
+        "condition": {
+          "type": "string",
+          "description": "Condition for the CMD job",
+          "default": "<condition>"
+        },
+        "description": {
+          "type": "string",
+          "description": "Job description",
+          "default": "<description>"
+        },
+        "std_out_file": {
+          "type": "string",
+          "description": "Standard output file",
+          "default": "<filename>"
+        },
+        "std_err_file": {
+          "type": "string",
+          "description": "Standard error file",
+          "default": "<filename>"
+        },
+        "alarm_if_fail": {
+          "type": "number",
+          "description": "Alarm if job fails",
+          "default": 1
+        },
+        "profile": {
+          "type": "string",
+          "description": "Profile name",
+          "default": "<profile name>"
+        },
+        "job_load": {
+          "type": "number",
+          "description": "Job load",
+          "default": 30
+        },
+        "priority": {
+          "type": "number",
+          "description": "Job priority",
+          "default": 290
+        },
+        "alarm_if_terminated": {
+          "type": "number",
+          "description": "Alarm if job is terminated",
+          "default": 1
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone",
+          "default": "US/Pacific"
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name",
+          "default": "<group name>"
+        },
+        "application": {
+          "type": "string",
+          "description": "Application name",
+          "default": "<app name>"
+        }
+      },
+      "required": [
+        "insert_job",
+        "job_type",
+        "box_name",
+        "command",
+        "machine",
+        "owner",
+        "permission",
+        "date_condition",
+        "condition",
+        "description",
+        "std_out_file",
+        "std_err_file",
+        "alarm_if_fail",
+        "profile",
+        "job_load",
+        "priority",
+        "alarm_if_terminated",
+        "timezone",
+        "group",
+        "application"
+      ]
+    },
+    "FW": {
+      "type": "object",
+      "description": "FW job (file watcher job).",
+      "properties": {
+        "insert_job": {
+          "type": "string",
+          "description": "Job name for the FW job",
+          "default": "<job name>"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": ["FW"],
+          "description": "Job type for FW",
+          "default": "FW"
+        },
+        "box_name": {
+          "type": "string",
+          "description": "Name of the parent box",
+          "default": "<parent box job name>"
+        },
+        "machine": {
+          "type": "string",
+          "description": "Machine name",
+          "default": "<machine name>"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Owner of the job",
+          "default": "<owner name>"
+        },
+        "permission": {
+          "type": "string",
+          "description": "Permissions",
+          "default": "me,mx,ge,gx,we,wx"
+        },
+        "date_condition": {
+          "type": "number",
+          "description": "Date condition flag",
+          "default": 0
+        },
+        "condition": {
+          "type": "string",
+          "description": "Condition for the FW job",
+          "default": "<condition>"
+        },
+        "description": {
+          "type": "string",
+          "description": "Job description",
+          "default": "<description>"
+        },
+        "term_run_time": {
+          "type": "number",
+          "description": "Terminal run time",
+          "default": 240
+        },
+        "max_run_alarm": {
+          "type": "number",
+          "description": "Maximum run alarm time",
+          "default": 180
+        },
+        "alarm_if_fail": {
+          "type": "number",
+          "description": "Alarm if job fails",
+          "default": 1
+        },
+        "profile": {
+          "type": "string",
+          "description": "Profile name",
+          "default": "<profile name>"
+        },
+        "priority": {
+          "type": "number",
+          "description": "Job priority",
+          "default": 215
+        },
+        "alarm_if_terminated": {
+          "type": "number",
+          "description": "Alarm if job is terminated",
+          "default": 1
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name",
+          "default": "<group name>"
+        },
+        "application": {
+          "type": "string",
+          "description": "Application name",
+          "default": "<app name>"
+        },
+        "watch_file": {
+          "type": "string",
+          "description": "File to watch",
+          "default": "<some content>"
+        },
+        "watch_file_min_size": {
+          "type": "number",
+          "description": "Minimum file size to trigger",
+          "default": 10
+        },
+        "watch_interval": {
+          "type": "number",
+          "description": "Watch interval (in seconds)",
+          "default": 300
+        }
+      },
+      "required": [
+        "insert_job",
+        "job_type",
+        "box_name",
+        "machine",
+        "owner",
+        "permission",
+        "date_condition",
+        "condition",
+        "description",
+        "term_run_time",
+        "max_run_alarm",
+        "alarm_if_fail",
+        "profile",
+        "priority",
+        "alarm_if_terminated",
+        "group",
+        "application",
+        "watch_file",
+        "watch_file_min_size",
+        "watch_interval"
+      ]
+    }
   }
 }
-
-(If you’re using Create React App, this is typically set up by default.)
-
-
-3. Run the Test Command
-
-npm test
-
-or
-
-yarn test
-
-This will look for files with names like *.test.js or *.spec.js and run them.
-
-
-
-
----
-
-3. Checking Test Coverage
-
-To check coverage (i.e., which lines of your code are tested), you can add the --coverage flag:
-
-npm test -- --coverage
-
-or
-
-yarn test --coverage
-
-This will generate a coverage report in your console and often create a coverage folder in your project directory with a detailed HTML report. You can open that report in a browser to see line-by-line coverage for each file.
-
-
----
-
-Tips for Increasing Test Coverage
-
-Test All Branches: If your component has conditionals (e.g., if/else), ensure your tests cover both scenarios.
-
-Mock API Calls: If your component calls an API on useEffect, consider mocking those calls with Jest (using jest.mock or msw for more advanced scenarios).
-
-Event Handlers: Test form submissions, button clicks, dropdown selections, etc.
-
-Error States: If your code handles errors or invalid inputs, include tests for those scenarios too.
-
-
-
----
-
-Final Thoughts
-
-Start Simple: Verify the component renders without crashing and that basic fields are present.
-
-Iterate: Add tests for user interactions, edge cases, and conditional rendering as you gain familiarity with the codebase.
-
-Refactor If Needed: If the code is hard to understand, small refactors often help you write clearer tests.
-
-
-Feel free to send more of your code or any questions you have about specific testing scenarios!
-
