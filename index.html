@@ -1,45 +1,113 @@
-{
-  "id": "someId",         // Optional: can be auto-generated
-  "requirementId": "BZLS-4501",
-  "jilFiles": [
-    {
-      "mainBox": {
-        "insert_job": "<job name>",
-        "job_type": "BOX",
-        "owner": "<owner name>",
-        "permission": "me,mx,ge,gx,we,wx",
-        "date_condition": 0,
-        "description": "<description>",
-        "alarm_if_fail": 0,
-        "alarm_if_terminated": 0,
-        "timezone": "US/Pacific",
-        "group": "<group name>",
-        "application": "<app name>",
-        "properties": [
-          {
-            "insert_job": "<job name>",
-            "job_type": "CMD",
-            "box_name": "<parent box job name>",
-            "command": "<command>",
-            "machine": "<machine name>",
-            "owner": "<owner name>",
-            "permission": "me,mx,ge,gx,we,wx",
-            "date_condition": 0,
-            "condition": "<condition>",
-            "description": "<description>",
-            "std_out_file": "<filename>",
-            "std_err_file": "<filename>",
-            "alarm_if_fail": 1,
-            "profile": "<profile name>",
-            "job_load": 30,
-            "priority": 290,
-            "alarm_if_terminated": 1,
-            "timezone": "US/Pacific",
-            "group": "<group name>",
-            "application": "<app name>"
-          }
-        ]
-      }
+// File: src/main/java/com/wellsfargo/utcap/service/JilFileBuilder.java
+package com.wellsfargo.utcap.service;
+
+import com.wellsfargo.utcap.model.JiraStoryIntake;
+import com.wellsfargo.utcap.model.Sor;
+import com.wellsfargo.utcap.repository.JiraStroyIntakerepository;
+import com.wellsfargo.utcap.repository.SorRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+
+@Component
+public class JilFileBuilder {
+
+    @Autowired
+    private JiraStroyIntakerepository jiraRepo;
+
+    @Autowired
+    private SorRepository sorRepo;
+
+    /**
+     * Builds default JIL files for a given requirement.
+     * For now, this method builds a JIL file with a main box and one CMD job,
+     * merging actual values from the Jira story and SOR collections.
+     *
+     * @param requirementId The requirement ID.
+     * @return A list containing one JIL file represented as a Map.
+     */
+    public List<Map<String, Object>> buildJilFiles(String requirementId) {
+        // Fetch the Jira story
+        Optional<JiraStoryIntake> jiraOpt = jiraRepo.findById(requirementId);
+        if (!jiraOpt.isPresent()) {
+            throw new RuntimeException("Jira story not found for requirementId: " + requirementId);
+        }
+        JiraStoryIntake jira = jiraOpt.get();
+
+        // Fetch the corresponding SOR document using applicationSorName from the Jira story.
+        // Adjust the field/method names as needed.
+        Optional<Sor> sorOpt = sorRepo.findBySorName(jira.getApplicationSorName());
+        if (!sorOpt.isPresent()) {
+            throw new RuntimeException("SOR not found for applicationSorName: " + jira.getApplicationSorName());
+        }
+        Sor sor = sorOpt.get();
+
+        // Build Main Box insert_job
+        String appName = jira.getApplicationName();                     // e.g., "CNAPP"
+        String appSorName = jira.getApplicationSorName();                 // e.g., "BMG"
+        String targetTable = jira.getTargetTableName();                   // e.g., "acct_pma_rel_hist_cdb"
+        String targetTableUpper = targetTable.toUpperCase();              // e.g., "ACCT_PMA_REL_HIST_CDB"
+        String mainBoxInsertJob = appName + "_" + appSorName + "PMC_MB001_" + targetTableUpper + "BX";
+
+        // Build CMD insert_job
+        String cmdInsertJob = appName + "_" + appSorName + "PMC_C0001_" + targetTableUpper + "_CMD";
+
+        // Build CMD command using SOR's wrapperScriptName
+        String wrapperScript = sor.getWrapperScriptName();                // e.g., "ref_outlet_injest_wrapper.ksh"
+        String cmdCommand = "sh -x " + wrapperScript + " " + appSorName + " " 
+                            + targetTableUpper + ".json ref_outlet_ingest_connection.json medium";
+
+        // Build Main Box Map
+        Map<String, Object> mainBox = new HashMap<>();
+        mainBox.put("insert_job", mainBoxInsertJob);
+        mainBox.put("job_type", "BOX");
+        mainBox.put("owner", sor.getOwner() != null ? sor.getOwner() : "<owner name>");
+        mainBox.put("permission", "me,mx,ge,gx,we,wx");
+        mainBox.put("date_condition", 0);
+        mainBox.put("description", jira.getDescription() != null ? jira.getDescription() : "<description>");
+        mainBox.put("alarm_if_fail", 0);
+        mainBox.put("alarm_if_terminated", 0);
+        mainBox.put("timezone", "US/Pacific");
+        mainBox.put("group", "<group name>");
+        mainBox.put("application", "<app name>");
+
+        // Build CMD Map
+        Map<String, Object> cmdJob = new HashMap<>();
+        cmdJob.put("insert_job", cmdInsertJob);
+        cmdJob.put("job_type", "CMD");
+        cmdJob.put("box_name", mainBoxInsertJob);  // The CMD job's parent box name
+        cmdJob.put("command", cmdCommand);
+        cmdJob.put("machine", sor.getMachineName() != null ? sor.getMachineName() : "<machine name>");
+        cmdJob.put("owner", sor.getOwner() != null ? sor.getOwner() : "<owner name>");
+        cmdJob.put("permission", "me,mx,ge,gx,we,wx");
+        cmdJob.put("date_condition", 0);
+        cmdJob.put("condition", jira.getDependenciesCondition() != null ? jira.getDependenciesCondition() : "<condition>");
+        cmdJob.put("description", jira.getDescription() != null ? jira.getDescription() : "<description>");
+        cmdJob.put("std_out_file", "<filename>");  // You may replace with a specific template string
+        cmdJob.put("std_err_file", "<filename>");
+        cmdJob.put("alarm_if_fail", 1);
+        cmdJob.put("profile", sor.getProfilePath() != null ? sor.getProfilePath() : "<profile name>");
+        cmdJob.put("job_load", 30);
+        cmdJob.put("priority", 290);
+        cmdJob.put("alarm_if_terminated", 1);
+        // Based on your sample, CMD timezone might be "US/Central"
+        cmdJob.put("timezone", "US/Central");
+        cmdJob.put("group", "<group name>");
+        cmdJob.put("application", "<app name>");
+
+        // Build the properties array for the main box and add the CMD job as its default nested job.
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob);
+        mainBox.put("properties", properties);
+
+        // Build the final JIL file structure as a Map with a key "mainBox"
+        Map<String, Object> jilFile = new HashMap<>();
+        jilFile.put("mainBox", mainBox);
+
+        // Return a list containing the single default JIL file
+        List<Map<String, Object>> jilFiles = new ArrayList<>();
+        jilFiles.add(jilFile);
+        return jilFiles;
     }
-  ]
 }
