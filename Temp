@@ -1,8 +1,17 @@
-Below is a complete set of files (using the .jsx extension for React components) plus one CSS file. This implementation assumes the same utilities (e.g. MICROSERVICE_URL, generateSearchHeader, useGlobalState) are available as in your JSON editor. For now, the live preview simply shows the JSON structure (with a placeholder conversion function), and all “add new pair” actions use a simple prompt. You can later refine these UIs further.
+Below is the complete updated code for the affected files. In these revisions we have:
+
+1. Moved the “Add New Pair” functionality so that when the user clicks the button, two inline input boxes appear below the existing key–value pairs (instead of using a prompt).  
+2. Moved the dropdown for adding child jobs to the header area of each job (BOX, CMD, FW) and, for non–main box jobs, added a “Remove Job” button in that header.  
+3. Added a “Remove” button next to each key–value pair row.  
+4. Increased the input sizes via CSS.  
+5. Made the left (structured) editor scrollable.
+
+A helper function (`fillDefaults`) is added in **jilUtils.js** to create a new job with default values from the metadata (a simplified version).  
+All files use the .jsx extension and share a single CSS file for styling.
 
 ---
 
-### File: **JILEditorContainer.jsx**
+### 1. **JILEditorContainer.jsx**
 
 ```jsx
 import React, { useState, useEffect } from "react";
@@ -15,7 +24,7 @@ import { useGlobalState } from "../react-library";
 import "./JILEditor.css";
 
 const JILEditorContainer = ({ requirementId }) => {
-  // For now, we assume EDL flow with one JIL file by default.
+  // For now, assume EDL flow with one JIL file by default.
   const [jilFiles, setJilFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
@@ -80,7 +89,7 @@ export default JILEditorContainer;
 
 ---
 
-### File: **JILNavigation.jsx**
+### 2. **JILNavigation.jsx**
 
 ```jsx
 import React from "react";
@@ -119,7 +128,7 @@ export default JILNavigation;
 
 ---
 
-### File: **JILEditor.jsx**
+### 3. **JILEditor.jsx**
 
 ```jsx
 import React, { useState, useEffect, useContext } from "react";
@@ -220,7 +229,7 @@ export default JILEditor;
 
 ---
 
-### File: **JILFieldRenderer.jsx**
+### 4. **JILFieldRenderer.jsx**
 
 ```jsx
 import React from "react";
@@ -228,13 +237,12 @@ import JILBoxEditor from "./JILBoxEditor";
 import JILCmdEditor from "./JILCmdEditor";
 import JILFwEditor from "./JILFwEditor";
 
-const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
+const JILFieldRenderer = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
   // If schema has oneOf, choose one based on data.job_type or default to first option.
   if (schema.oneOf) {
     let selectedSchema = schema.oneOf[0];
     if (data.job_type) {
       const found = schema.oneOf.find((s) => {
-        // Check if the schema reference includes the job type (SubBOX, CMD, FW)
         if (s.$ref && data.job_type) {
           return s.$ref.includes(data.job_type);
         }
@@ -252,6 +260,7 @@ const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
           data={data}
           path={path}
           onFieldChange={onFieldChange}
+          onRemoveJob={onRemoveJob}
         />
       );
     } else if (selectedSchema.$ref && selectedSchema.$ref.includes("CMD")) {
@@ -261,6 +270,7 @@ const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
           data={data}
           path={path}
           onFieldChange={onFieldChange}
+          onRemoveJob={onRemoveJob}
         />
       );
     } else if (selectedSchema.$ref && selectedSchema.$ref.includes("FW")) {
@@ -270,22 +280,23 @@ const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
           data={data}
           path={path}
           onFieldChange={onFieldChange}
+          onRemoveJob={onRemoveJob}
         />
       );
     } else {
-      // Fallback to box editor.
       return (
         <JILBoxEditor
           schema={selectedSchema}
           data={data}
           path={path}
           onFieldChange={onFieldChange}
+          onRemoveJob={onRemoveJob}
         />
       );
     }
   }
 
-  // If no oneOf, fall back on data.job_type.
+  // Fallback based on data.job_type.
   switch (data.job_type) {
     case "BOX":
       return (
@@ -294,6 +305,7 @@ const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
           data={data}
           path={path}
           onFieldChange={onFieldChange}
+          onRemoveJob={onRemoveJob}
         />
       );
     case "CMD":
@@ -303,6 +315,7 @@ const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
           data={data}
           path={path}
           onFieldChange={onFieldChange}
+          onRemoveJob={onRemoveJob}
         />
       );
     case "FW":
@@ -312,6 +325,7 @@ const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
           data={data}
           path={path}
           onFieldChange={onFieldChange}
+          onRemoveJob={onRemoveJob}
         />
       );
     default:
@@ -324,17 +338,95 @@ export default JILFieldRenderer;
 
 ---
 
-### File: **JILBoxEditor.jsx**
+### 5. **JILBoxEditor.jsx**
 
 ```jsx
-import React from "react";
+import React, { useState } from "react";
 import JILFieldRenderer from "./JILFieldRenderer";
+import { fillDefaults } from "./jilUtils";
 
-const JILBoxEditor = ({ schema, data, path, onFieldChange }) => {
+const JILBoxEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
+  // Local state for inline new key/value pair addition.
+  const [showNewPair, setShowNewPair] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+
   // Update a field in the current BOX job.
   const handleChange = (key, value) => {
     const newData = { ...data, [key]: value };
     onFieldChange(newData);
+  };
+
+  // Remove a key-value pair.
+  const removeKeyValuePair = (key) => {
+    const newData = { ...data };
+    delete newData[key];
+    onFieldChange(newData);
+  };
+
+  // Render existing key-value pairs (excluding 'properties').
+  const renderKeyValuePairs = () => {
+    return Object.keys(data)
+      .filter((k) => k !== "properties")
+      .map((key, idx) => (
+        <div key={idx} className="jil-keyvalue-row">
+          <label>{key}: </label>
+          <input
+            className="jil-input"
+            type="text"
+            value={data[key]}
+            onChange={(e) => handleChange(key, e.target.value)}
+          />
+          <button
+            className="jil-remove-btn"
+            onClick={() => removeKeyValuePair(key)}
+          >
+            Remove
+          </button>
+        </div>
+      ));
+  };
+
+  // Inline add new pair section.
+  const renderNewPairSection = () => {
+    if (!showNewPair) {
+      return (
+        <button className="jil-add-pair-btn" onClick={() => setShowNewPair(true)}>
+          Add New Pair
+        </button>
+      );
+    }
+    return (
+      <div className="jil-new-pair-row">
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Key"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+        />
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Value"
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+        />
+        <button
+          className="jil-add-btn"
+          onClick={() => {
+            if (newKey) {
+              handleChange(newKey, newValue);
+              setNewKey("");
+              setNewValue("");
+              setShowNewPair(false);
+            }
+          }}
+        >
+          Add
+        </button>
+      </div>
+    );
   };
 
   // Update a child job in the properties array.
@@ -344,41 +436,25 @@ const JILBoxEditor = ({ schema, data, path, onFieldChange }) => {
     handleChange("properties", newProperties);
   };
 
+  // Add a new child job using defaults from metadata.
   const addChildJob = (jobType) => {
-    let newJob;
+    let newJob = {};
+    // Use the fillDefaults helper to create a new job with default values.
     if (jobType === "BOX") {
-      newJob = { job_type: "BOX", properties: [] };
+      newJob = fillDefaults(schema.items.find(item => item.$ref && item.$ref.includes("SubBOX")) || {});
     } else if (jobType === "CMD") {
-      newJob = { job_type: "CMD" };
+      newJob = fillDefaults(schema.items.find(item => item.$ref && item.$ref.includes("CMD")) || {});
     } else if (jobType === "FW") {
-      newJob = { job_type: "FW" };
+      newJob = fillDefaults(schema.items.find(item => item.$ref && item.$ref.includes("FW")) || {});
     }
+    // Ensure newJob has the job_type set.
+    newJob.job_type = jobType;
+    if (jobType === "BOX") newJob.properties = [];
     const newProperties = data.properties ? [...data.properties, newJob] : [newJob];
     handleChange("properties", newProperties);
   };
 
-  const addNewPair = () => {
-    const key = prompt("Enter new key:");
-    if (!key) return;
-    const value = prompt("Enter value for " + key + ":");
-    handleChange(key, value);
-  };
-
-  const renderKeyValuePairs = () => {
-    return Object.keys(data)
-      .filter((k) => k !== "properties")
-      .map((key, idx) => (
-        <div key={idx} className="jil-keyvalue-row">
-          <label>{key}: </label>
-          <input
-            type="text"
-            value={data[key]}
-            onChange={(e) => handleChange(key, e.target.value)}
-          />
-        </div>
-      ));
-  };
-
+  // Render child jobs.
   const renderChildJobs = () => {
     const children = data.properties || [];
     return children.map((child, index) => (
@@ -388,6 +464,11 @@ const JILBoxEditor = ({ schema, data, path, onFieldChange }) => {
           data={child}
           path={[...path, "properties", index]}
           onFieldChange={(childData) => handleChildChange(index, childData)}
+          onRemoveJob={() => {
+            // Remove child at index.
+            const newProperties = data.properties.filter((_, idx) => idx !== index);
+            handleChange("properties", newProperties);
+          }}
         />
       </div>
     ));
@@ -395,16 +476,12 @@ const JILBoxEditor = ({ schema, data, path, onFieldChange }) => {
 
   return (
     <div className="jil-box-editor">
-      <div className="jil-box-header">
-        <span>{data.job_type === "BOX" ? "Box Job" : "Sub Box"}</span>
-        <button onClick={addNewPair}>Add New Pair</button>
-      </div>
-      <div className="jil-box-content">{renderKeyValuePairs()}</div>
-      <div className="jil-child-section">
-        <h5>Child Jobs</h5>
-        {renderChildJobs()}
-        <div className="jil-add-child">
+      <div className="jil-job-header">
+        <span>{path[0] === "mainBox" ? "Main Box Job" : "Sub Box"}</span>
+        <div className="jil-header-actions">
+          {/* Dropdown for adding child job */}
           <select
+            className="jil-job-dropdown"
             onChange={(e) => {
               if (e.target.value) {
                 addChildJob(e.target.value);
@@ -417,7 +494,24 @@ const JILBoxEditor = ({ schema, data, path, onFieldChange }) => {
             <option value="CMD">CMD</option>
             <option value="FW">FW</option>
           </select>
+          {/* Show remove job button if not main box */}
+          {!(path.length === 1 && path[0] === "mainBox") && (
+            <button
+              className="jil-remove-job-btn"
+              onClick={() => onRemoveJob && onRemoveJob()}
+            >
+              Remove Job
+            </button>
+          )}
         </div>
+      </div>
+      <div className="jil-box-content">
+        {renderKeyValuePairs()}
+        {renderNewPairSection()}
+      </div>
+      <div className="jil-child-section">
+        <h5>Child Jobs</h5>
+        {renderChildJobs()}
       </div>
     </div>
   );
@@ -428,22 +522,26 @@ export default JILBoxEditor;
 
 ---
 
-### File: **JILCmdEditor.jsx**
+### 6. **JILCmdEditor.jsx**
 
 ```jsx
-import React from "react";
+import React, { useState } from "react";
+import { fillDefaults } from "./jilUtils";
 
-const JILCmdEditor = ({ schema, data, path, onFieldChange }) => {
+const JILCmdEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
+  const [showNewPair, setShowNewPair] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+
   const handleChange = (key, value) => {
     const newData = { ...data, [key]: value };
     onFieldChange(newData);
   };
 
-  const addNewPair = () => {
-    const key = prompt("Enter new key:");
-    if (!key) return;
-    const value = prompt("Enter value for " + key + ":");
-    handleChange(key, value);
+  const removeKeyValuePair = (key) => {
+    const newData = { ...data };
+    delete newData[key];
+    onFieldChange(newData);
   };
 
   const renderKeyValuePairs = () => {
@@ -451,21 +549,76 @@ const JILCmdEditor = ({ schema, data, path, onFieldChange }) => {
       <div key={idx} className="jil-keyvalue-row">
         <label>{key}: </label>
         <input
+          className="jil-input"
           type="text"
           value={data[key]}
           onChange={(e) => handleChange(key, e.target.value)}
         />
+        <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+          Remove
+        </button>
       </div>
     ));
   };
 
+  const renderNewPairSection = () => {
+    if (!showNewPair) {
+      return (
+        <button className="jil-add-pair-btn" onClick={() => setShowNewPair(true)}>
+          Add New Pair
+        </button>
+      );
+    }
+    return (
+      <div className="jil-new-pair-row">
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Key"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+        />
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Value"
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+        />
+        <button
+          className="jil-add-btn"
+          onClick={() => {
+            if (newKey) {
+              handleChange(newKey, newValue);
+              setNewKey("");
+              setNewValue("");
+              setShowNewPair(false);
+            }
+          }}
+        >
+          Add
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="jil-cmd-editor">
-      <div className="jil-cmd-header">
+      <div className="jil-job-header">
         <span>CMD Job</span>
-        <button onClick={addNewPair}>Add New Pair</button>
+        <div className="jil-header-actions">
+          {/* For CMD jobs, no child job dropdown is needed */}
+          {!(path && path[0] === "mainBox") && (
+            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
+              Remove Job
+            </button>
+          )}
+        </div>
       </div>
-      <div className="jil-cmd-content">{renderKeyValuePairs()}</div>
+      <div className="jil-cmd-content">
+        {renderKeyValuePairs()}
+        {renderNewPairSection()}
+      </div>
     </div>
   );
 };
@@ -475,22 +628,26 @@ export default JILCmdEditor;
 
 ---
 
-### File: **JILFwEditor.jsx**
+### 7. **JILFwEditor.jsx**
 
 ```jsx
-import React from "react";
+import React, { useState } from "react";
+import { fillDefaults } from "./jilUtils";
 
-const JILFwEditor = ({ schema, data, path, onFieldChange }) => {
+const JILFwEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
+  const [showNewPair, setShowNewPair] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+
   const handleChange = (key, value) => {
     const newData = { ...data, [key]: value };
     onFieldChange(newData);
   };
 
-  const addNewPair = () => {
-    const key = prompt("Enter new key:");
-    if (!key) return;
-    const value = prompt("Enter value for " + key + ":");
-    handleChange(key, value);
+  const removeKeyValuePair = (key) => {
+    const newData = { ...data };
+    delete newData[key];
+    onFieldChange(newData);
   };
 
   const renderKeyValuePairs = () => {
@@ -498,21 +655,75 @@ const JILFwEditor = ({ schema, data, path, onFieldChange }) => {
       <div key={idx} className="jil-keyvalue-row">
         <label>{key}: </label>
         <input
+          className="jil-input"
           type="text"
           value={data[key]}
           onChange={(e) => handleChange(key, e.target.value)}
         />
+        <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+          Remove
+        </button>
       </div>
     ));
   };
 
+  const renderNewPairSection = () => {
+    if (!showNewPair) {
+      return (
+        <button className="jil-add-pair-btn" onClick={() => setShowNewPair(true)}>
+          Add New Pair
+        </button>
+      );
+    }
+    return (
+      <div className="jil-new-pair-row">
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Key"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+        />
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Value"
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+        />
+        <button
+          className="jil-add-btn"
+          onClick={() => {
+            if (newKey) {
+              handleChange(newKey, newValue);
+              setNewKey("");
+              setNewValue("");
+              setShowNewPair(false);
+            }
+          }}
+        >
+          Add
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="jil-fw-editor">
-      <div className="jil-fw-header">
+      <div className="jil-job-header">
         <span>File Watcher Job (FW)</span>
-        <button onClick={addNewPair}>Add New Pair</button>
+        <div className="jil-header-actions">
+          {!(path && path[0] === "mainBox") && (
+            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
+              Remove Job
+            </button>
+          )}
+        </div>
       </div>
-      <div className="jil-fw-content">{renderKeyValuePairs()}</div>
+      <div className="jil-fw-content">
+        {renderKeyValuePairs()}
+        {renderNewPairSection()}
+      </div>
     </div>
   );
 };
@@ -522,16 +733,19 @@ export default JILFwEditor;
 
 ---
 
-### File: **JILKeyValueEditor.jsx** *(Optional)*
+### 8. **(Optional) JILKeyValueEditor.jsx**
+
+*(Not strictly required since the inline code is now in each editor; you may remove this file if not used.)*
 
 ```jsx
 import React from "react";
 
-const JILKeyValueEditor = ({ label, value, onChange }) => {
+const JILKeyValueEditor = ({ label, value, onChange, onRemove }) => {
   return (
-    <div className="jil-keyvalue-editor">
+    <div className="jil-keyvalue-row">
       <label>{label}: </label>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="jil-input"/>
+      <button className="jil-remove-btn" onClick={onRemove}>Remove</button>
     </div>
   );
 };
@@ -541,19 +755,33 @@ export default JILKeyValueEditor;
 
 ---
 
-### File: **jilUtils.js**
+### 9. **jilUtils.js**
 
 ```js
+// A simple utility to convert the internal JSON structure to JIL text.
+// For now, it returns a formatted JSON string.
+// Also includes a helper to fill defaults based on the provided schema.
 export const convertToJILText = (jilJson) => {
-  // Placeholder conversion: currently returns JSON formatted string.
-  // Later, implement conversion logic to transform the JSON structure into proper JIL text format.
   return JSON.stringify(jilJson, null, 2);
+};
+
+// A basic fillDefaults function that returns an object with default values.
+// This is a simplified version – in a real implementation you might recursively fill in defaults.
+export const fillDefaults = (schema) => {
+  const defaults = {};
+  if (schema && schema.properties) {
+    Object.keys(schema.properties).forEach((key) => {
+      const prop = schema.properties[key];
+      defaults[key] = prop.default !== undefined ? prop.default : "";
+    });
+  }
+  return defaults;
 };
 ```
 
 ---
 
-### File: **JILEditorContext.jsx**
+### 10. **JILEditorContext.jsx**
 
 ```jsx
 import React, { createContext } from "react";
@@ -565,9 +793,10 @@ export const JILEditorProvider = JILEditorContext.Provider;
 
 ---
 
-### File: **JILEditor.css**
+### 11. **JILEditor.css**
 
 ```css
+/* Container & Global Styles */
 .jil-editor-container {
   margin: 20px;
   font-family: Arial, sans-serif;
@@ -581,6 +810,7 @@ export const JILEditorProvider = JILEditorContext.Provider;
   margin-right: 5px;
 }
 
+/* Editor Layout */
 .jil-editor {
   display: flex;
   flex-direction: column;
@@ -603,11 +833,19 @@ export const JILEditorProvider = JILEditorContext.Provider;
   padding: 10px;
 }
 
+/* Make the left panel scrollable */
+.jil-editor-left {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+/* Live preview styling */
 .jil-editor-right textarea {
   width: 100%;
   height: 400px;
 }
 
+/* Job Editor Styles */
 .jil-box-editor,
 .jil-cmd-editor,
 .jil-fw-editor {
@@ -616,19 +854,41 @@ export const JILEditorProvider = JILEditorContext.Provider;
   margin-bottom: 10px;
 }
 
-.jil-box-header,
-.jil-cmd-header,
-.jil-fw-header {
+.jil-job-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   background-color: #f2f2f2;
   padding: 5px;
+  margin-bottom: 10px;
 }
 
+.jil-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.jil-job-dropdown {
+  margin-right: 10px;
+}
+
+.jil-remove-job-btn {
+  background-color: #e57373;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.jil-remove-job-btn:hover {
+  background-color: #ef5350;
+}
+
+/* Key-Value Row Styles */
 .jil-keyvalue-row {
   display: flex;
-  margin-bottom: 5px;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .jil-keyvalue-row label {
@@ -636,17 +896,65 @@ export const JILEditorProvider = JILEditorContext.Provider;
   font-weight: bold;
 }
 
-.jil-keyvalue-row input {
-  flex: 1;
+.jil-input {
+  width: 300px; /* increased size */
+  padding: 4px;
+  margin-right: 10px;
 }
 
+.jil-remove-btn {
+  background-color: #e57373;
+  color: white;
+  border: none;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.jil-remove-btn:hover {
+  background-color: #ef5350;
+}
+
+/* New Pair Inline Section */
+.jil-new-pair-row {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.jil-add-btn {
+  background-color: #81c784;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.jil-add-btn:hover {
+  background-color: #66bb6a;
+}
+
+.jil-add-pair-btn {
+  background-color: #64b5f6;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.jil-add-pair-btn:hover {
+  background-color: #42a5f5;
+}
+
+/* Child Jobs Section */
 .jil-child-job {
   margin-left: 20px;
   margin-top: 10px;
 }
 
-.jil-add-child {
-  margin-top: 10px;
+.jil-child-section h5 {
+  margin-bottom: 5px;
 }
 ```
 
@@ -654,11 +962,16 @@ export const JILEditorProvider = JILEditorContext.Provider;
 
 ### Final Notes
 
-- The **JILEditorContainer.jsx** fetches the JIL file data and provides context for all nested editors.
-- The **JILEditor.jsx** component fetches metadata from `/api/jilMetadata` and renders the structured editor (left) and live preview (right).  
-- The **JILFieldRenderer.jsx** dispatches rendering to **JILBoxEditor.jsx**, **JILCmdEditor.jsx**, or **JILFwEditor.jsx** based on the job type.
-- In each job editor (BOX, CMD, FW), users can update fields and add new custom key–value pairs via a prompt.
-- The live preview currently shows the JSON string; later you can enhance the `convertToJILText` function to output the proper JIL format.
-- All components mirror the style and integration patterns used in your JSON editor.
+- **State Management:**  
+  Each job editor (BOX, CMD, FW) now manages local state to show inline new pair inputs. When the user fills in and clicks “Add,” the key–value pair is added to the job’s data and the inline section is hidden.
 
-Feel free to adjust and extend these files as needed for further functionality and refinement.
+- **Job Removal:**  
+  In the header of each job (except the main box), a “Remove Job” button is rendered. The actual removal should be handled by the parent component via the `onRemoveJob` callback (passed from the parent through `JILFieldRenderer`).
+
+- **Child Job Addition:**  
+  The dropdown for adding a child job is now at the top in the job header. When a new job is added, the helper function `fillDefaults` from **jilUtils.js** populates the job with default key–value pairs from the metadata (a simplified approach).
+
+- **Scrolling & Input Sizes:**  
+  The left panel is now scrollable and the input boxes have increased size according to the CSS.
+
+These complete updated files should implement the changes as described. Feel free to adjust the styling or logic as needed for your project!
