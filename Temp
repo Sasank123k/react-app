@@ -1,242 +1,664 @@
-aBelow are the updated, complete files using your package structure (com.wellsfargo.utcap.*). In Java you can’t alias imports, so we’ll use the fully qualified annotation for Spring’s @Document to avoid conflicts with org.bson.Document.
-
-
----
-
-1. Model – JilMetadata.java
-
-Location: com/wellsfargo/utcap/model/JilMetadata.java
-
-package com.wellsfargo.utcap.model;
-
-import org.bson.Document;
-import org.springframework.data.annotation.Id;
-
-// Use fully qualified name for the annotation to avoid conflict with org.bson.Document.
-@org.springframework.data.mongodb.core.mapping.Document(collection = "jilMetadata")
-public class JilMetadata {
-
-    @Id
-    private String id;
-    
-    // A descriptor for this metadata document (e.g., "JIL Editor v1")
-    private String document;
-    
-    // The actual metadata JSON schema stored as a BSON Document.
-    private Document metaData;
-
-    // Constructors
-    public JilMetadata() {
-    }
-
-    public JilMetadata(String document, Document metaData) {
-        this.document = document;
-        this.metaData = metaData;
-    }
-
-    // Getters and Setters
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-       this.id = id;
-    }
-
-    public String getDocument() {
-        return document;
-    }
-
-    public void setDocument(String document) {
-        this.document = document;
-    }
-
-    public Document getMetaData() {
-        return metaData;
-    }
-
-    public void setMetaData(Document metaData) {
-        this.metaData = metaData;
-    }
-}
-
+Below is a complete set of files (using the .jsx extension for React components) plus one CSS file. This implementation assumes the same utilities (e.g. MICROSERVICE_URL, generateSearchHeader, useGlobalState) are available as in your JSON editor. For now, the live preview simply shows the JSON structure (with a placeholder conversion function), and all “add new pair” actions use a simple prompt. You can later refine these UIs further.
 
 ---
 
-2. Repository – JilMetadataRepository.java
+### File: **JILEditorContainer.jsx**
 
-Location: com/wellsfargo/utcap/repository/JilMetadataRepository.java
+```jsx
+import React, { useState, useEffect } from "react";
+import JILEditor from "./JILEditor";
+import JILNavigation from "./JILNavigation";
+import { JILEditorProvider } from "./JILEditorContext";
+import { MICROSERVICE_URL } from "../util/constant";
+import generateSearchHeader from "../util/Authentication";
+import { useGlobalState } from "../react-library";
+import "./JILEditor.css";
 
-package com.wellsfargo.utcap.repository;
+const JILEditorContainer = ({ requirementId }) => {
+  // For now, we assume EDL flow with one JIL file by default.
+  const [jilFiles, setJilFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const globalState = useGlobalState();
 
-import com.wellsfargo.utcap.model.JilMetadata;
-import org.springframework.data.mongodb.repository.MongoRepository;
-import java.util.Optional;
-
-public interface JilMetadataRepository extends MongoRepository<JilMetadata, String> {
-
-    // Custom query method to find by document name
-    Optional<JilMetadata> findByDocument(String document);
-}
-
-
----
-
-3. Service – JilMetadataService.java
-
-Location: com/wellsfargo/utcap/service/JilMetadataService.java
-
-package com.wellsfargo.utcap.service;
-
-import com.wellsfargo.utcap.model.JilMetadata;
-import com.wellsfargo.utcap.repository.JilMetadataRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.Optional;
-
-@Service
-public class JilMetadataService {
-
-    private final JilMetadataRepository repository;
-
-    @Autowired
-    public JilMetadataService(JilMetadataRepository repository) {
-        this.repository = repository;
-    }
-
-    // Create new metadata
-    public JilMetadata createMetadata(JilMetadata metadata) {
-        return repository.save(metadata);
-    }
-
-    // Retrieve all metadata documents
-    public List<JilMetadata> getAllMetadata() {
-        return repository.findAll();
-    }
-
-    // Retrieve metadata by id
-    public Optional<JilMetadata> getMetadataById(String id) {
-        return repository.findById(id);
-    }
-
-    // Retrieve metadata by document name
-    public Optional<JilMetadata> getMetadataByDocument(String document) {
-        return repository.findByDocument(document);
-    }
-
-    // Update metadata by id
-    public JilMetadata updateMetadata(String id, JilMetadata newMetadata) {
-        return repository.findById(id)
-                .map(existing -> {
-                    existing.setDocument(newMetadata.getDocument());
-                    existing.setMetaData(newMetadata.getMetaData());
-                    return repository.save(existing);
-                })
-                .orElseThrow(() -> new RuntimeException("Metadata not found with id: " + id));
-    }
-
-    // Delete metadata by id
-    public void deleteMetadata(String id) {
-        repository.deleteById(id);
-    }
-}
-
-
----
-
-4. Controller – JilMetadataController.java
-
-Location: com/wellsfargo/utcap/controller/JilMetadataController.java
-
-package com.wellsfargo.utcap.controller;
-
-import com.wellsfargo.utcap.model.JilMetadata;
-import com.wellsfargo.utcap.service.JilMetadataService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Optional;
-
-@RestController
-@RequestMapping("/api/jilMetadata")
-public class JilMetadataController {
-
-    private final JilMetadataService service;
-
-    @Autowired
-    public JilMetadataController(JilMetadataService service) {
-        this.service = service;
-    }
-
-    // Get all metadata documents
-    @GetMapping
-    public ResponseEntity<List<JilMetadata>> getAllMetadata() {
-        List<JilMetadata> metadataList = service.getAllMetadata();
-        return ResponseEntity.ok(metadataList);
-    }
-
-    // Get metadata by id
-    @GetMapping("/{id}")
-    public ResponseEntity<JilMetadata> getMetadataById(@PathVariable String id) {
-        Optional<JilMetadata> metadata = service.getMetadataById(id);
-        return metadata.map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    // Create new metadata
-    @PostMapping
-    public ResponseEntity<JilMetadata> createMetadata(@RequestBody JilMetadata metadata) {
-        JilMetadata created = service.createMetadata(metadata);
-        return ResponseEntity.ok(created);
-    }
-
-    // Update existing metadata
-    @PutMapping("/{id}")
-    public ResponseEntity<JilMetadata> updateMetadata(@PathVariable String id, @RequestBody JilMetadata metadata) {
-        try {
-            JilMetadata updated = service.updateMetadata(id, metadata);
-            return ResponseEntity.ok(updated);
-        } catch (RuntimeException ex) {
-            return ResponseEntity.notFound().build();
+  useEffect(() => {
+    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
+      method: "GET",
+      headers: generateSearchHeader(globalState)
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.jilFiles && data.jilFiles.length > 0) {
+          setJilFiles(data.jilFiles);
+        } else {
+          // If no file is returned, initialize with an empty default structure.
+          setJilFiles([{ mainBox: {} }]);
         }
-    }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching JIL data:", err);
+        setLoading(false);
+      });
+  }, [requirementId, globalState]);
 
-    // Delete metadata by id
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteMetadata(@PathVariable String id) {
-        service.deleteMetadata(id);
-        return ResponseEntity.noContent().build();
-    }
-}
+  const addNewFile = () => {
+    setJilFiles([...jilFiles, { mainBox: {} }]);
+    setCurrentFileIndex(jilFiles.length);
+  };
 
+  const updateCurrentFile = (updatedFile) => {
+    const newFiles = jilFiles.map((file, index) =>
+      index === currentFileIndex ? updatedFile : file
+    );
+    setJilFiles(newFiles);
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <JILEditorProvider
+      value={{ jilFiles, setJilFiles, currentFileIndex, updateCurrentFile }}
+    >
+      <div className="jil-editor-container">
+        <JILNavigation
+          currentFileIndex={currentFileIndex}
+          setCurrentFileIndex={setCurrentFileIndex}
+          totalFiles={jilFiles.length}
+          addNewFile={addNewFile}
+        />
+        <JILEditor requirementId={requirementId} />
+      </div>
+    </JILEditorProvider>
+  );
+};
+
+export default JILEditorContainer;
+```
 
 ---
 
-Additional Notes
+### File: **JILNavigation.jsx**
 
-Automatic Collection Creation:
-When you first save a document via the repository, Spring Data MongoDB will automatically create the jilMetadata collection if it does not already exist.
+```jsx
+import React from "react";
 
-Package Structure:
-Ensure that your project’s directory structure reflects the package names:
+const JILNavigation = ({ currentFileIndex, setCurrentFileIndex, totalFiles, addNewFile }) => {
+  return (
+    <div className="jil-navigation">
+      <button
+        onClick={() =>
+          setCurrentFileIndex((prev) => Math.max(prev - 1, 0))
+        }
+        disabled={currentFileIndex === 0}
+      >
+        &lt; Prev
+      </button>
+      <span>
+        File {currentFileIndex + 1} of {totalFiles}
+      </span>
+      <button
+        onClick={() =>
+          setCurrentFileIndex((prev) =>
+            Math.min(prev + 1, totalFiles - 1)
+          )
+        }
+        disabled={currentFileIndex === totalFiles - 1}
+      >
+        Next &gt;
+      </button>
+      <button onClick={addNewFile}>Add File</button>
+    </div>
+  );
+};
 
-Model: com/wellsfargo/utcap/model
+export default JILNavigation;
+```
 
-Repository: com/wellsfargo/utcap/repository
+---
 
-Service: com/wellsfargo/utcap/service
+### File: **JILEditor.jsx**
 
-Controller: com/wellsfargo/utcap/controller
+```jsx
+import React, { useState, useEffect, useContext } from "react";
+import { JILEditorContext } from "./JILEditorContext";
+import JILFieldRenderer from "./JILFieldRenderer";
+import { MICROSERVICE_URL } from "../util/constant";
+import generateSearchHeader from "../util/Authentication";
+import { useGlobalState } from "../react-library";
+import { convertToJILText } from "./jilUtils";
+import "./JILEditor.css";
 
+const JILEditor = ({ requirementId }) => {
+  const { jilFiles, currentFileIndex, updateCurrentFile } = useContext(JILEditorContext);
+  const [metadata, setMetadata] = useState(null);
+  const [rawPreview, setRawPreview] = useState("");
+  const globalState = useGlobalState();
+  const currentFile = jilFiles[currentFileIndex];
 
-MongoDB Configuration:
-In your application.properties (or application.yml), configure your MongoDB URI, for example:
+  // Fetch JIL metadata.
+  useEffect(() => {
+    fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
+      method: "GET",
+      headers: generateSearchHeader(globalState)
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setMetadata(data.metaData);
+      })
+      .catch((err) => {
+        console.error("Error fetching metadata:", err);
+      });
+  }, [globalState]);
 
-spring.data.mongodb.uri=mongodb://localhost:27017/yourDatabaseName
+  // Update live preview on current file changes.
+  useEffect(() => {
+    // For now, using JSON conversion. Later replace with convertToJILText(currentFile).
+    const previewText = convertToJILText(currentFile);
+    setRawPreview(previewText);
+  }, [currentFile]);
 
+  const handleSave = () => {
+    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
+      method: "PUT",
+      headers: {
+        ...generateSearchHeader(globalState),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ jilFiles })
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Save failed");
+        }
+        return res.json();
+      })
+      .then(() => {
+        alert("JIL file saved successfully!");
+      })
+      .catch((err) => {
+        console.error("Error saving JIL file:", err);
+      });
+  };
 
-With these files in place, you’ll have a full CRUD REST API for storing and managing your JIL metadata in the MongoDB collection named jilMetadata. Let me know if you need further adjustments or have any questions!
+  if (!metadata) {
+    return <div>Loading metadata...</div>;
+  }
 
+  return (
+    <div className="jil-editor">
+      <div className="jil-editor-header">
+        <h3>JIL Editor</h3>
+        <button onClick={handleSave}>Save</button>
+      </div>
+      <div className="jil-editor-body">
+        <div className="jil-editor-left">
+          <h4>Structured Editor</h4>
+          {/* Render the mainBox of the current file */}
+          <JILFieldRenderer
+            schema={metadata.properties.mainBox}
+            data={currentFile.mainBox || {}}
+            path={["mainBox"]}
+            onFieldChange={(updatedData) => {
+              updateCurrentFile({ ...currentFile, mainBox: updatedData });
+            }}
+          />
+        </div>
+        <div className="jil-editor-right">
+          <h4>Live Preview</h4>
+          <textarea readOnly value={rawPreview} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default JILEditor;
+```
+
+---
+
+### File: **JILFieldRenderer.jsx**
+
+```jsx
+import React from "react";
+import JILBoxEditor from "./JILBoxEditor";
+import JILCmdEditor from "./JILCmdEditor";
+import JILFwEditor from "./JILFwEditor";
+
+const JILFieldRenderer = ({ schema, data, path, onFieldChange }) => {
+  // If schema has oneOf, choose one based on data.job_type or default to first option.
+  if (schema.oneOf) {
+    let selectedSchema = schema.oneOf[0];
+    if (data.job_type) {
+      const found = schema.oneOf.find((s) => {
+        // Check if the schema reference includes the job type (SubBOX, CMD, FW)
+        if (s.$ref && data.job_type) {
+          return s.$ref.includes(data.job_type);
+        }
+        return false;
+      });
+      if (found) {
+        selectedSchema = found;
+      }
+    }
+    // Render according to job type.
+    if (selectedSchema.$ref && selectedSchema.$ref.includes("SubBOX")) {
+      return (
+        <JILBoxEditor
+          schema={selectedSchema}
+          data={data}
+          path={path}
+          onFieldChange={onFieldChange}
+        />
+      );
+    } else if (selectedSchema.$ref && selectedSchema.$ref.includes("CMD")) {
+      return (
+        <JILCmdEditor
+          schema={selectedSchema}
+          data={data}
+          path={path}
+          onFieldChange={onFieldChange}
+        />
+      );
+    } else if (selectedSchema.$ref && selectedSchema.$ref.includes("FW")) {
+      return (
+        <JILFwEditor
+          schema={selectedSchema}
+          data={data}
+          path={path}
+          onFieldChange={onFieldChange}
+        />
+      );
+    } else {
+      // Fallback to box editor.
+      return (
+        <JILBoxEditor
+          schema={selectedSchema}
+          data={data}
+          path={path}
+          onFieldChange={onFieldChange}
+        />
+      );
+    }
+  }
+
+  // If no oneOf, fall back on data.job_type.
+  switch (data.job_type) {
+    case "BOX":
+      return (
+        <JILBoxEditor
+          schema={schema}
+          data={data}
+          path={path}
+          onFieldChange={onFieldChange}
+        />
+      );
+    case "CMD":
+      return (
+        <JILCmdEditor
+          schema={schema}
+          data={data}
+          path={path}
+          onFieldChange={onFieldChange}
+        />
+      );
+    case "FW":
+      return (
+        <JILFwEditor
+          schema={schema}
+          data={data}
+          path={path}
+          onFieldChange={onFieldChange}
+        />
+      );
+    default:
+      return <div>Unknown job type</div>;
+  }
+};
+
+export default JILFieldRenderer;
+```
+
+---
+
+### File: **JILBoxEditor.jsx**
+
+```jsx
+import React from "react";
+import JILFieldRenderer from "./JILFieldRenderer";
+
+const JILBoxEditor = ({ schema, data, path, onFieldChange }) => {
+  // Update a field in the current BOX job.
+  const handleChange = (key, value) => {
+    const newData = { ...data, [key]: value };
+    onFieldChange(newData);
+  };
+
+  // Update a child job in the properties array.
+  const handleChildChange = (index, childData) => {
+    const newProperties = data.properties ? [...data.properties] : [];
+    newProperties[index] = childData;
+    handleChange("properties", newProperties);
+  };
+
+  const addChildJob = (jobType) => {
+    let newJob;
+    if (jobType === "BOX") {
+      newJob = { job_type: "BOX", properties: [] };
+    } else if (jobType === "CMD") {
+      newJob = { job_type: "CMD" };
+    } else if (jobType === "FW") {
+      newJob = { job_type: "FW" };
+    }
+    const newProperties = data.properties ? [...data.properties, newJob] : [newJob];
+    handleChange("properties", newProperties);
+  };
+
+  const addNewPair = () => {
+    const key = prompt("Enter new key:");
+    if (!key) return;
+    const value = prompt("Enter value for " + key + ":");
+    handleChange(key, value);
+  };
+
+  const renderKeyValuePairs = () => {
+    return Object.keys(data)
+      .filter((k) => k !== "properties")
+      .map((key, idx) => (
+        <div key={idx} className="jil-keyvalue-row">
+          <label>{key}: </label>
+          <input
+            type="text"
+            value={data[key]}
+            onChange={(e) => handleChange(key, e.target.value)}
+          />
+        </div>
+      ));
+  };
+
+  const renderChildJobs = () => {
+    const children = data.properties || [];
+    return children.map((child, index) => (
+      <div key={index} className="jil-child-job">
+        <JILFieldRenderer
+          schema={schema.items ? schema.items : {}}
+          data={child}
+          path={[...path, "properties", index]}
+          onFieldChange={(childData) => handleChildChange(index, childData)}
+        />
+      </div>
+    ));
+  };
+
+  return (
+    <div className="jil-box-editor">
+      <div className="jil-box-header">
+        <span>{data.job_type === "BOX" ? "Box Job" : "Sub Box"}</span>
+        <button onClick={addNewPair}>Add New Pair</button>
+      </div>
+      <div className="jil-box-content">{renderKeyValuePairs()}</div>
+      <div className="jil-child-section">
+        <h5>Child Jobs</h5>
+        {renderChildJobs()}
+        <div className="jil-add-child">
+          <select
+            onChange={(e) => {
+              if (e.target.value) {
+                addChildJob(e.target.value);
+                e.target.value = "";
+              }
+            }}
+          >
+            <option value="">Add Child Job...</option>
+            <option value="BOX">Sub Box</option>
+            <option value="CMD">CMD</option>
+            <option value="FW">FW</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default JILBoxEditor;
+```
+
+---
+
+### File: **JILCmdEditor.jsx**
+
+```jsx
+import React from "react";
+
+const JILCmdEditor = ({ schema, data, path, onFieldChange }) => {
+  const handleChange = (key, value) => {
+    const newData = { ...data, [key]: value };
+    onFieldChange(newData);
+  };
+
+  const addNewPair = () => {
+    const key = prompt("Enter new key:");
+    if (!key) return;
+    const value = prompt("Enter value for " + key + ":");
+    handleChange(key, value);
+  };
+
+  const renderKeyValuePairs = () => {
+    return Object.keys(data).map((key, idx) => (
+      <div key={idx} className="jil-keyvalue-row">
+        <label>{key}: </label>
+        <input
+          type="text"
+          value={data[key]}
+          onChange={(e) => handleChange(key, e.target.value)}
+        />
+      </div>
+    ));
+  };
+
+  return (
+    <div className="jil-cmd-editor">
+      <div className="jil-cmd-header">
+        <span>CMD Job</span>
+        <button onClick={addNewPair}>Add New Pair</button>
+      </div>
+      <div className="jil-cmd-content">{renderKeyValuePairs()}</div>
+    </div>
+  );
+};
+
+export default JILCmdEditor;
+```
+
+---
+
+### File: **JILFwEditor.jsx**
+
+```jsx
+import React from "react";
+
+const JILFwEditor = ({ schema, data, path, onFieldChange }) => {
+  const handleChange = (key, value) => {
+    const newData = { ...data, [key]: value };
+    onFieldChange(newData);
+  };
+
+  const addNewPair = () => {
+    const key = prompt("Enter new key:");
+    if (!key) return;
+    const value = prompt("Enter value for " + key + ":");
+    handleChange(key, value);
+  };
+
+  const renderKeyValuePairs = () => {
+    return Object.keys(data).map((key, idx) => (
+      <div key={idx} className="jil-keyvalue-row">
+        <label>{key}: </label>
+        <input
+          type="text"
+          value={data[key]}
+          onChange={(e) => handleChange(key, e.target.value)}
+        />
+      </div>
+    ));
+  };
+
+  return (
+    <div className="jil-fw-editor">
+      <div className="jil-fw-header">
+        <span>File Watcher Job (FW)</span>
+        <button onClick={addNewPair}>Add New Pair</button>
+      </div>
+      <div className="jil-fw-content">{renderKeyValuePairs()}</div>
+    </div>
+  );
+};
+
+export default JILFwEditor;
+```
+
+---
+
+### File: **JILKeyValueEditor.jsx** *(Optional)*
+
+```jsx
+import React from "react";
+
+const JILKeyValueEditor = ({ label, value, onChange }) => {
+  return (
+    <div className="jil-keyvalue-editor">
+      <label>{label}: </label>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+};
+
+export default JILKeyValueEditor;
+```
+
+---
+
+### File: **jilUtils.js**
+
+```js
+export const convertToJILText = (jilJson) => {
+  // Placeholder conversion: currently returns JSON formatted string.
+  // Later, implement conversion logic to transform the JSON structure into proper JIL text format.
+  return JSON.stringify(jilJson, null, 2);
+};
+```
+
+---
+
+### File: **JILEditorContext.jsx**
+
+```jsx
+import React, { createContext } from "react";
+
+export const JILEditorContext = createContext();
+
+export const JILEditorProvider = JILEditorContext.Provider;
+```
+
+---
+
+### File: **JILEditor.css**
+
+```css
+.jil-editor-container {
+  margin: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.jil-navigation {
+  margin-bottom: 10px;
+}
+
+.jil-navigation button {
+  margin-right: 5px;
+}
+
+.jil-editor {
+  display: flex;
+  flex-direction: column;
+}
+
+.jil-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.jil-editor-body {
+  display: flex;
+  margin-top: 10px;
+}
+
+.jil-editor-left,
+.jil-editor-right {
+  width: 50%;
+  padding: 10px;
+}
+
+.jil-editor-right textarea {
+  width: 100%;
+  height: 400px;
+}
+
+.jil-box-editor,
+.jil-cmd-editor,
+.jil-fw-editor {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.jil-box-header,
+.jil-cmd-header,
+.jil-fw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f2f2f2;
+  padding: 5px;
+}
+
+.jil-keyvalue-row {
+  display: flex;
+  margin-bottom: 5px;
+}
+
+.jil-keyvalue-row label {
+  width: 150px;
+  font-weight: bold;
+}
+
+.jil-keyvalue-row input {
+  flex: 1;
+}
+
+.jil-child-job {
+  margin-left: 20px;
+  margin-top: 10px;
+}
+
+.jil-add-child {
+  margin-top: 10px;
+}
+```
+
+---
+
+### Final Notes
+
+- The **JILEditorContainer.jsx** fetches the JIL file data and provides context for all nested editors.
+- The **JILEditor.jsx** component fetches metadata from `/api/jilMetadata` and renders the structured editor (left) and live preview (right).  
+- The **JILFieldRenderer.jsx** dispatches rendering to **JILBoxEditor.jsx**, **JILCmdEditor.jsx**, or **JILFwEditor.jsx** based on the job type.
+- In each job editor (BOX, CMD, FW), users can update fields and add new custom key–value pairs via a prompt.
+- The live preview currently shows the JSON string; later you can enhance the `convertToJILText` function to output the proper JIL format.
+- All components mirror the style and integration patterns used in your JSON editor.
+
+Feel free to adjust and extend these files as needed for further functionality and refinement.
