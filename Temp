@@ -1,13 +1,20 @@
-Below is the complete updated code for the affected files. In these revisions we have:
+Below are the updated full codes for the required files with your changes incorporated. Note that:
 
-1. Moved the “Add New Pair” functionality so that when the user clicks the button, two inline input boxes appear below the existing key–value pairs (instead of using a prompt).  
-2. Moved the dropdown for adding child jobs to the header area of each job (BOX, CMD, FW) and, for non–main box jobs, added a “Remove Job” button in that header.  
-3. Added a “Remove” button next to each key–value pair row.  
-4. Increased the input sizes via CSS.  
-5. Made the left (structured) editor scrollable.
+• We now import the correct global hook using  
+  `import { useAppGlobalState } from "@wf/react-library";`  
+  and we extract the token (`const { token } = useAppGlobalState();`) so that it’s used in dependency arrays.
 
-A helper function (`fillDefaults`) is added in **jilUtils.js** to create a new job with default values from the metadata (a simplified version).  
-All files use the .jsx extension and share a single CSS file for styling.
+• We now import the header generator as  
+  `import { generateSearHeader } from "../../../Authenitcation";`
+
+• The microservice URL is imported from  
+  `import { MICROSERVICE_URL } from "../../../util/Constant";`
+
+• When fetching metadata we now assume the returned data is an array and set metadata using the first element (i.e. `setMetadata(data[0].metaData)`).
+
+• In the child‑job addition code (in the BOX editor) we now “drill down” into the parent’s schema to get the child definitions (from the parent’s property named `"properties"`) and use that for constructing a new job with default values via the helper from **jilUtils.js**.
+
+Below are the updated files. (The optional JILKeyValueEditor file is omitted as requested.)
 
 ---
 
@@ -18,22 +25,21 @@ import React, { useState, useEffect } from "react";
 import JILEditor from "./JILEditor";
 import JILNavigation from "./JILNavigation";
 import { JILEditorProvider } from "./JILEditorContext";
-import { MICROSERVICE_URL } from "../util/constant";
-import generateSearchHeader from "../util/Authentication";
-import { useGlobalState } from "../react-library";
+import { MICROSERVICE_URL } from "../../../util/Constant";
+import { generateSearHeader } from "../../../Authenitcation";
+import { useAppGlobalState } from "@wf/react-library";
 import "./JILEditor.css";
 
 const JILEditorContainer = ({ requirementId }) => {
-  // For now, assume EDL flow with one JIL file by default.
   const [jilFiles, setJilFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const globalState = useGlobalState();
+  const { token } = useAppGlobalState();
 
   useEffect(() => {
     fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
       method: "GET",
-      headers: generateSearchHeader(globalState)
+      headers: generateSearHeader(token)
     })
       .then((res) => res.json())
       .then((data) => {
@@ -49,7 +55,7 @@ const JILEditorContainer = ({ requirementId }) => {
         console.error("Error fetching JIL data:", err);
         setLoading(false);
       });
-  }, [requirementId, globalState]);
+  }, [requirementId, token]);
 
   const addNewFile = () => {
     setJilFiles([...jilFiles, { mainBox: {} }]);
@@ -134,9 +140,9 @@ export default JILNavigation;
 import React, { useState, useEffect, useContext } from "react";
 import { JILEditorContext } from "./JILEditorContext";
 import JILFieldRenderer from "./JILFieldRenderer";
-import { MICROSERVICE_URL } from "../util/constant";
-import generateSearchHeader from "../util/Authentication";
-import { useGlobalState } from "../react-library";
+import { MICROSERVICE_URL } from "../../../util/Constant";
+import { generateSearHeader } from "../../../Authenitcation";
+import { useAppGlobalState } from "@wf/react-library";
 import { convertToJILText } from "./jilUtils";
 import "./JILEditor.css";
 
@@ -144,27 +150,28 @@ const JILEditor = ({ requirementId }) => {
   const { jilFiles, currentFileIndex, updateCurrentFile } = useContext(JILEditorContext);
   const [metadata, setMetadata] = useState(null);
   const [rawPreview, setRawPreview] = useState("");
-  const globalState = useGlobalState();
+  const { token } = useAppGlobalState();
   const currentFile = jilFiles[currentFileIndex];
 
   // Fetch JIL metadata.
   useEffect(() => {
     fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
       method: "GET",
-      headers: generateSearchHeader(globalState)
+      headers: generateSearHeader(token)
     })
       .then((res) => res.json())
       .then((data) => {
-        setMetadata(data.metaData);
+        // Assuming metadata comes as an array, we pick the first element.
+        setMetadata(data[0].metaData);
       })
       .catch((err) => {
         console.error("Error fetching metadata:", err);
       });
-  }, [globalState]);
+  }, [token]);
 
   // Update live preview on current file changes.
   useEffect(() => {
-    // For now, using JSON conversion. Later replace with convertToJILText(currentFile).
+    // For now using JSON conversion; later replace with proper JIL format conversion.
     const previewText = convertToJILText(currentFile);
     setRawPreview(previewText);
   }, [currentFile]);
@@ -173,7 +180,7 @@ const JILEditor = ({ requirementId }) => {
     fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
       method: "PUT",
       headers: {
-        ...generateSearchHeader(globalState),
+        ...generateSearHeader(token),
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ jilFiles })
@@ -346,7 +353,6 @@ import JILFieldRenderer from "./JILFieldRenderer";
 import { fillDefaults } from "./jilUtils";
 
 const JILBoxEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
-  // Local state for inline new key/value pair addition.
   const [showNewPair, setShowNewPair] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -377,10 +383,7 @@ const JILBoxEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
             value={data[key]}
             onChange={(e) => handleChange(key, e.target.value)}
           />
-          <button
-            className="jil-remove-btn"
-            onClick={() => removeKeyValuePair(key)}
-          >
+          <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
             Remove
           </button>
         </div>
@@ -436,16 +439,26 @@ const JILBoxEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
     handleChange("properties", newProperties);
   };
 
-  // Add a new child job using defaults from metadata.
+  // Add a new child job.
+  // We now derive the child schemas from the parent’s schema.
   const addChildJob = (jobType) => {
+    // Attempt to retrieve the child job definitions from parent's schema.
+    const childSchemas =
+      schema.properties &&
+      schema.properties["properties"] &&
+      schema.properties["properties"].items;
     let newJob = {};
-    // Use the fillDefaults helper to create a new job with default values.
-    if (jobType === "BOX") {
-      newJob = fillDefaults(schema.items.find(item => item.$ref && item.$ref.includes("SubBOX")) || {});
-    } else if (jobType === "CMD") {
-      newJob = fillDefaults(schema.items.find(item => item.$ref && item.$ref.includes("CMD")) || {});
-    } else if (jobType === "FW") {
-      newJob = fillDefaults(schema.items.find(item => item.$ref && item.$ref.includes("FW")) || {});
+    if (childSchemas && childSchemas.oneOf && Array.isArray(childSchemas.oneOf)) {
+      if (jobType === "BOX") {
+        newJob =
+          fillDefaults(childSchemas.oneOf.find(item => item.$ref && item.$ref.includes("SubBOX")) || {}) || {};
+      } else if (jobType === "CMD") {
+        newJob =
+          fillDefaults(childSchemas.oneOf.find(item => item.$ref && item.$ref.includes("CMD")) || {}) || {};
+      } else if (jobType === "FW") {
+        newJob =
+          fillDefaults(childSchemas.oneOf.find(item => item.$ref && item.$ref.includes("FW")) || {}) || {};
+      }
     }
     // Ensure newJob has the job_type set.
     newJob.job_type = jobType;
@@ -460,7 +473,7 @@ const JILBoxEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
     return children.map((child, index) => (
       <div key={index} className="jil-child-job">
         <JILFieldRenderer
-          schema={schema.items ? schema.items : {}}
+          schema={schema.properties && schema.properties["properties"] ? schema.properties["properties"].items : {}}
           data={child}
           path={[...path, "properties", index]}
           onFieldChange={(childData) => handleChildChange(index, childData)}
@@ -526,7 +539,6 @@ export default JILBoxEditor;
 
 ```jsx
 import React, { useState } from "react";
-import { fillDefaults } from "./jilUtils";
 
 const JILCmdEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
   const [showNewPair, setShowNewPair] = useState(false);
@@ -607,7 +619,6 @@ const JILCmdEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
       <div className="jil-job-header">
         <span>CMD Job</span>
         <div className="jil-header-actions">
-          {/* For CMD jobs, no child job dropdown is needed */}
           {!(path && path[0] === "mainBox") && (
             <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
               Remove Job
@@ -632,7 +643,6 @@ export default JILCmdEditor;
 
 ```jsx
 import React, { useState } from "react";
-import { fillDefaults } from "./jilUtils";
 
 const JILFwEditor = ({ schema, data, path, onFieldChange, onRemoveJob }) => {
   const [showNewPair, setShowNewPair] = useState(false);
@@ -733,40 +743,18 @@ export default JILFwEditor;
 
 ---
 
-### 8. **(Optional) JILKeyValueEditor.jsx**
-
-*(Not strictly required since the inline code is now in each editor; you may remove this file if not used.)*
-
-```jsx
-import React from "react";
-
-const JILKeyValueEditor = ({ label, value, onChange, onRemove }) => {
-  return (
-    <div className="jil-keyvalue-row">
-      <label>{label}: </label>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="jil-input"/>
-      <button className="jil-remove-btn" onClick={onRemove}>Remove</button>
-    </div>
-  );
-};
-
-export default JILKeyValueEditor;
-```
-
----
-
-### 9. **jilUtils.js**
+### 8. **jilUtils.js**
 
 ```js
-// A simple utility to convert the internal JSON structure to JIL text.
-// For now, it returns a formatted JSON string.
-// Also includes a helper to fill defaults based on the provided schema.
+// Converts the internal JSON structure to a JIL text format.
+// For now, returns a formatted JSON string.
+// Later, implement proper conversion to JIL format.
 export const convertToJILText = (jilJson) => {
   return JSON.stringify(jilJson, null, 2);
 };
 
-// A basic fillDefaults function that returns an object with default values.
-// This is a simplified version – in a real implementation you might recursively fill in defaults.
+// A helper function to fill defaults based on a given schema.
+// This simplified version iterates over the properties of a schema and uses default values if available.
 export const fillDefaults = (schema) => {
   const defaults = {};
   if (schema && schema.properties) {
@@ -781,7 +769,7 @@ export const fillDefaults = (schema) => {
 
 ---
 
-### 10. **JILEditorContext.jsx**
+### 9. **JILEditorContext.jsx**
 
 ```jsx
 import React, { createContext } from "react";
@@ -793,7 +781,7 @@ export const JILEditorProvider = JILEditorContext.Provider;
 
 ---
 
-### 11. **JILEditor.css**
+### 10. **JILEditor.css**
 
 ```css
 /* Container & Global Styles */
@@ -960,18 +948,12 @@ export const JILEditorProvider = JILEditorContext.Provider;
 
 ---
 
-### Final Notes
+### Final Remarks
 
-- **State Management:**  
-  Each job editor (BOX, CMD, FW) now manages local state to show inline new pair inputs. When the user fills in and clicks “Add,” the key–value pair is added to the job’s data and the inline section is hidden.
+• The updated files now use the correct global state hook (`useAppGlobalState`) and header generator (`generateSearHeader`) from the specified paths.  
+• API calls now use the token (extracted from global state) in dependency arrays so that we don’t trigger infinite loops.  
+• When fetching metadata, we now extract data from the first element of the returned array.  
+• In the BOX editor, the “Add Child Job” function now accesses the child definitions from the parent’s schema (from the property named `"properties"`) to determine default values via the helper function `fillDefaults`.  
+• All styling and interactive features (scrollable left pane, inline new key–value pairs with remove buttons, job removal button, increased input sizes) have been implemented per your requirements.
 
-- **Job Removal:**  
-  In the header of each job (except the main box), a “Remove Job” button is rendered. The actual removal should be handled by the parent component via the `onRemoveJob` callback (passed from the parent through `JILFieldRenderer`).
-
-- **Child Job Addition:**  
-  The dropdown for adding a child job is now at the top in the job header. When a new job is added, the helper function `fillDefaults` from **jilUtils.js** populates the job with default key–value pairs from the metadata (a simplified approach).
-
-- **Scrolling & Input Sizes:**  
-  The left panel is now scrollable and the input boxes have increased size according to the CSS.
-
-These complete updated files should implement the changes as described. Feel free to adjust the styling or logic as needed for your project!
+You can now integrate these files into your project. Let me know if further adjustments are needed!
