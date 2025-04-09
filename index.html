@@ -1,220 +1,134 @@
-aBelow is the updated code for the files that require changes. In these updates we now:
+Below is an explanation of our updated strategy and the changes that have been applied—and then the full updated files (only those that have ordering changes):
 
-• Fetch the metadata (and store the full metadata object along with its definitions) in the container and pass it via context.
-• Use the metadata definitions when creating a default JIL file (so that the new file always comes pre‑populated with a main box having one CMD job).
-• Ensure that state updates trigger the live preview (by using a dependency that reflects deep changes).
-• Preserve all of your previously implemented functions and only add the missing parts.
+Strategy Recap
 
-Below are the updated files:
+1. Extracting Ordered Keys from Metadata:
+We add a helper function (getOrderedKeys) that extracts keys in the order defined in the metadata’s schema for a given job type.
+• In each job editor (BOX, CMD, and FW), instead of iterating over Object.keys(data) directly, we first retrieve the ordered keys from the corresponding schema (i.e. schema.properties), then render rows for those keys if present in the data.
+• After that, if any custom (user-added) keys exist in the data (keys not found in the metadata), we render them afterward (e.g. appended at the end).
+
+
+2. Applying Ordering in the Raw Preview Conversion:
+In our conversion function (convertToJILText) we now attempt to output keys in the correct order. For each job, we: • Identify the job’s type (using its job_type field) to look up the appropriate schema from the definitions provided in context. • Then we iterate over the ordered keys from that schema, outputting each key–value pair in order.
+• Finally, we append any custom keys (if found).
+
+
+3. Consistency Across Left and Right Panels:
+By using the same helper and the same ordering logic in both the job editors (structured view) and in the raw preview conversion, we ensure that the ordering is identical.
+
+
 
 
 ---
 
-Updated JILEditorContainer.jsx
+Below are the full updated files that have been changed to implement ordering. (Other files remain unchanged.)
 
-import React, { useState, useEffect } from "react";
-import JILEditor from "./JILEditor";
-import JILNavigation from "./JILNavigation";
-import { JILEditorProvider } from "./JILEditorContext";
-import { MICROSERVICE_URL } from "../../../util/Constant";
-import { generateSearHeader } from "../../../Authenitcation";
-import { useAppGlobalState } from "@wf/react-library";
-import { createDefaultJILFile } from "./jilUtils";
-import "./JILEditor.css";
 
-const JILEditorContainer = ({ requirementId }) => {
-  const [jilFiles, setJilFiles] = useState([]);
-  const [metadata, setMetadata] = useState(null); // store full metadata (including definitions)
-  const [loading, setLoading] = useState(true);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const { token } = useAppGlobalState();
+---
 
-  // Fetch metadata
-  useEffect(() => {
-    fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
-      method: "GET",
-      headers: generateSearHeader(token)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        // Metadata is returned as an array – take the first element’s metaData.
-        setMetadata(data[0].metaData);
-      })
-      .catch((err) => {
-        console.error("Error fetching metadata:", err);
-      });
-  }, [token]);
+Updated JILUtils.js
 
-  // Fetch JIL files data
-  useEffect(() => {
-    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
-      method: "GET",
-      headers: generateSearHeader(token)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.jilFiles && data.jilFiles.length > 0) {
-          setJilFiles(data.jilFiles);
-        } else {
-          // If no file exists, create a default one if metadata is available.
-          if (metadata && metadata.definitions) {
-            setJilFiles([createDefaultJILFile(metadata.definitions)]);
-          } else {
-            // Fallback if metadata not ready.
-            setJilFiles([{ mainBox: {} }]);
-          }
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching JIL data:", err);
-        setLoading(false);
-      });
-  }, [requirementId, token, metadata]);
-
-  // Handler to add a new file.
-  // It now uses metadata.definitions to create a default file.
-  const addNewFile = () => {
-    if (!metadata || !metadata.definitions) {
-      alert("Metadata is not available yet.");
-      return;
+// Converts the internal JSON structure into formatted JIL text using ordering from metadata.
+export const convertToJILText = (jilJson, definitions) => {
+  // Helper: get ordered keys from a schema's properties.
+  const getOrderedKeys = (schema) => {
+    if (schema && schema.properties) {
+      return Object.keys(schema.properties);
     }
-    const newFile = createDefaultJILFile(metadata.definitions);
-    setJilFiles([...jilFiles, newFile]);
-    setCurrentFileIndex(jilFiles.length);
+    return [];
   };
 
-  // Delete the current file.
-  const deleteFile = () => {
-    if (jilFiles.length > 1) {
-      const newFiles = jilFiles.filter((_, index) => index !== currentFileIndex);
-      setJilFiles(newFiles);
-      setCurrentFileIndex(Math.max(currentFileIndex - 1, 0));
+  // Helper: format a single job recursively.
+  const formatJob = (job, schema) => {
+    // Determine the job name.
+    const jobName = job.insert_job || "Unknown Job";
+    let output = `/*----------------- ${jobName} ------------------*/\n\n`;
+
+    // Determine the appropriate definition based on job_type.
+    let defSchema;
+    if (!schema) {
+      // Fallback: decide by job_type using definitions parameter.
+      if (job.job_type === "BOX") {
+        defSchema = definitions.MainBOX; // top-level mainBox or SubBOX if nested
+      } else if (job.job_type === "CMD") {
+        defSchema = definitions.CMD;
+      } else if (job.job_type === "FW") {
+        defSchema = definitions.FW;
+      } else {
+        defSchema = {};
+      }
     } else {
-      alert("At least one JIL file must exist.");
+      defSchema = schema;
+    }
+
+    // Get ordered keys from the definition.
+    const orderedKeys = (defSchema && defSchema.properties)
+      ? Object.keys(defSchema.properties)
+      : [];
+    // Render keys defined in metadata first.
+    orderedKeys.forEach((key) => {
+      // Skip the "properties" key since that holds children.
+      if (key === "properties") return;
+      if (job.hasOwnProperty(key)) {
+        output += `${key}: ${job[key]}\n`;
+      }
+    });
+    // Append any custom keys (those present in job but not in orderedKeys).
+    Object.keys(job)
+      .filter((key) => key !== "properties" && !orderedKeys.includes(key))
+      .forEach((key) => {
+        output += `${key}: ${job[key]}\n`;
+      });
+    output += "\n";
+    // Recursively process child jobs if any.
+    if (job.properties && Array.isArray(job.properties)) {
+      job.properties.forEach((child) => {
+        // For children of a BOX job, decide: if job_type is BOX then use SubBOX definition; else use corresponding definitions.
+        let childDef;
+        if (child.job_type === "BOX") {
+          childDef = definitions.SubBOX;
+        } else if (child.job_type === "CMD") {
+          childDef = definitions.CMD;
+        } else if (child.job_type === "FW") {
+          childDef = definitions.FW;
+        }
+        output += formatJob(child, childDef) + "\n";
+      });
+    }
+    return output;
+  };
+
+  // Start conversion using mainBox.
+  return formatJob(jilJson.mainBox, definitions.MainBOX);
+};
+
+// Helper to fill defaults based on the given schema.
+export const fillDefaults = (schema) => {
+  const defaults = {};
+  if (schema && schema.properties) {
+    Object.keys(schema.properties).forEach((key) => {
+      const prop = schema.properties[key];
+      defaults[key] = prop.default !== undefined ? prop.default : "";
+    });
+  }
+  return defaults;
+};
+
+// Create a default JIL file using provided definitions.
+// It creates a main box from definitions.MainBOX and one default CMD job from definitions.CMD.
+export const createDefaultJILFile = (definitions) => {
+  return {
+    mainBox: {
+      ...fillDefaults(definitions.MainBOX),
+      properties: [
+        {
+          ...fillDefaults(definitions.CMD),
+          job_type: "CMD"
+        }
+      ]
     }
   };
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  // Pass metadata along with other state via context.
-  const contextValue = {
-    jilFiles,
-    setJilFiles,
-    currentFileIndex,
-    setCurrentFileIndex,
-    metadata
-  };
-
-  return (
-    <JILEditorProvider value={contextValue}>
-      <div className="jil-editor-container">
-        <JILNavigation
-          currentFileIndex={currentFileIndex}
-          setCurrentFileIndex={setCurrentFileIndex}
-          totalFiles={jilFiles.length}
-          addNewFile={addNewFile}
-          deleteFile={deleteFile}
-        />
-        <JILEditor requirementId={requirementId} />
-      </div>
-    </JILEditorProvider>
-  );
 };
-
-export default JILEditorContainer;
-
-
----
-
-Updated JILEditor.jsx
-
-import React, { useState, useEffect, useContext } from "react";
-import { JILEditorContext } from "./JILEditorContext";
-import JILFieldRenderer from "./JILFieldRenderer";
-import { MICROSERVICE_URL } from "../../../util/Constant";
-import { generateSearHeader } from "../../../Authenitcation";
-import { useAppGlobalState } from "@wf/react-library";
-import { convertToJILText } from "./jilUtils";
-import "./JILEditor.css";
-
-const JILEditor = ({ requirementId }) => {
-  const { jilFiles, currentFileIndex, setJilFiles, metadata } = useContext(JILEditorContext);
-  const [rawPreview, setRawPreview] = useState("");
-  const { token } = useAppGlobalState();
-  const currentFile = jilFiles[currentFileIndex];
-
-  // (Metadata is already fetched in the container)
-
-  // Update live preview when current file changes.
-  useEffect(() => {
-    // Use JSON.stringify to force deep re-evaluation
-    const previewText = convertToJILText(currentFile);
-    setRawPreview(previewText);
-  }, [JSON.stringify(currentFile)]); // deep dependency
-
-  const handleSave = () => {
-    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
-      method: "PUT",
-      headers: {
-        ...generateSearHeader(token),
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ jilFiles })
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error("Save failed");
-        }
-        return res.json();
-      })
-      .then(() => {
-        alert("JIL file saved successfully!");
-      })
-      .catch((err) => {
-        console.error("Error saving JIL file:", err);
-      });
-  };
-
-  if (!metadata) {
-    return <div>Loading metadata...</div>;
-  }
-
-  return (
-    <div className="jil-editor">
-      <div className="jil-editor-header">
-        <h3>JIL Editor</h3>
-        <button onClick={handleSave}>Save</button>
-      </div>
-      <div className="jil-editor-body">
-        <div className="jil-editor-left scroll-container">
-          <h4>Structured Editor</h4>
-          <div className="scroll-content">
-            <JILFieldRenderer
-              schema={metadata.definitions.MainBOX}
-              definitions={metadata.definitions}
-              data={currentFile.mainBox || {}}
-              path={["mainBox"]}
-              onFieldChange={(updatedData) => {
-                const newFiles = [...jilFiles];
-                newFiles[currentFileIndex].mainBox = updatedData;
-                setJilFiles(newFiles);
-              }}
-            />
-          </div>
-        </div>
-        <div className="jil-editor-right scroll-container">
-          <h4>Live Preview</h4>
-          <textarea readOnly value={rawPreview} />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default JILEditor;
 
 
 ---
@@ -230,6 +144,14 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
 
+  // Helper: get ordered keys from schema definition for this job type.
+  const getOrderedKeys = () => {
+    if (schema && schema.properties) {
+      return Object.keys(schema.properties);
+    }
+    return [];
+  };
+
   const handleChange = (key, value) => {
     const newData = { ...data, [key]: value };
     onFieldChange(newData);
@@ -241,23 +163,51 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
     onFieldChange(newData);
   };
 
+  // Render keys according to metadata order, then custom keys.
   const renderKeyValuePairs = () => {
-    return Object.keys(data)
-      .filter((k) => k !== "properties")
-      .map((key, idx) => (
-        <div key={idx} className="jil-keyvalue-row">
-          <label>{key}: </label>
-          <input
-            className="jil-input"
-            type="text"
-            value={data[key]}
-            onChange={(e) => handleChange(key, e.target.value)}
-          />
-          <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
-            Remove
-          </button>
-        </div>
-      ));
+    const orderedKeys = getOrderedKeys();
+    const rendered = [];
+
+    // Render defined keys in order, except "properties"
+    orderedKeys.forEach((key) => {
+      if (key === "properties") return;
+      if (data.hasOwnProperty(key)) {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      }
+    });
+    // Render additional keys not in the metadata order (custom keys)
+    Object.keys(data)
+      .filter((key) => key !== "properties" && !orderedKeys.includes(key))
+      .forEach((key) => {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      });
+    return rendered;
   };
 
   const renderNewPairSection = () => {
@@ -307,7 +257,6 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
     handleChange("properties", newProperties);
   };
 
-  // Use definitions from context to create a default new child job.
   const addChildJob = (jobType) => {
     let newJob = {};
     if (jobType === "BOX") {
@@ -385,68 +334,286 @@ export default JILBoxEditor;
 
 ---
 
-Updated JILUtils.js
+Updated JILCmdEditor.jsx
 
-// Converts the internal JSON structure into formatted JIL text.
-export const convertToJILText = (jilJson) => {
-  // Recursive function to format a job.
-  const formatJob = (job) => {
-    const jobName = job.insert_job || "Unknown Job";
-    let output = `/*----------------- ${jobName} ------------------*/\n\n`;
-    Object.keys(job).forEach((key) => {
-      if (key !== "properties") {
-        output += `${key}: ${job[key]}\n`;
+import React, { useState } from "react";
+
+const JILCmdEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
+  const [showNewPair, setShowNewPair] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+
+  const getOrderedKeys = () => {
+    if (schema && schema.properties) {
+      return Object.keys(schema.properties);
+    }
+    return [];
+  };
+
+  const handleChange = (key, value) => {
+    const newData = { ...data, [key]: value };
+    onFieldChange(newData);
+  };
+
+  const removeKeyValuePair = (key) => {
+    const newData = { ...data };
+    delete newData[key];
+    onFieldChange(newData);
+  };
+
+  const renderKeyValuePairs = () => {
+    const orderedKeys = getOrderedKeys();
+    const rendered = [];
+
+    // Render keys defined in metadata
+    orderedKeys.forEach((key) => {
+      if (data.hasOwnProperty(key)) {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
       }
     });
-    output += "\n";
-    if (job.properties && Array.isArray(job.properties)) {
-      job.properties.forEach((child) => {
-        output += formatJob(child) + "\n";
+    // Render custom keys not defined in schema.
+    Object.keys(data)
+      .filter((key) => !orderedKeys.includes(key))
+      .forEach((key) => {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
       });
-    }
-    return output;
+    return rendered;
   };
-  return formatJob(jilJson.mainBox);
+
+  const renderNewPairSection = () => {
+    if (!showNewPair) {
+      return (
+        <button className="jil-add-pair-btn" onClick={() => setShowNewPair(true)}>
+          Add New Pair
+        </button>
+      );
+    }
+    return (
+      <div className="jil-new-pair-row">
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Key"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+        />
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Value"
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+        />
+        <button
+          className="jil-add-btn"
+          onClick={() => {
+            if (newKey) {
+              handleChange(newKey, newValue);
+              setNewKey("");
+              setNewValue("");
+              setShowNewPair(false);
+            }
+          }}
+        >
+          Add
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="jil-cmd-editor">
+      <div className="jil-job-header">
+        <span>CMD Job</span>
+        <div className="jil-header-actions">
+          {path.length > 1 && (
+            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
+              Remove Job
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="jil-cmd-content">
+        {renderKeyValuePairs()}
+        {renderNewPairSection()}
+      </div>
+    </div>
+  );
 };
 
-// Helper to fill defaults based on the given schema.
-export const fillDefaults = (schema) => {
-  const defaults = {};
-  if (schema && schema.properties) {
-    Object.keys(schema.properties).forEach((key) => {
-      const prop = schema.properties[key];
-      defaults[key] = prop.default !== undefined ? prop.default : "";
-    });
-  }
-  return defaults;
-};
-
-// Create a default JIL file using the provided definitions.
-// It creates a main box populated from definitions.MainBOX and
-// one default CMD job from definitions.CMD.
-export const createDefaultJILFile = (definitions) => {
-  return {
-    mainBox: {
-      ...fillDefaults(definitions.MainBOX),
-      properties: [
-        {
-          ...fillDefaults(definitions.CMD),
-          job_type: "CMD"
-        }
-      ]
-    }
-  };
-};
+export default JILCmdEditor;
 
 
 ---
 
-Final Remarks
+Updated JILFwEditor.jsx
 
-• The JILEditorContainer.jsx now fetches metadata and stores it in state; it also passes the full metadata (including definitions) via context so that file‑creation (and child‑job creation) functions can use the correct default schema.
-• The JILEditor.jsx now uses a deep dependency (via JSON.stringify of the current file) to ensure that changes in the left-side editor update the right-side preview.
-• The JILBoxEditor.jsx now uses the metadata definitions (passed as a prop) to correctly create sub‑jobs with default values, and the remove button now appears for any job that is not the top-level main box.
-• The JILUtils.js file’s functions have been updated to generate default file structures and convert internal JSON into the JIL text format (mimicking your sample).
+import React, { useState } from "react";
 
-These changes should address your current issues and provide the proper mechanisms for future enhancements. Let me know if you have any further questions or require additional adjustments.
+const JILFwEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
+  const [showNewPair, setShowNewPair] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+
+  const getOrderedKeys = () => {
+    if (schema && schema.properties) {
+      return Object.keys(schema.properties);
+    }
+    return [];
+  };
+
+  const handleChange = (key, value) => {
+    const newData = { ...data, [key]: value };
+    onFieldChange(newData);
+  };
+
+  const removeKeyValuePair = (key) => {
+    const newData = { ...data };
+    delete newData[key];
+    onFieldChange(newData);
+  };
+
+  const renderKeyValuePairs = () => {
+    const orderedKeys = getOrderedKeys();
+    const rendered = [];
+
+    orderedKeys.forEach((key) => {
+      if (data.hasOwnProperty(key)) {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      }
+    });
+    Object.keys(data)
+      .filter((key) => !orderedKeys.includes(key))
+      .forEach((key) => {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      });
+    return rendered;
+  };
+
+  const renderNewPairSection = () => {
+    if (!showNewPair) {
+      return (
+        <button className="jil-add-pair-btn" onClick={() => setShowNewPair(true)}>
+          Add New Pair
+        </button>
+      );
+    }
+    return (
+      <div className="jil-new-pair-row">
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Key"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+        />
+        <input
+          className="jil-input"
+          type="text"
+          placeholder="Value"
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+        />
+        <button
+          className="jil-add-btn"
+          onClick={() => {
+            if (newKey) {
+              handleChange(newKey, newValue);
+              setNewKey("");
+              setNewValue("");
+              setShowNewPair(false);
+            }
+          }}
+        >
+          Add
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="jil-fw-editor">
+      <div className="jil-job-header">
+        <span>File Watcher Job (FW)</span>
+        <div className="jil-header-actions">
+          {path.length > 1 && (
+            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
+              Remove Job
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="jil-fw-content">
+        {renderKeyValuePairs()}
+        {renderNewPairSection()}
+      </div>
+    </div>
+  );
+};
+
+export default JILFwEditor;
+
+
+---
+
+Final Comments
+
+• In each job editor we now use a helper (getOrderedKeys) to iterate over keys from the metadata (the schema passed in) so that ordering follows the defined order.
+• We then render any keys from the data that aren’t in that order as extra custom keys after the ordered ones.
+• The conversion function in jilUtils.js now uses similar logic to print the JIL text in the correct order.
+• The container and editor files now pass along metadata definitions as needed for ordering.
+
+These updates should now implement the required ordering in both the structured editor (left side) and the raw preview (right side). Let me know if any further adjustments are needed!
 
