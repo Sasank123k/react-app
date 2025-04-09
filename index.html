@@ -1,29 +1,16 @@
-Below is a full updated set of files that implements the following strategy:
+aBelow is the updated code for the files that require changes. In these updates we now:
 
-1. Metadata Definitions for Default File Creation:
-– Instead of relying solely on JILEditor.jsx to fetch metadata, the container now also fetches the metadata from the backend.
-– The container stores the entire metadata (so that metadata.definitions is available) and passes these definitions down as a prop.
-– The “Add File” function calls a helper (createDefaultJILFile) with these definitions so that a new file is built with a default main box (using defaults from definitions.MainBOX) and one default CMD job (using definitions.CMD).
+• Fetch the metadata (and store the full metadata object along with its definitions) in the container and pass it via context.
+• Use the metadata definitions when creating a default JIL file (so that the new file always comes pre‑populated with a main box having one CMD job).
+• Ensure that state updates trigger the live preview (by using a dependency that reflects deep changes).
+• Preserve all of your previously implemented functions and only add the missing parts.
 
-
-2. Ensuring Live Preview Updates Properly:
-– All state updates (from edits in the left (structured) editor) now rebuild the file object (ensuring a new reference).
-– The useEffect that updates the raw preview in JILEditor now depends on a deep value (via JSON.stringify) so that changes at any depth will trigger re‑render of the preview.
-
-
-3. Additional UI Changes:
-– In the left editor panel, an inner “scroll container” is used so that the scrollbar starts below the heading (matching the right-side preview).
-– Key–value pair inputs now have increased widths; key labels are styled with black color, and their width is reduced relative to the value field.
-– In JILNavigation, a “Delete File” button has been added so that the user can remove an entire JIL file.
-
-
-
-Below are the updated code files.
+Below are the updated files:
 
 
 ---
 
-1. JILEditorContainer.jsx
+Updated JILEditorContainer.jsx
 
 import React, { useState, useEffect } from "react";
 import JILEditor from "./JILEditor";
@@ -37,12 +24,28 @@ import "./JILEditor.css";
 
 const JILEditorContainer = ({ requirementId }) => {
   const [jilFiles, setJilFiles] = useState([]);
-  const [metadata, setMetadata] = useState(null);
+  const [metadata, setMetadata] = useState(null); // store full metadata (including definitions)
   const [loading, setLoading] = useState(true);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const { token } = useAppGlobalState();
 
-  // Fetch existing JIL file data
+  // Fetch metadata
+  useEffect(() => {
+    fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
+      method: "GET",
+      headers: generateSearHeader(token)
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        // Metadata is returned as an array – take the first element’s metaData.
+        setMetadata(data[0].metaData);
+      })
+      .catch((err) => {
+        console.error("Error fetching metadata:", err);
+      });
+  }, [token]);
+
+  // Fetch JIL files data
   useEffect(() => {
     fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
       method: "GET",
@@ -53,8 +56,13 @@ const JILEditorContainer = ({ requirementId }) => {
         if (data.jilFiles && data.jilFiles.length > 0) {
           setJilFiles(data.jilFiles);
         } else {
-          // If no file exists, initialize as an empty array.
-          setJilFiles([]);
+          // If no file exists, create a default one if metadata is available.
+          if (metadata && metadata.definitions) {
+            setJilFiles([createDefaultJILFile(metadata.definitions)]);
+          } else {
+            // Fallback if metadata not ready.
+            setJilFiles([{ mainBox: {} }]);
+          }
         }
         setLoading(false);
       })
@@ -62,36 +70,21 @@ const JILEditorContainer = ({ requirementId }) => {
         console.error("Error fetching JIL data:", err);
         setLoading(false);
       });
-  }, [requirementId, token]);
+  }, [requirementId, token, metadata]);
 
-  // Fetch metadata from backend (to get definitions)
-  useEffect(() => {
-    fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
-      method: "GET",
-      headers: generateSearHeader(token)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        // Metadata is returned as an array; we take the first element's metaData.
-        setMetadata(data[0].metaData);
-      })
-      .catch((err) => {
-        console.error("Error fetching metadata:", err);
-      });
-  }, [token]);
-
-  // Function to add a new file – uses metadata definitions to create default structure.
+  // Handler to add a new file.
+  // It now uses metadata.definitions to create a default file.
   const addNewFile = () => {
-    if (metadata && metadata.definitions) {
-      const newFile = createDefaultJILFile(metadata.definitions);
-      setJilFiles([...jilFiles, newFile]);
-      setCurrentFileIndex(jilFiles.length);
-    } else {
-      alert("Metadata not loaded. Cannot create default file.");
+    if (!metadata || !metadata.definitions) {
+      alert("Metadata is not available yet.");
+      return;
     }
+    const newFile = createDefaultJILFile(metadata.definitions);
+    setJilFiles([...jilFiles, newFile]);
+    setCurrentFileIndex(jilFiles.length);
   };
 
-  // Delete file function: removes the current file from the array.
+  // Delete the current file.
   const deleteFile = () => {
     if (jilFiles.length > 1) {
       const newFiles = jilFiles.filter((_, index) => index !== currentFileIndex);
@@ -106,10 +99,17 @@ const JILEditorContainer = ({ requirementId }) => {
     return <div>Loading...</div>;
   }
 
+  // Pass metadata along with other state via context.
+  const contextValue = {
+    jilFiles,
+    setJilFiles,
+    currentFileIndex,
+    setCurrentFileIndex,
+    metadata
+  };
+
   return (
-    <JILEditorProvider
-      value={{ jilFiles, setJilFiles, currentFileIndex, setCurrentFileIndex }}
-    >
+    <JILEditorProvider value={contextValue}>
       <div className="jil-editor-container">
         <JILNavigation
           currentFileIndex={currentFileIndex}
@@ -118,10 +118,7 @@ const JILEditorContainer = ({ requirementId }) => {
           addNewFile={addNewFile}
           deleteFile={deleteFile}
         />
-        <JILEditor
-          requirementId={requirementId}
-          definitions={metadata ? metadata.definitions : null}
-        />
+        <JILEditor requirementId={requirementId} />
       </div>
     </JILEditorProvider>
   );
@@ -132,85 +129,57 @@ export default JILEditorContainer;
 
 ---
 
-2. JILNavigation.jsx
+Updated JILEditor.jsx
 
-import React from "react";
-
-const JILNavigation = ({
-  currentFileIndex,
-  setCurrentFileIndex,
-  totalFiles,
-  addNewFile,
-  deleteFile
-}) => {
-  return (
-    <div className="jil-navigation">
-      <button
-        onClick={() =>
-          setCurrentFileIndex((prev) => Math.max(prev - 1, 0))
-        }
-        disabled={currentFileIndex === 0}
-      >
-        &lt; Prev
-      </button>
-      <span>
-        File {currentFileIndex + 1} of {totalFiles}
-      </span>
-      <button
-        onClick={() =>
-          setCurrentFileIndex((prev) =>
-            Math.min(prev + 1, totalFiles - 1)
-          )
-        }
-        disabled={currentFileIndex === totalFiles - 1}
-      >
-        Next &gt;
-      </button>
-      <button onClick={addNewFile}>Add File</button>
-      <button onClick={deleteFile} className="jil-delete-file-btn">
-        Delete File
-      </button>
-    </div>
-  );
-};
-
-export default JILNavigation;
-
-
----
-
-3. JILEditor.jsx
-
-import React, { useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { JILEditorContext } from "./JILEditorContext";
 import JILFieldRenderer from "./JILFieldRenderer";
+import { MICROSERVICE_URL } from "../../../util/Constant";
+import { generateSearHeader } from "../../../Authenitcation";
+import { useAppGlobalState } from "@wf/react-library";
 import { convertToJILText } from "./jilUtils";
 import "./JILEditor.css";
 
-const JILEditor = ({ requirementId, definitions }) => {
-  const { jilFiles, currentFileIndex, setJilFiles } = useContext(JILEditorContext);
-  // Using JSON.stringify of currentFile to detect deep changes.
+const JILEditor = ({ requirementId }) => {
+  const { jilFiles, currentFileIndex, setJilFiles, metadata } = useContext(JILEditorContext);
+  const [rawPreview, setRawPreview] = useState("");
+  const { token } = useAppGlobalState();
   const currentFile = jilFiles[currentFileIndex];
 
-  // Update live preview: dependency using JSON.stringify ensures deep comparison.
+  // (Metadata is already fetched in the container)
+
+  // Update live preview when current file changes.
   useEffect(() => {
+    // Use JSON.stringify to force deep re-evaluation
     const previewText = convertToJILText(currentFile);
-    // We set the preview text in a state variable so that the textarea updates.
-    // (For brevity, we assume convertToJILText returns a new string each time.)
-    const previewElement = document.querySelector(".jil-editor-right textarea");
-    if (previewElement) {
-      previewElement.value = previewText;
-    }
-  }, [JSON.stringify(currentFile)]);
+    setRawPreview(previewText);
+  }, [JSON.stringify(currentFile)]); // deep dependency
 
   const handleSave = () => {
-    // This function would send the updated jilFiles to the backend
-    // (Implementation similar to previous code – not repeated here.)
-    alert("Save function called (implementation as before).");
+    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
+      method: "PUT",
+      headers: {
+        ...generateSearHeader(token),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ jilFiles })
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Save failed");
+        }
+        return res.json();
+      })
+      .then(() => {
+        alert("JIL file saved successfully!");
+      })
+      .catch((err) => {
+        console.error("Error saving JIL file:", err);
+      });
   };
 
-  if (!currentFile) {
-    return <div>No file selected.</div>;
+  if (!metadata) {
+    return <div>Loading metadata...</div>;
   }
 
   return (
@@ -224,8 +193,8 @@ const JILEditor = ({ requirementId, definitions }) => {
           <h4>Structured Editor</h4>
           <div className="scroll-content">
             <JILFieldRenderer
-              schema={definitions ? definitions.MainBOX : {}}
-              definitions={definitions}
+              schema={metadata.definitions.MainBOX}
+              definitions={metadata.definitions}
               data={currentFile.mainBox || {}}
               path={["mainBox"]}
               onFieldChange={(updatedData) => {
@@ -238,7 +207,7 @@ const JILEditor = ({ requirementId, definitions }) => {
         </div>
         <div className="jil-editor-right scroll-container">
           <h4>Live Preview</h4>
-          <textarea readOnly />
+          <textarea readOnly value={rawPreview} />
         </div>
       </div>
     </div>
@@ -250,121 +219,7 @@ export default JILEditor;
 
 ---
 
-4. JILFieldRenderer.jsx
-
-import React from "react";
-import JILBoxEditor from "./JILBoxEditor";
-import JILCmdEditor from "./JILCmdEditor";
-import JILFwEditor from "./JILFwEditor";
-
-const JILFieldRenderer = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
-  // If the schema has a oneOf clause, use it to select the correct sub-schema.
-  if (schema.oneOf) {
-    let selectedSchema = schema.oneOf[0];
-    if (data.job_type) {
-      const found = schema.oneOf.find((s) => {
-        if (s.$ref && data.job_type) {
-          return s.$ref.includes(data.job_type);
-        }
-        return false;
-      });
-      if (found) {
-        selectedSchema = found;
-      }
-    }
-    if (selectedSchema.$ref && selectedSchema.$ref.includes("SubBOX")) {
-      return (
-        <JILBoxEditor
-          schema={selectedSchema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    } else if (selectedSchema.$ref && selectedSchema.$ref.includes("CMD")) {
-      return (
-        <JILCmdEditor
-          schema={selectedSchema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    } else if (selectedSchema.$ref && selectedSchema.$ref.includes("FW")) {
-      return (
-        <JILFwEditor
-          schema={selectedSchema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    } else {
-      return (
-        <JILBoxEditor
-          schema={selectedSchema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    }
-  }
-
-  // Fallback based on data.job_type.
-  switch (data.job_type) {
-    case "BOX":
-      return (
-        <JILBoxEditor
-          schema={schema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    case "CMD":
-      return (
-        <JILCmdEditor
-          schema={schema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    case "FW":
-      return (
-        <JILFwEditor
-          schema={schema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    default:
-      return <div>Unknown job type</div>;
-  }
-};
-
-export default JILFieldRenderer;
-
-
----
-
-5. JILBoxEditor.jsx
+Updated JILBoxEditor.jsx
 
 import React, { useState } from "react";
 import JILFieldRenderer from "./JILFieldRenderer";
@@ -452,7 +307,7 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
     handleChange("properties", newProperties);
   };
 
-  // Add a new child job using definitions directly.
+  // Use definitions from context to create a default new child job.
   const addChildJob = (jobType) => {
     let newJob = {};
     if (jobType === "BOX") {
@@ -530,220 +385,13 @@ export default JILBoxEditor;
 
 ---
 
-6. JILCmdEditor.jsx
+Updated JILUtils.js
 
-import React, { useState } from "react";
-
-const JILCmdEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
-  const [showNewPair, setShowNewPair] = useState(false);
-  const [newKey, setNewKey] = useState("");
-  const [newValue, setNewValue] = useState("");
-
-  const handleChange = (key, value) => {
-    const newData = { ...data, [key]: value };
-    onFieldChange(newData);
-  };
-
-  const removeKeyValuePair = (key) => {
-    const newData = { ...data };
-    delete newData[key];
-    onFieldChange(newData);
-  };
-
-  const renderKeyValuePairs = () => {
-    return Object.keys(data).map((key, idx) => (
-      <div key={idx} className="jil-keyvalue-row">
-        <label>{key}: </label>
-        <input
-          className="jil-input"
-          type="text"
-          value={data[key]}
-          onChange={(e) => handleChange(key, e.target.value)}
-        />
-        <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
-          Remove
-        </button>
-      </div>
-    ));
-  };
-
-  const renderNewPairSection = () => {
-    if (!showNewPair) {
-      return (
-        <button className="jil-add-pair-btn" onClick={() => setShowNewPair(true)}>
-          Add New Pair
-        </button>
-      );
-    }
-    return (
-      <div className="jil-new-pair-row">
-        <input
-          className="jil-input"
-          type="text"
-          placeholder="Key"
-          value={newKey}
-          onChange={(e) => setNewKey(e.target.value)}
-        />
-        <input
-          className="jil-input"
-          type="text"
-          placeholder="Value"
-          value={newValue}
-          onChange={(e) => setNewValue(e.target.value)}
-        />
-        <button
-          className="jil-add-btn"
-          onClick={() => {
-            if (newKey) {
-              handleChange(newKey, newValue);
-              setNewKey("");
-              setNewValue("");
-              setShowNewPair(false);
-            }
-          }}
-        >
-          Add
-        </button>
-      </div>
-    );
-  };
-
-  return (
-    <div className="jil-cmd-editor">
-      <div className="jil-job-header">
-        <span>CMD Job</span>
-        <div className="jil-header-actions">
-          {path.length > 1 && (
-            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
-              Remove Job
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="jil-cmd-content">
-        {renderKeyValuePairs()}
-        {renderNewPairSection()}
-      </div>
-    </div>
-  );
-};
-
-export default JILCmdEditor;
-
-
----
-
-7. JILFwEditor.jsx
-
-import React, { useState } from "react";
-
-const JILFwEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
-  const [showNewPair, setShowNewPair] = useState(false);
-  const [newKey, setNewKey] = useState("");
-  const [newValue, setNewValue] = useState("");
-
-  const handleChange = (key, value) => {
-    const newData = { ...data, [key]: value };
-    onFieldChange(newData);
-  };
-
-  const removeKeyValuePair = (key) => {
-    const newData = { ...data };
-    delete newData[key];
-    onFieldChange(newData);
-  };
-
-  const renderKeyValuePairs = () => {
-    return Object.keys(data).map((key, idx) => (
-      <div key={idx} className="jil-keyvalue-row">
-        <label>{key}: </label>
-        <input
-          className="jil-input"
-          type="text"
-          value={data[key]}
-          onChange={(e) => handleChange(key, e.target.value)}
-        />
-        <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
-          Remove
-        </button>
-      </div>
-    ));
-  };
-
-  const renderNewPairSection = () => {
-    if (!showNewPair) {
-      return (
-        <button className="jil-add-pair-btn" onClick={() => setShowNewPair(true)}>
-          Add New Pair
-        </button>
-      );
-    }
-    return (
-      <div className="jil-new-pair-row">
-        <input
-          className="jil-input"
-          type="text"
-          placeholder="Key"
-          value={newKey}
-          onChange={(e) => setNewKey(e.target.value)}
-        />
-        <input
-          className="jil-input"
-          type="text"
-          placeholder="Value"
-          value={newValue}
-          onChange={(e) => setNewValue(e.target.value)}
-        />
-        <button
-          className="jil-add-btn"
-          onClick={() => {
-            if (newKey) {
-              handleChange(newKey, newValue);
-              setNewKey("");
-              setNewValue("");
-              setShowNewPair(false);
-            }
-          }}
-        >
-          Add
-        </button>
-      </div>
-    );
-  };
-
-  return (
-    <div className="jil-fw-editor">
-      <div className="jil-job-header">
-        <span>File Watcher Job (FW)</span>
-        <div className="jil-header-actions">
-          {path.length > 1 && (
-            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
-              Remove Job
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="jil-fw-content">
-        {renderKeyValuePairs()}
-        {renderNewPairSection()}
-      </div>
-    </div>
-  );
-};
-
-export default JILFwEditor;
-
-
----
-
-8. JILUtils.js
-
-// Converts the internal JSON structure into a formatted JIL file text.
+// Converts the internal JSON structure into formatted JIL text.
 export const convertToJILText = (jilJson) => {
-  // Recursive function to format a job
+  // Recursive function to format a job.
   const formatJob = (job) => {
     const jobName = job.insert_job || "Unknown Job";
-    // Create a header comment with dashes and the job name.
     let output = `/*----------------- ${jobName} ------------------*/\n\n`;
     Object.keys(job).forEach((key) => {
       if (key !== "properties") {
@@ -752,19 +400,16 @@ export const convertToJILText = (jilJson) => {
     });
     output += "\n";
     if (job.properties && Array.isArray(job.properties)) {
-      job.properties.forEach((childJob) => {
-        output += formatJob(childJob) + "\n";
+      job.properties.forEach((child) => {
+        output += formatJob(child) + "\n";
       });
     }
     return output;
   };
-
-  // Start with mainBox.
   return formatJob(jilJson.mainBox);
 };
 
-// Helper function to fill defaults based on a given schema.
-// Iterates over schema.properties and uses the default if present.
+// Helper to fill defaults based on the given schema.
 export const fillDefaults = (schema) => {
   const defaults = {};
   if (schema && schema.properties) {
@@ -776,8 +421,9 @@ export const fillDefaults = (schema) => {
   return defaults;
 };
 
-// Create a default JIL file using metadata definitions.
-// This constructs a file with a main box (using MainBOX defaults) and one CMD job (using CMD defaults).
+// Create a default JIL file using the provided definitions.
+// It creates a main box populated from definitions.MainBOX and
+// one default CMD job from definitions.CMD.
 export const createDefaultJILFile = (definitions) => {
   return {
     mainBox: {
@@ -795,220 +441,12 @@ export const createDefaultJILFile = (definitions) => {
 
 ---
 
-9. JILEditorContext.jsx
-
-import React, { createContext } from "react";
-
-export const JILEditorContext = createContext();
-
-export const JILEditorProvider = JILEditorContext.Provider;
-
-
----
-
-10. JILEditor.css
-
-/* Container & Global Styles */
-.jil-editor-container {
-  margin: 20px;
-  font-family: Arial, sans-serif;
-}
-
-.jil-navigation {
-  margin-bottom: 10px;
-}
-
-.jil-navigation button {
-  margin-right: 5px;
-}
-
-.jil-delete-file-btn {
-  background-color: #e57373;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-
-.jil-delete-file-btn:hover {
-  background-color: #ef5350;
-}
-
-/* Editor Layout */
-.jil-editor {
-  display: flex;
-  flex-direction: column;
-}
-
-.jil-editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.jil-editor-body {
-  display: flex;
-  margin-top: 10px;
-  height: 500px; /* fixed height for consistency */
-}
-
-.jil-editor-left,
-.jil-editor-right {
-  width: 50%;
-  padding: 10px;
-  box-sizing: border-box;
-}
-
-/* Scroll container for both panels */
-.scroll-container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.scroll-container h4 {
-  margin: 0 0 10px 0;
-}
-
-.scroll-content {
-  flex: 1;
-  overflow-y: auto;
-}
-
-/* Live preview styling */
-.jil-editor-right textarea {
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-/* Job Editor Styles */
-.jil-box-editor,
-.jil-cmd-editor,
-.jil-fw-editor {
-  border: 1px solid #ccc;
-  padding: 10px;
-  margin-bottom: 10px;
-}
-
-.jil-job-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #f2f2f2;
-  padding: 5px;
-  margin-bottom: 10px;
-}
-
-.jil-header-actions {
-  display: flex;
-  align-items: center;
-}
-
-.jil-job-dropdown {
-  margin-right: 10px;
-}
-
-.jil-remove-job-btn {
-  background-color: #e57373;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-
-.jil-remove-job-btn:hover {
-  background-color: #ef5350;
-}
-
-/* Key-Value Row Styles */
-.jil-keyvalue-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.jil-keyvalue-row label {
-  width: 100px;
-  color: black;
-  font-weight: bold;
-}
-
-.jil-input {
-  width: 350px;
-  padding: 4px;
-  margin-right: 10px;
-}
-
-.jil-remove-btn {
-  background-color: #e57373;
-  color: white;
-  border: none;
-  padding: 2px 6px;
-  cursor: pointer;
-}
-
-.jil-remove-btn:hover {
-  background-color: #ef5350;
-}
-
-/* New Pair Inline Section */
-.jil-new-pair-row {
-  display: flex;
-  align-items: center;
-  margin-top: 10px;
-}
-
-.jil-add-btn {
-  background-color: #81c784;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  cursor: pointer;
-  margin-left: 10px;
-}
-
-.jil-add-btn:hover {
-  background-color: #66bb6a;
-}
-
-.jil-add-pair-btn {
-  background-color: #64b5f6;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  cursor: pointer;
-  margin-top: 10px;
-}
-
-.jil-add-pair-btn:hover {
-  background-color: #42a5f5;
-}
-
-/* Child Jobs Section */
-.jil-child-job {
-  margin-left: 20px;
-  margin-top: 10px;
-}
-
-.jil-child-section h5 {
-  margin-bottom: 5px;
-}
-
-
----
-
 Final Remarks
 
-Default File Creation & Metadata Definitions:
-The container now fetches both JIL file data and metadata. When adding a new file, the default structure is created using the definitions (from metadata.definitions). This ensures that the new file will come pre-populated with a Main Box (with defaults from definitions.MainBOX) and one CMD job (with defaults from definitions.CMD).
+• The JILEditorContainer.jsx now fetches metadata and stores it in state; it also passes the full metadata (including definitions) via context so that file‑creation (and child‑job creation) functions can use the correct default schema.
+• The JILEditor.jsx now uses a deep dependency (via JSON.stringify of the current file) to ensure that changes in the left-side editor update the right-side preview.
+• The JILBoxEditor.jsx now uses the metadata definitions (passed as a prop) to correctly create sub‑jobs with default values, and the remove button now appears for any job that is not the top-level main box.
+• The JILUtils.js file’s functions have been updated to generate default file structures and convert internal JSON into the JIL text format (mimicking your sample).
 
-Live Preview Updates:
-The useEffect in JILEditor.jsx now depends on JSON.stringify(currentFile) so that any deep change triggers a re-run of the conversion function in jilUtils.js. That function converts the current file’s structure into a formatted JIL file text (mimicking your sample).
-
-UI Consistency:
-Both left and right panels have been placed inside a scroll container so their scroll bars start below their headings. Key–value pair inputs have increased in width; key labels are styled in black; and a delete button for the entire file has been added in the navigation.
-
-
-These files should now implement your updated requirements. Let me know if you have further questions or need additional adjustments!
+These changes should address your current issues and provide the proper mechanisms for future enhancements. Let me know if you have any further questions or require additional adjustments.
 
