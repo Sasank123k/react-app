@@ -1,375 +1,85 @@
-Below is the final set of updated files (only those that require changes) that implement the fixes and enhancements you described. Please review the explanations below before the code:
+Below is the explanation and then the updated parts of the code (only for those sections that need to change):
 
 ---
 
-### Summary of Updates
+### Explanation
 
-1. **Normalization of Initial Data:**  
-   We now add a helper function named `normalizeJobData` inside **JILUtils.js**. This function takes a job (such as the main box) along with its corresponding schema (from metadata definitions) and the full definitions object. It returns a new job object whose keys follow the order defined in the metadata.  
-   In **JILEditorContainer.jsx**, after fetching the JIL files from the backend, we run the normalization on the initial file’s `mainBox` using the metadata’s definitions.
+Originally, our save handler was converting the internal JSON structure into the final JIL text (via convertToJILText) and sending that as the payload. However, now you want both representations stored in the backend. This means that when the user saves the file, the payload should include both:  
+- The canonical JSON data (which is used by the editor on reload), and  
+- The JIL text (which is generated using our conversion function).
 
-2. **Fixing the Hook Call in Save:**  
-   We ensure that no hooks (e.g. useContext) are called inside event handlers. In **JILEditor.jsx**, we extract all needed values (including `fileNames` from context) at the top level and then use them within the save handler.
+The updated payload structure might look like this:
 
-3. **Consistent Ordering for CMD Jobs:**  
-   Since we now normalize the initial data on load, the CMD job that is present initially will have its key–value pairs reassembled in the proper order according to definitions.CMD. The CMD editor’s render function uses the ordered keys from its schema and should match the preview.
-
-4. **Dropdown for Adding Pairs in CMD and FW Editors:**  
-   Our CMD and FW editors now include the “Add New Pair” dropdown logic similar to the BOX editor. They use the metadata (their own definition from definitions.CMD or definitions.FW) to compute the available keys. (These components remain as provided previously.)
-
-5. **Using useAppGlobalState Properly:**  
-   We now pass the full global state (instead of just token) from useAppGlobalState and then use it for generating the header. No hooks are called inside any event handler.
-
----
-
-Now, please find below the full updated code for **JILEditorContainer.jsx**, **JILEditor.jsx**, and **JILUtils.js**. (The editors for individual job types—JILBoxEditor.jsx, JILCmdEditor.jsx, JILFwEditor.jsx—remain unchanged from the previous update.)
-
----
-
-### Updated **JILUtils.js**
-
-```js
-// Helper to recursively normalize a job's properties according to the metadata ordering.
-export const normalizeJobData = (job, jobSchema, definitions) => {
-  if (!jobSchema || !jobSchema.properties) return job;
-  const ordered = {};
-
-  // Get the keys in the order defined in jobSchema (except the "properties" key).
-  const schemaKeys = Object.keys(jobSchema.properties).filter((k) => k !== "properties");
-
-  schemaKeys.forEach((key) => {
-    if (job.hasOwnProperty(key)) {
-      ordered[key] = job[key];
-    } else {
-      // Optionally, you could fill missing keys with default values here.
-      // For now, we leave them undefined.
-    }
-  });
-  // Append any extra (custom) keys that are in the job but not in schema
-  Object.keys(job).forEach((key) => {
-    if (key !== "properties" && !(key in ordered)) {
-      ordered[key] = job[key];
-    }
-  });
-
-  // Process child jobs recursively if present
-  if (job.properties && Array.isArray(job.properties) && jobSchema.properties.properties) {
-    ordered.properties = job.properties.map((child) => {
-      let childDef;
-      if (child.job_type === "BOX") {
-        childDef = definitions.SubBOX;
-      } else if (child.job_type === "CMD") {
-        childDef = definitions.CMD;
-      } else if (child.job_type === "FW") {
-        childDef = definitions.FW;
-      }
-      return normalizeJobData(child, childDef, definitions);
-    });
-  }
-  return ordered;
-};
-
-// Converts the internal JSON structure into formatted JIL text using ordering from metadata.
-export const convertToJILText = (jilJson, definitions) => {
-  const getOrderedKeys = (schema) => {
-    if (schema && schema.properties) {
-      return Object.keys(schema.properties);
-    }
-    return [];
-  };
-
-  const formatJob = (job, schema) => {
-    const jobName = job.insert_job || "Unknown Job";
-    let output = `/*----------------- ${jobName} ------------------*/\n\n`;
-    const orderedKeys = getOrderedKeys(schema);
-    orderedKeys.forEach((key) => {
-      if (key === "properties") return;
-      if (job.hasOwnProperty(key)) {
-        output += `${key}: ${job[key]}\n`;
-      }
-    });
-    // Append any extra keys not in the ordered list
-    Object.keys(job)
-      .filter((key) => key !== "properties" && !orderedKeys.includes(key))
-      .forEach((key) => {
-        output += `${key}: ${job[key]}\n`;
-      });
-    output += "\n";
-    if (job.properties && Array.isArray(job.properties)) {
-      job.properties.forEach((child) => {
-        let childSchema;
-        if (child.job_type === "BOX") {
-          childSchema = definitions.SubBOX;
-        } else if (child.job_type === "CMD") {
-          childSchema = definitions.CMD;
-        } else if (child.job_type === "FW") {
-          childSchema = definitions.FW;
-        }
-        output += formatJob(child, childSchema) + "\n";
-      });
-    }
-    return output;
-  };
-
-  return formatJob(jilJson.mainBox, definitions.MainBOX);
-};
-
-// Helper to fill defaults based on a given schema.
-export const fillDefaults = (schema) => {
-  const defaults = {};
-  if (schema && schema.properties) {
-    Object.keys(schema.properties).forEach((key) => {
-      const prop = schema.properties[key];
-      defaults[key] = prop.default !== undefined ? prop.default : "";
-    });
-  }
-  return defaults;
-};
-
-// Create a default JIL file using provided definitions.
-// MainBox is built from definitions.MainBOX and one default CMD job is added from definitions.CMD.
-export const createDefaultJILFile = (definitions) => {
-  return {
-    mainBox: {
-      ...fillDefaults(definitions.MainBOX),
-      properties: [
-        {
-          ...fillDefaults(definitions.CMD),
-          job_type: "CMD"
-        }
-      ]
-    }
-  };
-};
+```json
+{
+  "jilFiles": [
+    {
+      "fileName": "FileName_From_Context",
+      "jsonData": { ... },      // the full JSON object as maintained in the editor
+      "content": "JIL formatted text ..."  // produced by convertToJILText
+    },
+    ...
+  ]
+}
 ```
 
+The changes are focused on updating the handleSave function in the JILEditor.jsx file so that it constructs and sends this payload. We’ll use the previously extracted fileNames (from context) as before. Note that we must ensure that any hooks (including useContext) are only called at the top level, not within the save handler.
+
+Please review the following updated version of the save handler (in JILEditor.jsx) as part of the final updated code. (Other portions of the file remain as in our previous update.) 
+
 ---
 
-### Updated **JILEditorContainer.jsx**
+### Updated HandleSave in JILEditor.jsx
+
+Within JILEditor.jsx, update the save function so that the payload includes both jsonData and content. For example (explanatory comments included):
 
 ```jsx
-import React, { useState, useEffect } from "react";
-import JILEditor from "./JILEditor";
-import JILNavigation from "./JILNavigation";
-import { JILEditorProvider } from "./JILEditorContext";
-import { MICROSERVICE_URL } from "../../../util/Constant";
-import { generateSearHeader } from "../../../Authentication";
-import { useAppGlobalState } from "@wf/react-library";
-import { createDefaultJILFile, normalizeJobData } from "./jilUtils";
-import "./JILEditor.css";
-
-// For EDL: 1 file, for INGRESS: 2 files. File names are fixed per flow.
-const JILEditorContainer = ({ requirementId, flow = "EDL" }) => {
-  const [jilFiles, setJilFiles] = useState([]);
-  const [metadata, setMetadata] = useState(null); // Full metadata including definitions
-  const [loading, setLoading] = useState(true);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const globalState = useAppGlobalState();
-
-  // Configure file count and names based on flow.
-  const fileConfig =
-    flow === "INGRESS"
-      ? { count: 2, names: ["INGRESS_JIL_1", "INGRESS_JIL_2"] }
-      : { count: 1, names: ["EDL_JIL"] };
-
-  // Fetch metadata
-  useEffect(() => {
-    fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
-      method: "GET",
-      headers: generateSearHeader(globalState)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        // Assume metadata comes as an array; take the first element.
-        setMetadata(data[0].metaData);
-      })
-      .catch((err) => {
-        console.error("Error fetching metadata:", err);
-      });
-  }, [globalState]);
-
-  // Fetch JIL file data and normalize the initial mainBox data.
-  useEffect(() => {
-    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
-      method: "GET",
-      headers: generateSearHeader(globalState)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.jilFiles && data.jilFiles.length > 0) {
-          const files = data.jilFiles;
-          if (metadata && metadata.definitions) {
-            // Normalize the mainBox in each file using definitions.
-            const normalizedFiles = files.map((file) =>
-              file.mainBox
-                ? { ...file, mainBox: normalizeJobData(file.mainBox, metadata.definitions.MainBOX, metadata.definitions) }
-                : file
-            );
-            setJilFiles(normalizedFiles);
-          } else {
-            setJilFiles(files);
-          }
-        } else {
-          // If no files exist, initialize fixed files using metadata if available.
-          if (metadata && metadata.definitions) {
-            const defaults = [];
-            for (let i = 0; i < fileConfig.count; i++) {
-              defaults.push(createDefaultJILFile(metadata.definitions));
-            }
-            setJilFiles(defaults);
-          } else {
-            const defaults = [];
-            for (let i = 0; i < fileConfig.count; i++) {
-              defaults.push({ mainBox: {} });
-            }
-            setJilFiles(defaults);
-          }
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching JIL data:", err);
-        setLoading(false);
-      });
-  }, [requirementId, globalState, metadata, fileConfig.count]);
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  // Context value: include metadata and file names.
-  const contextValue = {
-    jilFiles,
-    setJilFiles,
-    currentFileIndex,
-    setCurrentFileIndex,
-    metadata,
-    fileNames: fileConfig.names
+const handleSave = () => {
+  // At the top level, we already extracted fileNames from context.
+  // Build a payload that includes both JSON (the canonical state) and
+  // the converted JIL text.
+  const payload = {
+    jilFiles: jilFiles.map((file, idx) => ({
+      fileName: fileNames[idx] || `File_${idx + 1}`,
+      jsonData: file,  // Save the canonical JSON
+      content: convertToJILText(file, metadata.definitions)  // Save the JIL formatted text
+    }))
   };
 
-  return (
-    <JILEditorProvider value={contextValue}>
-      <div className="jil-editor-container">
-        <JILNavigation />
-        <JILEditor requirementId={requirementId} />
-      </div>
-    </JILEditorProvider>
-  );
+  fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
+    method: "PUT",
+    headers: {
+      ...generateSearHeader(globalState),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  })
+    .then((res) => {
+      if (!res.ok) {
+        throw new Error("Save failed");
+      }
+      return res.json();
+    })
+    .then(() => {
+      alert("JIL file saved successfully!");
+    })
+    .catch((err) => {
+      console.error("Error saving JIL file:", err);
+    });
 };
-
-export default JILEditorContainer;
 ```
 
 ---
 
-### Updated **JILEditor.jsx**
+### Summary of Changes
 
-```jsx
-import React, { useState, useEffect, useContext } from "react";
-import { JILEditorContext } from "./JILEditorContext";
-import JILFieldRenderer from "./JILFieldRenderer";
-import { MICROSERVICE_URL } from "../../../util/Constant";
-import { generateSearHeader } from "../../../Authentication";
-import { useAppGlobalState } from "@wf/react-library";
-import { convertToJILText } from "./jilUtils";
-import "./JILEditor.css";
-
-const JILEditor = ({ requirementId }) => {
-  const { jilFiles, currentFileIndex, setJilFiles, metadata, fileNames } = useContext(JILEditorContext);
-  const [rawPreview, setRawPreview] = useState("");
-  const globalState = useAppGlobalState();
-  const currentFile = jilFiles[currentFileIndex];
-
-  // Update live preview when currentFile changes.
-  useEffect(() => {
-    // Use JSON.stringify to force deep updates.
-    const previewText = convertToJILText(currentFile, metadata.definitions);
-    setRawPreview(previewText);
-  }, [JSON.stringify(currentFile), metadata.definitions]);
-
-  // Extract fileNames at top level.
-  // (They are passed in context and used directly.)
-  // Save handler: no hooks inside.
-  const handleSave = () => {
-    const payload = {
-      jilFiles: jilFiles.map((file, idx) => ({
-        fileName: fileNames[idx] || `File_${idx + 1}`,
-        content: convertToJILText(file, metadata.definitions)
-      }))
-    };
-
-    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
-      method: "PUT",
-      headers: {
-        ...generateSearHeader(globalState),
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error("Save failed");
-        }
-        return res.json();
-      })
-      .then(() => {
-        alert("JIL file saved successfully!");
-      })
-      .catch((err) => {
-        console.error("Error saving JIL file:", err);
-      });
-  };
-
-  if (!metadata) {
-    return <div>Loading metadata...</div>;
-  }
-
-  return (
-    <div className="jil-editor">
-      <div className="jil-editor-header">
-        <h3>JIL Editor</h3>
-        <button onClick={handleSave}>Save</button>
-      </div>
-      <div className="jil-editor-body">
-        <div className="jil-editor-left scroll-container">
-          <h4>Structured Editor</h4>
-          <div className="scroll-content">
-            <JILFieldRenderer
-              schema={metadata.definitions.MainBOX}
-              definitions={metadata.definitions}
-              data={currentFile.mainBox || {}}
-              path={["mainBox"]}
-              onFieldChange={(updatedData) => {
-                const newFiles = [...jilFiles];
-                newFiles[currentFileIndex].mainBox = updatedData;
-                setJilFiles(newFiles);
-              }}
-            />
-          </div>
-        </div>
-        <div className="jil-editor-right scroll-container">
-          <h4>Live Preview</h4>
-          <textarea readOnly value={rawPreview} />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default JILEditor;
-```
+- **Payload Structure:**  
+  We now send both the JSON structure (in a field called `jsonData`) and the JIL formatted text (in `content`) for each file.  
+- **No Hooks Inside Save:**  
+  All hooks (like useContext, useAppGlobalState) continue to be called only at the top level, and the save handler uses the previously extracted values.  
+- **Backend Consistency:**  
+  With this payload, the backend will be able to store both representations. When fetching data, you can continue to expect the canonical JSON in `jsonData`.
 
 ---
 
-### Final Remarks
-
-- **Normalization:**  
-  When data is fetched, we normalize the mainBox using `normalizeJobData` from **JILUtils.js** so that the keys in the initial CMD job (and any other job) follow the order defined in metadata (ensuring both left and right sides render the same order).
-
-- **Hook Issue in Save:**  
-  We now extract all necessary values from context (including fileNames) at the top of **JILEditor.jsx** so that no hooks are called inside the `handleSave` function.
-
-- **Dropdown for New Pair in CMD/FW:**  
-  In the CMD and FW editor components (not shown here, as they were updated previously), we use the same available keys dropdown logic as the BOX editor—ensuring that the dropdown appears in CMD and FW jobs as well.
-
-These updates should resolve your issues. Let me know if further modifications are needed.
+Please let me know if you would like any further clarifications or if this solution meets your requirements.
