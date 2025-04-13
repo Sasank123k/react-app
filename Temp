@@ -1,531 +1,523 @@
-Below is the complete, updated code for the files that need to change on both the backend and the frontend. These changes implement the following two major updates:
+Below is the full set of updated files reflecting your three changes:
 
-1. **Uniform Data Structure:**  
-   Each object in the `jilFiles` array is now returned (and stored) in a uniform format with three keys:  
-   - **fileName:** the default name (e.g. `"EDL_JIL"` or `"INGRESS_JIL_1"` / `"INGRESS_JIL_2"`)  
-   - **jsonData:** the canonical JSON data (with a root key `"mainBox"`)  
-   - **content:** initially an empty string (later updated after save)
+1. **Updated Metadata**  
+2. **Frontend updates:**  
+   – A validation step before save (no field value may be empty)  
+   – Removed the “JIL Editor” heading and moved the dropdown and Save button to one row  
+   – Removed the “Child Jobs” heading below any job  
+   – Adjusted CSS: decreased the remove button’s width and increased the key–value input’s width (removing any max‑width)
 
-2. **Flow-Based File Generation:**  
-   The builder now determines the flow type by retrieving the Jira story from the **JiraStroyIntakerepository** and checking its `targetType` field. If `targetType` equals `"GCP"`, then the flow is INGRESS (and two JIL files are built using the _edl_ and _cdmp_ fields from the AutosysParameter document); if it equals `"Hive"`, then the flow is EDL (and a single JIL file is built using the non‑prefixed fields).  
-   The default values for building these JIL files are now fetched from the **AutosysParameter** collection.
-
-Below, I present the updated code files.
+Review each file below and let me know if you need further refinements.
 
 ---
 
-## **Backend Updates**
+## 1. Updated Metadata JSON
 
-### 1. Updated JilFileBuilder.java
+All default values have been replaced with an empty string; the key name for the date condition has been updated to “date_conditions” for every job definition; and for the CMD job, we’ve added the missing “fail_codes” (and ensured “success_codes” is present).
 
-```java
-// File: src/main/java/com/wellsfargo/utcap/service/JilFileBuilder.java
-package com.wellsfargo.utcap.service;
-
-import com.wellsfargo.utcap.model.AutosysParam;
-import com.wellsfargo.utcap.model.JiraStoryIntake;
-import com.wellsfargo.utcap.repository.JiraStroyIntakerepository;
-import com.wellsfargo.utcap.repository.AutosysParameterRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import java.util.*;
-
-@Component
-public class JilFileBuilder {
-
-    @Autowired
-    private JiraStroyIntakerepository jiraRepo;
-    
-    @Autowired
-    private AutosysParameterRepository autosysParamRepo;
-
-    /**
-     * Builds default JIL files for a given requirement.
-     * Uses targetType from JiraStoryIntake to determine the flow type:
-     * - "Hive" means an EDL flow (build one file)
-     * - "GCP" means an INGRESS flow (build two files)
-     * 
-     * Each file object is returned in a uniform format:
-     * { "fileName": "<default>", "jsonData": { mainBox: { ... } }, "content": "" }
-     *
-     * @param requirementId The requirement ID.
-     * @return A list of JIL file objects.
-     */
-    public List<Map<String, Object>> buildJilFiles(String requirementId) {
-        // Fetch Jira story using requirementId
-        List<JiraStoryIntake> jiraList = jiraRepo.findByRequirementId(requirementId);
-        if (jiraList == null || jiraList.isEmpty()) {
-            throw new RuntimeException("Jira story not found for requirementId: " + requirementId);
-        }
-        JiraStoryIntake jira = jiraList.get(0);
-        
-        // Determine flow type from targetType
-        String targetType = jira.getTargetType(); // "GCP" for INGRESS, "Hive" for EDL
-        boolean isIngress = "GCP".equalsIgnoreCase(targetType);
-        
-        // Fetch Autosys parameters for this requirement
-        Optional<AutosysParam> autosysOpt = autosysParamRepo.findById(requirementId);
-        if (!autosysOpt.isPresent()) {
-            throw new RuntimeException("Autosys parameters not found for requirementId: " + requirementId);
-        }
-        AutosysParam param = autosysOpt.get();
-        
-        List<Map<String, Object>> jilFiles = new ArrayList<>();
-        if (isIngress) {
-            // For INGRESS, build two files:
-            // File 1 uses edl-prefixed fields
-            Map<String, Object> file1 = buildJilFile(
-                    param.getEdlboxJobName(),
-                    param.getEdlcmdJobName(),
-                    param.getEdlDateCondition(),
-                    param.getEdlDaysOfWeek(),
-                    param.getEdlStartTime(),
-                    param.getEdlDescription(),
-                    param.getEdlWrapperScript(),
-                    param.getEdlConnectionName(),
-                    param.getEdlMachineName(),
-                    param.getEdlOwner(),
-                    param.getEdlDependenciesCondition(),
-                    param.getEdlProfilePath(),
-                    "INGRESS_JIL_1"
-            );
-            jilFiles.add(file1);
-            
-            // File 2 uses cdmp-prefixed fields
-            Map<String, Object> file2 = buildJilFile(
-                    param.getCdmpboxJobName(),
-                    param.getCdmpcmdJobName(),
-                    param.getCdmpDateCondition(),
-                    param.getCdmpDaysOfWeek(),
-                    param.getCdmpStartTime(),
-                    param.getCdmpDescription(),
-                    param.getCdmpWrapperScript(),
-                    param.getCdmpConnectionName(),
-                    param.getCdmpMachineName(),
-                    param.getCdmpOwner(),
-                    param.getCdmpDependenciesCondition(),
-                    param.getCdmpProfilePath(),
-                    "INGRESS_JIL_2"
-            );
-            jilFiles.add(file2);
-        } else {
-            // For EDL, build one file using non-prefixed fields
-            Map<String, Object> file = buildJilFile(
-                    param.getBoxJobName(),
-                    param.getCmdJobName(),
-                    param.getDateCondition(),
-                    param.getDaysOfWeek(),
-                    param.getStartTime(),
-                    param.getDescription(),
-                    param.getWrapperScript(),
-                    param.getConnectionName(),
-                    param.getMachineName(),
-                    param.getOwner(),
-                    param.getDependenciesCondition(),
-                    param.getProfilePath(),
-                    "EDL_JIL"
-            );
-            jilFiles.add(file);
-        }
-        return jilFiles;
-    }
-    
-    /**
-     * Helper method to build a uniform JIL file object.
-     *
-     * @param boxJobName      Main box job name.
-     * @param cmdJobName      CMD job name.
-     * @param dateCondition   Date condition value.
-     * @param daysOfWeek      Days of week.
-     * @param startTime       Start time.
-     * @param description     Job description.
-     * @param wrapperScript   Wrapper script name.
-     * @param connectionName  Connection name.
-     * @param machineName     Machine name.
-     * @param owner           Owner.
-     * @param dependenciesCond Dependencies condition.
-     * @param profilePath     Profile path.
-     * @param defaultFileName Default file name.
-     * @return A JIL file object in the uniform structure.
-     */
-    private Map<String, Object> buildJilFile(
-            String boxJobName,
-            String cmdJobName,
-            String dateCondition,
-            String daysOfWeek,
-            String startTime,
-            String description,
-            String wrapperScript,
-            String connectionName,
-            String machineName,
-            String owner,
-            String dependenciesCond,
-            String profilePath,
-            String defaultFileName
-    ) {
-        // Build main box (the top-level job)
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put("insert_job", boxJobName);
-        mainBox.put("job_type", "BOX");
-        mainBox.put("owner", owner != null ? owner : "<owner name>");
-        mainBox.put("permission", "me,mx,ge,gx,we,wx");
-        mainBox.put("date_conditions", dateCondition);
-        mainBox.put("days_of_week", daysOfWeek);
-        mainBox.put("start_times", "\"" + startTime + "\"");
-        mainBox.put("description", description);
-        mainBox.put("alarm_if_fail", 1);
-        mainBox.put("alarm_if_terminated", 1);
-        mainBox.put("timezone", "US/Central");
-        mainBox.put("application", "UTCAP");
-        
-        // Build CMD job within the main box's "properties"
-        Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put("insert_job", cmdJobName);
-        cmdJob.put("job_type", "CMD");
-        cmdJob.put("box_name", boxJobName);
-        // Create a simple command string using the wrapperScript and connectionName.
-        String command = "sh -x " + wrapperScript + " " + boxJobName.split("_")[1] + " " + boxJobName + ".json " + connectionName;
-        cmdJob.put("command", command);
-        cmdJob.put("machine", machineName);
-        cmdJob.put("owner", owner != null ? owner : "<owner name>");
-        cmdJob.put("permission", "me,mx,ge,gx,we,wx");
-        cmdJob.put("date_conditions", 0);
-        cmdJob.put("condition", dependenciesCond);
-        cmdJob.put("description", description);
-        cmdJob.put("std_out_file", "<filename>");
-        cmdJob.put("std_err_file", "<filename>");
-        cmdJob.put("alarm_if_fail", 1);
-        cmdJob.put("profile", profilePath);
-        cmdJob.put("job_load", 30);
-        cmdJob.put("priority", 290);
-        cmdJob.put("alarm_if_terminated", 1);
-        cmdJob.put("timezone", "US/Central");
-        cmdJob.put("application", "UTCAP");
-        cmdJob.put("success_codes", 0);
-        cmdJob.put("fail_codes", "1-9999");
-        
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob);
-        mainBox.put("properties", properties);
-        
-        // Wrap the mainBox in the jsonData structure
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put("mainBox", mainBox);
-        
-        // Create the final file object with uniform keys
-        Map<String, Object> fileObject = new LinkedHashMap<>();
-        fileObject.put("fileName", defaultFileName);
-        fileObject.put("jsonData", jsonData);
-        fileObject.put("content", "");  // Initially empty
-        
-        return fileObject;
-    }
-}
-```
-
-### 2. JilFileService.java  
-_(No changes beyond ensuring it uses the builder’s output.)_
-
-```java
-// File: src/main/java/com/wellsfargo/utcap/service/JilFileService.java
-package com.wellsfargo.utcap.service;
-
-import com.wellsfargo.utcap.model.JilFile;
-import com.wellsfargo.utcap.repository.JilFileRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.Optional;
-
-@Service
-public class JilFileService {
-
-    private final JilFileRepository repository;
-    private final JilFileBuilder builder;
-
-    @Autowired
-    public JilFileService(JilFileRepository repository, JilFileBuilder builder) {
-        this.repository = repository;
-        this.builder = builder;
-    }
-
-    public JilFile getOrBuildJilData(String requirementId) {
-        Optional<JilFile> existingOpt = repository.findByRequirementId(requirementId);
-        if (existingOpt.isPresent()) {
-            return existingOpt.get();
-        } else {
-            List<java.util.Map<String, Object>> defaultJilFiles = builder.buildJilFiles(requirementId);
-            JilFile newJilFile = new JilFile(requirementId, defaultJilFiles);
-            repository.save(newJilFile);
-            return newJilFile;
-        }
-    }
-
-    public JilFile saveJilData(String requirementId, List<java.util.Map<String, Object>> jilFiles) {
-        Optional<JilFile> existingOpt = repository.findByRequirementId(requirementId);
-        if (existingOpt.isPresent()) {
-            JilFile existing = existingOpt.get();
-            existing.setJilFiles(jilFiles);
-            return repository.save(existing);
-        } else {
-            JilFile newJilFile = new JilFile(requirementId, jilFiles);
-            return repository.save(newJilFile);
-        }
-    }
-}
-```
-
-### 3. JilFileController.java  
-_(Remains the same.)_
-
-```java
-// File: src/main/java/com/wellsfargo/utcap/controller/JilFileController.java
-package com.wellsfargo.utcap.controller;
-
-import com.wellsfargo.utcap.model.JilFile;
-import com.wellsfargo.utcap.service.JilFileService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-@RestController
-@RequestMapping("/api/jilData")
-public class JilFileController {
-
-    private final JilFileService service;
-
-    @Autowired
-    public JilFileController(JilFileService service) {
-        this.service = service;
-    }
-
-    @GetMapping("/{requirementId}")
-    public ResponseEntity<JilFile> getJilData(@PathVariable String requirementId) {
-        try {
-            JilFile jilFile = service.getOrBuildJilData(requirementId);
-            return ResponseEntity.ok(jilFile);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(null);
-        }
-    }
-
-    @PutMapping("/{requirementId}")
-    public ResponseEntity<JilFile> updateJilData(@PathVariable String requirementId,
-                                                 @RequestBody JilFile jilFileData) {
-        try {
-            JilFile updated = service.saveJilData(requirementId, jilFileData.getJilFiles());
-            return ResponseEntity.ok(updated);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(null);
-        }
-    }
-}
-```
-
-### 4. AutosysParameter Repository and Model
-
-_(These are added for completeness.)_
-
-**AutosysParam.java**
-```java
-// File: src/main/java/com/wellsfargo/utcap/model/AutosysParam.java
-package com.wellsfargo.utcap.model;
-
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-
-@Document(collection = "AutosysParameter")
-public class AutosysParam {
-
-    @Id
-    private String id; // corresponds to requirement id
-
-    private String boxJobName;
-    private String cmdJobName;
-    private String dateCondition;
-    private String daysOfWeek;
-    private String startTime;
-    private String description;
-    private String wrapperScript;
-    private String connectionName;
-    private String machineName;
-    private String owner;
-    private String dependenciesCondition;
-    private String profilePath;
-    
-    // INGRESS (File 1) fields:
-    private String edlboxJobName;
-    private String edlcmdJobName;
-    private String edlDateCondition;
-    private String edlDaysOfWeek;
-    private String edlStartTime;
-    private String edlDescription;
-    private String edlWrapperScript;
-    private String edlConnectionName;
-    private String edlMachineName;
-    private String edlOwner;
-    private String edlDependenciesCondition;
-    private String edlProfilePath;
-    
-    // INGRESS (File 2) fields:
-    private String cdmpboxJobName;
-    private String cdmpcmdJobName;
-    private String cdmpDateCondition;
-    private String cdmpDaysOfWeek;
-    private String cdmpStartTime;
-    private String cdmpDescription;
-    private String cdmpWrapperScript;
-    private String cdmpConnectionName;
-    private String cdmpMachineName;
-    private String cdmpOwner;
-    private String cdmpDependenciesCondition;
-    private String cdmpProfilePath;
-
-    // Getters and setters for all fields go here.
-    // (Omitted for brevity.)
-}
-```
-
-**AutosysParameterRepository.java**
-```java
-// File: src/main/java/com/wellsfargo/utcap/repository/AutosysParameterRepository.java
-package com.wellsfargo.utcap.repository;
-
-import com.wellsfargo.utcap.model.AutosysParam;
-import org.springframework.data.mongodb.repository.MongoRepository;
-
-public interface AutosysParameterRepository extends MongoRepository<AutosysParam, String> {
-    // Using the id as requirementId.
-}
-```
-
----
-
-## **Frontend Updates**
-
-### 1. Updated JILEditorContainer.jsx
-
-```jsx
-// File: JILEditorContainer.jsx
-import React, { useState, useEffect } from "react";
-import JILEditor from "./JILEditor";
-import JILNavigation from "./JILNavigation";
-import { JILEditorProvider } from "./JILEditorContext";
-import { MICROSERVICE_URL } from "../../../util/Constant";
-import { generateSearHeader } from "../../../Authentication";
-import { useAppGlobalState } from "@wf/react-library";
-import { createDefaultJILFile, normalizeJobData } from "./JILUtils";
-import "./JILEditor.css";
-
-// For EDL: 1 file, for INGRESS: 2 files. File names are fixed per flow.
-const JILEditorContainer = ({ requirementId, flow = "EDL" }) => {
-  const [jilFiles, setJilFiles] = useState([]);
-  const [metadata, setMetadata] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const globalState = useAppGlobalState();
-
-  const fileConfig =
-    flow === "INGRESS"
-      ? { count: 2, names: ["INGRESS_JIL_1", "INGRESS_JIL_2"] }
-      : { count: 1, names: ["EDL_JIL"] };
-
-  // Fetch metadata
-  useEffect(() => {
-    fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
-      method: "GET",
-      headers: generateSearHeader(globalState)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setMetadata(data[0].metaData);
-      })
-      .catch((err) => {
-        console.error("Error fetching metadata:", err);
-      });
-  }, [globalState]);
-
-  // Fetch JIL file data (expecting uniform structure: file.jsonData)
-  useEffect(() => {
-    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
-      method: "GET",
-      headers: generateSearHeader(globalState)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.jilFiles && data.jilFiles.length > 0) {
-          let files = data.jilFiles;
-          if (metadata && metadata.definitions) {
-            files = files.map((file) => {
-              if (file.jsonData && file.jsonData.mainBox) {
-                return {
-                  ...file,
-                  jsonData: {
-                    ...file.jsonData,
-                    mainBox: normalizeJobData(
-                      file.jsonData.mainBox,
-                      metadata.definitions.MainBOX,
-                      metadata.definitions
-                    )
-                  }
-                };
-              }
-              return file;
-            });
-          }
-          setJilFiles(files);
-        } else {
-          if (metadata && metadata.definitions) {
-            const defaults = [];
-            for (let i = 0; i < fileConfig.count; i++) {
-              defaults.push(createDefaultJILFile(metadata.definitions));
+```json
+{
+  "document": "JIL Editor v1",
+  "metaData": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Autosys JIL File Metadata",
+    "description": "Common metadata schema for JIL files (union of Ingress and EDL flows).",
+    "type": "object",
+    "properties": {
+      "mainBox": {
+        "$ref": "#/definitions/MainBOX"
+      }
+    },
+    "required": [
+      "mainBox"
+    ],
+    "definitions": {
+      "MainBOX": {
+        "type": "object",
+        "description": "Main BOX job (top-level).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the main box",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "BOX"
+            ],
+            "description": "Job type for the main box",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Timezone",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "properties": {
+            "type": "array",
+            "description": "Nested jobs within the main box (sub-boxes, CMD, FW)",
+            "default": [],
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/SubBOX"
+                },
+                {
+                  "$ref": "#/definitions/CMD"
+                },
+                {
+                  "$ref": "#/definitions/FW"
+                }
+              ]
             }
-            setJilFiles(defaults);
-          } else {
-            const defaults = [];
-            for (let i = 0; i < fileConfig.count; i++) {
-              defaults.push({ jsonData: {} });
-            }
-            setJilFiles(defaults);
           }
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching JIL data:", err);
-        setLoading(false);
-      });
-  }, [requirementId, globalState, metadata, fileConfig.count]);
-
-  if (loading) {
-    return <div>Loading...</div>;
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "owner",
+          "permission",
+          "date_conditions",
+          "description",
+          "alarm_if_fail",
+          "alarm_if_terminated",
+          "timezone",
+          "group",
+          "application",
+          "properties"
+        ]
+      },
+      "SubBOX": {
+        "type": "object",
+        "description": "Sub BOX job (nested box within another box).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the sub-box",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "BOX"
+            ],
+            "description": "Job type for the sub-box",
+            "default": ""
+          },
+          "box_name": {
+            "type": "string",
+            "description": "Name of the parent box (should match main box's insert_job)",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for the sub-box",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "properties": {
+            "type": "array",
+            "description": "Nested jobs within this sub-box",
+            "default": [],
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/SubBOX"
+                },
+                {
+                  "$ref": "#/definitions/CMD"
+                },
+                {
+                  "$ref": "#/definitions/FW"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "box_name",
+          "owner",
+          "permission",
+          "date_conditions",
+          "condition",
+          "description",
+          "alarm_if_fail",
+          "alarm_if_terminated",
+          "group",
+          "application",
+          "properties"
+        ]
+      },
+      "CMD": {
+        "type": "object",
+        "description": "CMD job (command job).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the CMD job",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "CMD"
+            ],
+            "description": "Job type for CMD",
+            "default": ""
+          },
+          "box_name": {
+            "type": "string",
+            "description": "Name of the parent sub-box",
+            "default": ""
+          },
+          "command": {
+            "type": "string",
+            "description": "Command to execute",
+            "default": ""
+          },
+          "machine": {
+            "type": "string",
+            "description": "Machine name",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for the CMD job",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "std_out_file": {
+            "type": "string",
+            "description": "Standard output file",
+            "default": ""
+          },
+          "std_err_file": {
+            "type": "string",
+            "description": "Standard error file",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "profile": {
+            "type": "string",
+            "description": "Profile name",
+            "default": ""
+          },
+          "job_load": {
+            "type": "string",
+            "description": "Job load",
+            "default": ""
+          },
+          "priority": {
+            "type": "string",
+            "description": "Job priority",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Timezone",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "success_codes": {
+            "type": "string",
+            "description": "Success codes",
+            "default": ""
+          },
+          "fail_codes": {
+            "type": "string",
+            "description": "Fail codes",
+            "default": ""
+          }
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "box_name",
+          "command",
+          "machine",
+          "owner",
+          "permission",
+          "date_conditions",
+          "condition",
+          "description",
+          "std_out_file",
+          "std_err_file",
+          "alarm_if_fail",
+          "profile",
+          "job_load",
+          "priority",
+          "alarm_if_terminated",
+          "timezone",
+          "group",
+          "application",
+          "success_codes",
+          "fail_codes"
+        ]
+      },
+      "FW": {
+        "type": "object",
+        "description": "FW job (file watcher job).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the FW job",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "FW"
+            ],
+            "description": "Job type for FW",
+            "default": ""
+          },
+          "box_name": {
+            "type": "string",
+            "description": "Name of the parent box",
+            "default": ""
+          },
+          "machine": {
+            "type": "string",
+            "description": "Machine name",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for the FW job",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "term_run_time": {
+            "type": "string",
+            "description": "Terminal run time",
+            "default": ""
+          },
+          "max_run_alarm": {
+            "type": "string",
+            "description": "Maximum run alarm time",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "profile": {
+            "type": "string",
+            "description": "Profile name",
+            "default": ""
+          },
+          "priority": {
+            "type": "string",
+            "description": "Job priority",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "watch_file": {
+            "type": "string",
+            "description": "File to watch",
+            "default": ""
+          },
+          "watch_file_min_size": {
+            "type": "string",
+            "description": "Minimum file size to trigger",
+            "default": ""
+          },
+          "watch_interval": {
+            "type": "string",
+            "description": "Watch interval (in seconds)",
+            "default": ""
+          }
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "box_name",
+          "machine",
+          "owner",
+          "permission",
+          "date_conditions",
+          "condition",
+          "description",
+          "term_run_time",
+          "max_run_alarm",
+          "alarm_if_fail",
+          "profile",
+          "priority",
+          "alarm_if_terminated",
+          "group",
+          "application",
+          "watch_file",
+          "watch_file_min_size",
+          "watch_interval"
+        ]
+      }
+    }
   }
-
-  const contextValue = {
-    jilFiles,
-    setJilFiles,
-    currentFileIndex,
-    setCurrentFileIndex,
-    metadata,
-    fileNames: fileConfig.names
-  };
-
-  return (
-    <JILEditorProvider value={contextValue}>
-      <div className="jil-editor-container">
-        <JILNavigation />
-        <JILEditor requirementId={requirementId} />
-      </div>
-    </JILEditorProvider>
-  );
-};
-
-export default JILEditorContainer;
+}
 ```
 
-### 2. Updated JILEditor.jsx
+---
+
+## 2. Frontend Code Updates
+
+### A. Updated JILEditor.jsx
+
+This file now includes the following changes:
+- **Validation:** Before save, we run a recursive check that no value is an empty string. If any field is empty, the save is blocked and an alert is shown.
+- **Header update:** Removed the “JIL Editor” heading. Now, only the save button (and the navigation dropdown from JILNavigation) appear in that header row.
 
 ```jsx
 // File: JILEditor.jsx
@@ -538,19 +530,55 @@ import { useAppGlobalState } from "@wf/react-library";
 import { convertToJILText } from "./JILUtils";
 import "./JILEditor.css";
 
+// Recursive function to validate that all fields in the job data are non-empty
+const validateJobData = (data) => {
+  if (typeof data !== "object" || data === null) {
+    return data !== "";
+  }
+  for (let key in data) {
+    if (data.hasOwnProperty(key)) {
+      // If the key is "properties", validate each child job recursively.
+      if (key === "properties" && Array.isArray(data[key])) {
+        for (let child of data[key]) {
+          if (!validateJobData(child)) return false;
+        }
+      } else {
+        if (typeof data[key] === "object") {
+          if (!validateJobData(data[key])) return false;
+        } else if (data[key] === "") {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+};
+
 const JILEditor = ({ requirementId }) => {
   const { jilFiles, currentFileIndex, setJilFiles, metadata, fileNames } = useContext(JILEditorContext);
   const [rawPreview, setRawPreview] = useState("");
   const globalState = useAppGlobalState();
   const currentFile = jilFiles[currentFileIndex];
 
-  // Update live preview when current file changes.
   useEffect(() => {
     const previewText = convertToJILText(currentFile.jsonData, metadata.definitions);
     setRawPreview(previewText);
   }, [JSON.stringify(currentFile), metadata.definitions]);
 
   const handleSave = () => {
+    // Validate each JIL file's jsonData recursively.
+    let valid = true;
+    for (let file of jilFiles) {
+      if (!validateJobData(file.jsonData)) {
+        valid = false;
+        break;
+      }
+    }
+    if (!valid) {
+      alert("All fields are mandatory. Please fill in every field before saving.");
+      return;
+    }
+
     const payload = {
       jilFiles: jilFiles.map((file, idx) => ({
         fileName: fileNames[idx] || `File_${idx + 1}`,
@@ -588,7 +616,6 @@ const JILEditor = ({ requirementId }) => {
   return (
     <div className="jil-editor">
       <div className="jil-editor-header">
-        <h3>JIL Editor</h3>
         <button onClick={handleSave}>Save</button>
       </div>
       <div className="jil-editor-body">
@@ -622,14 +649,363 @@ export default JILEditor;
 
 ---
 
-## Final Summary
+### B. Updated JILBoxEditor.jsx
 
-- **Backend Changes:**  
-  - The **JilFileBuilder.java** now detects the flow type by reading the `targetType` from the Jira story and then builds one or two uniform JIL file objects (each with `fileName`, `jsonData`, and `content`) using default values from the AutosysParameter collection.
-  - Minimal changes to the service and controller ensure that the uniform structure is propagated.
+In this file, the “Child Jobs” heading has been removed from the child-section.
 
-- **Frontend Changes:**  
-  - **JILEditorContainer.jsx** and **JILEditor.jsx** now expect each file object to have a `jsonData` key containing the JIL JSON (instead of directly using `mainBox`).  
-  - The save payload is built in the uniform structure so that both the canonical JSON and the JIL formatted text are included.
+```jsx
+// File: JILBoxEditor.jsx
+import React, { useState } from "react";
+import JILFieldRenderer from "./JILFieldRenderer";
+import { fillDefaults } from "./JILUtils";
 
-Please review the updated code and let me know if you need any further modifications or clarifications.
+const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
+  const [showNewPairDropdown, setShowNewPairDropdown] = useState(false);
+
+  const getOrderedKeys = () => {
+    if (schema && schema.properties) {
+      return Object.keys(schema.properties).filter((key) => key !== "properties");
+    }
+    return [];
+  };
+
+  const handleChange = (key, value) => {
+    const newData = { ...data, [key]: value };
+    onFieldChange(newData);
+  };
+
+  const removeKeyValuePair = (key) => {
+    const newData = { ...data };
+    delete newData[key];
+    onFieldChange(newData);
+  };
+
+  const getAvailableKeys = () => {
+    const ordered = getOrderedKeys();
+    return ordered.filter((key) => !data.hasOwnProperty(key));
+  };
+
+  const renderKeyValuePairs = () => {
+    const orderedKeys = getOrderedKeys();
+    const rendered = [];
+    orderedKeys.forEach((key) => {
+      if (data.hasOwnProperty(key)) {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      }
+    });
+    Object.keys(data)
+      .filter((key) => key !== "properties" && !orderedKeys.includes(key))
+      .forEach((key) => {
+        rendered.push(
+          <div key={key} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      });
+    return rendered;
+  };
+
+  const renderNewPairDropdown = () => {
+    const available = getAvailableKeys();
+    if (available.length === 0) return null;
+    return (
+      <select
+        className="jil-add-pair-dropdown"
+        onChange={(e) => {
+          if (e.target.value) {
+            handleChange(e.target.value, "");
+            setShowNewPairDropdown(false);
+          }
+        }}
+      >
+        <option value="">Select key to add</option>
+        {available.map((key) => (
+          <option key={key} value={key}>
+            {key}
+          </option>
+        ))}
+      </select>
+    );
+  };
+
+  const handleChildChange = (index, childData) => {
+    const newProperties = data.properties ? [...data.properties] : [];
+    newProperties[index] = childData;
+    handleChange("properties", newProperties);
+  };
+
+  const addChildJob = (jobType) => {
+    let newJob = {};
+    if (jobType === "BOX") {
+      newJob = fillDefaults(definitions.SubBOX);
+    } else if (jobType === "CMD") {
+      newJob = fillDefaults(definitions.CMD);
+    } else if (jobType === "FW") {
+      newJob = fillDefaults(definitions.FW);
+    }
+    newJob.job_type = jobType;
+    if (jobType === "BOX") newJob.properties = [];
+    const newProperties = data.properties ? [...data.properties, newJob] : [newJob];
+    handleChange("properties", newProperties);
+  };
+
+  const renderChildJobs = () => {
+    const children = data.properties || [];
+    return children.map((child, index) => (
+      <div key={index} className="jil-child-job">
+        <JILFieldRenderer
+          schema={child.job_type === "BOX" ? definitions.SubBOX : {}}
+          definitions={definitions}
+          data={child}
+          path={[...path, "properties", index]}
+          onFieldChange={(childData) => handleChildChange(index, childData)}
+          onRemoveJob={() => {
+            const newProperties = data.properties.filter((_, idx) => idx !== index);
+            handleChange("properties", newProperties);
+          }}
+        />
+      </div>
+    ));
+  };
+
+  return (
+    <div className="jil-box-editor">
+      <div className="jil-job-header">
+        <span>{path[0] === "mainBox" && path.length === 1 ? "Main Box Job" : "Sub Box"}</span>
+        <div className="jil-header-actions">
+          <select
+            className="jil-job-dropdown"
+            onChange={(e) => {
+              if (e.target.value) {
+                addChildJob(e.target.value);
+                e.target.value = "";
+              }
+            }}
+          >
+            <option value="">Add Child Job...</option>
+            <option value="BOX">Sub Box</option>
+            <option value="CMD">CMD</option>
+            <option value="FW">FW</option>
+          </select>
+          {path.length > 1 && (
+            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
+              Remove Job
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="jil-box-content">
+        {renderKeyValuePairs()}
+        {renderNewPairDropdown()}
+      </div>
+      <div className="jil-child-section">
+        {renderChildJobs()}
+      </div>
+    </div>
+  );
+};
+
+export default JILBoxEditor;
+```
+
+---
+
+### C. Updated CSS (JILEditor.css)
+
+Adjust the CSS as follows:
+- Remove any max‑width constraints from the input fields.
+- Decrease the overall size (or padding) of the removal buttons.
+
+```css
+/* Container & Global Styles */
+.jil-editor-container {
+  margin: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.jil-navigation {
+  margin-bottom: 10px;
+}
+
+.jil-navigation label {
+  margin-right: 5px;
+}
+
+/* Editor Layout */
+.jil-editor {
+  display: flex;
+  flex-direction: column;
+}
+
+.jil-editor-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* Editor Body */
+.jil-editor-body {
+  display: flex;
+  margin-top: 10px;
+  height: 500px;
+}
+
+.jil-editor-left,
+.jil-editor-right {
+  width: 50%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+/* Scroll Containers */
+.scroll-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroll-container h4 {
+  margin: 0 0 10px 0;
+}
+
+.scroll-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Live Preview */
+.jil-editor-right textarea {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Job Editor Styles */
+.jil-box-editor,
+.jil-cmd-editor,
+.jil-fw-editor {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.jil-job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f2f2f2;
+  padding: 5px;
+  margin-bottom: 10px;
+}
+
+.jil-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.jil-job-dropdown {
+  margin-right: 10px;
+}
+
+.jil-remove-job-btn {
+  background-color: #e57373;
+  color: white;
+  border: none;
+  padding: 2px 4px; /* decreased padding for smaller button */
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.jil-remove-job-btn:hover {
+  background-color: #ef5350;
+}
+
+/* Key-Value Row Styles */
+.jil-keyvalue-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.jil-keyvalue-row label {
+  width: 100px;
+  color: black;
+  font-weight: bold;
+}
+
+.jil-input {
+  width: 500px; /* increased width */
+  padding: 4px;
+  margin-right: 10px;
+  max-width: none; /* remove max-width */
+}
+
+.jil-remove-btn {
+  background-color: #e57373;
+  color: white;
+  border: none;
+  padding: 2px 4px; /* decreased padding for smaller button */
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.jil-remove-btn:hover {
+  background-color: #ef5350;
+}
+
+/* New Pair Dropdown Section */
+.jil-add-pair-dropdown {
+  margin-top: 10px;
+  padding: 4px;
+  width: 200px;
+}
+
+/* Child Jobs Section */
+.jil-child-job {
+  margin-left: 20px;
+  margin-top: 10px;
+}
+
+/* Remove any heading in child section */
+.jil-child-section h5 {
+  display: none;
+}
+```
+
+---
+
+## Summary
+
+- **Metadata:**  
+  All default values are now empty strings. The key for the date condition is “date_conditions” in every job definition, and missing keys (e.g. `fail_codes`) in CMD have been added.
+
+- **Frontend Adjustments:**  
+  - In **JILEditor.jsx**, a validation function ensures that no field is blank before submitting.  
+  - The header now only features the Save button (the dropdown remains rendered via JILNavigation separately).  
+  - In **JILBoxEditor.jsx**, the "Child Jobs" heading is removed.  
+  - Updated CSS modifies the size of remove buttons and enlarges input fields (with no max‑width).
+
+Please review these changes and let me know if any further adjustments are needed.
