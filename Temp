@@ -1,85 +1,635 @@
-Below is the explanation and then the updated parts of the code (only for those sections that need to change):
+Below is the complete, updated code for the files that need to change on both the backend and the frontend. These changes implement the following two major updates:
+
+1. **Uniform Data Structure:**  
+   Each object in the `jilFiles` array is now returned (and stored) in a uniform format with three keys:  
+   - **fileName:** the default name (e.g. `"EDL_JIL"` or `"INGRESS_JIL_1"` / `"INGRESS_JIL_2"`)  
+   - **jsonData:** the canonical JSON data (with a root key `"mainBox"`)  
+   - **content:** initially an empty string (later updated after save)
+
+2. **Flow-Based File Generation:**  
+   The builder now determines the flow type by retrieving the Jira story from the **JiraStroyIntakerepository** and checking its `targetType` field. If `targetType` equals `"GCP"`, then the flow is INGRESS (and two JIL files are built using the _edl_ and _cdmp_ fields from the AutosysParameter document); if it equals `"Hive"`, then the flow is EDL (and a single JIL file is built using the non‑prefixed fields).  
+   The default values for building these JIL files are now fetched from the **AutosysParameter** collection.
+
+Below, I present the updated code files.
 
 ---
 
-### Explanation
+## **Backend Updates**
 
-Originally, our save handler was converting the internal JSON structure into the final JIL text (via convertToJILText) and sending that as the payload. However, now you want both representations stored in the backend. This means that when the user saves the file, the payload should include both:  
-- The canonical JSON data (which is used by the editor on reload), and  
-- The JIL text (which is generated using our conversion function).
+### 1. Updated JilFileBuilder.java
 
-The updated payload structure might look like this:
+```java
+// File: src/main/java/com/wellsfargo/utcap/service/JilFileBuilder.java
+package com.wellsfargo.utcap.service;
 
-```json
-{
-  "jilFiles": [
-    {
-      "fileName": "FileName_From_Context",
-      "jsonData": { ... },      // the full JSON object as maintained in the editor
-      "content": "JIL formatted text ..."  // produced by convertToJILText
-    },
-    ...
-  ]
+import com.wellsfargo.utcap.model.AutosysParam;
+import com.wellsfargo.utcap.model.JiraStoryIntake;
+import com.wellsfargo.utcap.repository.JiraStroyIntakerepository;
+import com.wellsfargo.utcap.repository.AutosysParameterRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+
+@Component
+public class JilFileBuilder {
+
+    @Autowired
+    private JiraStroyIntakerepository jiraRepo;
+    
+    @Autowired
+    private AutosysParameterRepository autosysParamRepo;
+
+    /**
+     * Builds default JIL files for a given requirement.
+     * Uses targetType from JiraStoryIntake to determine the flow type:
+     * - "Hive" means an EDL flow (build one file)
+     * - "GCP" means an INGRESS flow (build two files)
+     * 
+     * Each file object is returned in a uniform format:
+     * { "fileName": "<default>", "jsonData": { mainBox: { ... } }, "content": "" }
+     *
+     * @param requirementId The requirement ID.
+     * @return A list of JIL file objects.
+     */
+    public List<Map<String, Object>> buildJilFiles(String requirementId) {
+        // Fetch Jira story using requirementId
+        List<JiraStoryIntake> jiraList = jiraRepo.findByRequirementId(requirementId);
+        if (jiraList == null || jiraList.isEmpty()) {
+            throw new RuntimeException("Jira story not found for requirementId: " + requirementId);
+        }
+        JiraStoryIntake jira = jiraList.get(0);
+        
+        // Determine flow type from targetType
+        String targetType = jira.getTargetType(); // "GCP" for INGRESS, "Hive" for EDL
+        boolean isIngress = "GCP".equalsIgnoreCase(targetType);
+        
+        // Fetch Autosys parameters for this requirement
+        Optional<AutosysParam> autosysOpt = autosysParamRepo.findById(requirementId);
+        if (!autosysOpt.isPresent()) {
+            throw new RuntimeException("Autosys parameters not found for requirementId: " + requirementId);
+        }
+        AutosysParam param = autosysOpt.get();
+        
+        List<Map<String, Object>> jilFiles = new ArrayList<>();
+        if (isIngress) {
+            // For INGRESS, build two files:
+            // File 1 uses edl-prefixed fields
+            Map<String, Object> file1 = buildJilFile(
+                    param.getEdlboxJobName(),
+                    param.getEdlcmdJobName(),
+                    param.getEdlDateCondition(),
+                    param.getEdlDaysOfWeek(),
+                    param.getEdlStartTime(),
+                    param.getEdlDescription(),
+                    param.getEdlWrapperScript(),
+                    param.getEdlConnectionName(),
+                    param.getEdlMachineName(),
+                    param.getEdlOwner(),
+                    param.getEdlDependenciesCondition(),
+                    param.getEdlProfilePath(),
+                    "INGRESS_JIL_1"
+            );
+            jilFiles.add(file1);
+            
+            // File 2 uses cdmp-prefixed fields
+            Map<String, Object> file2 = buildJilFile(
+                    param.getCdmpboxJobName(),
+                    param.getCdmpcmdJobName(),
+                    param.getCdmpDateCondition(),
+                    param.getCdmpDaysOfWeek(),
+                    param.getCdmpStartTime(),
+                    param.getCdmpDescription(),
+                    param.getCdmpWrapperScript(),
+                    param.getCdmpConnectionName(),
+                    param.getCdmpMachineName(),
+                    param.getCdmpOwner(),
+                    param.getCdmpDependenciesCondition(),
+                    param.getCdmpProfilePath(),
+                    "INGRESS_JIL_2"
+            );
+            jilFiles.add(file2);
+        } else {
+            // For EDL, build one file using non-prefixed fields
+            Map<String, Object> file = buildJilFile(
+                    param.getBoxJobName(),
+                    param.getCmdJobName(),
+                    param.getDateCondition(),
+                    param.getDaysOfWeek(),
+                    param.getStartTime(),
+                    param.getDescription(),
+                    param.getWrapperScript(),
+                    param.getConnectionName(),
+                    param.getMachineName(),
+                    param.getOwner(),
+                    param.getDependenciesCondition(),
+                    param.getProfilePath(),
+                    "EDL_JIL"
+            );
+            jilFiles.add(file);
+        }
+        return jilFiles;
+    }
+    
+    /**
+     * Helper method to build a uniform JIL file object.
+     *
+     * @param boxJobName      Main box job name.
+     * @param cmdJobName      CMD job name.
+     * @param dateCondition   Date condition value.
+     * @param daysOfWeek      Days of week.
+     * @param startTime       Start time.
+     * @param description     Job description.
+     * @param wrapperScript   Wrapper script name.
+     * @param connectionName  Connection name.
+     * @param machineName     Machine name.
+     * @param owner           Owner.
+     * @param dependenciesCond Dependencies condition.
+     * @param profilePath     Profile path.
+     * @param defaultFileName Default file name.
+     * @return A JIL file object in the uniform structure.
+     */
+    private Map<String, Object> buildJilFile(
+            String boxJobName,
+            String cmdJobName,
+            String dateCondition,
+            String daysOfWeek,
+            String startTime,
+            String description,
+            String wrapperScript,
+            String connectionName,
+            String machineName,
+            String owner,
+            String dependenciesCond,
+            String profilePath,
+            String defaultFileName
+    ) {
+        // Build main box (the top-level job)
+        Map<String, Object> mainBox = new LinkedHashMap<>();
+        mainBox.put("insert_job", boxJobName);
+        mainBox.put("job_type", "BOX");
+        mainBox.put("owner", owner != null ? owner : "<owner name>");
+        mainBox.put("permission", "me,mx,ge,gx,we,wx");
+        mainBox.put("date_conditions", dateCondition);
+        mainBox.put("days_of_week", daysOfWeek);
+        mainBox.put("start_times", "\"" + startTime + "\"");
+        mainBox.put("description", description);
+        mainBox.put("alarm_if_fail", 1);
+        mainBox.put("alarm_if_terminated", 1);
+        mainBox.put("timezone", "US/Central");
+        mainBox.put("application", "UTCAP");
+        
+        // Build CMD job within the main box's "properties"
+        Map<String, Object> cmdJob = new LinkedHashMap<>();
+        cmdJob.put("insert_job", cmdJobName);
+        cmdJob.put("job_type", "CMD");
+        cmdJob.put("box_name", boxJobName);
+        // Create a simple command string using the wrapperScript and connectionName.
+        String command = "sh -x " + wrapperScript + " " + boxJobName.split("_")[1] + " " + boxJobName + ".json " + connectionName;
+        cmdJob.put("command", command);
+        cmdJob.put("machine", machineName);
+        cmdJob.put("owner", owner != null ? owner : "<owner name>");
+        cmdJob.put("permission", "me,mx,ge,gx,we,wx");
+        cmdJob.put("date_conditions", 0);
+        cmdJob.put("condition", dependenciesCond);
+        cmdJob.put("description", description);
+        cmdJob.put("std_out_file", "<filename>");
+        cmdJob.put("std_err_file", "<filename>");
+        cmdJob.put("alarm_if_fail", 1);
+        cmdJob.put("profile", profilePath);
+        cmdJob.put("job_load", 30);
+        cmdJob.put("priority", 290);
+        cmdJob.put("alarm_if_terminated", 1);
+        cmdJob.put("timezone", "US/Central");
+        cmdJob.put("application", "UTCAP");
+        cmdJob.put("success_codes", 0);
+        cmdJob.put("fail_codes", "1-9999");
+        
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob);
+        mainBox.put("properties", properties);
+        
+        // Wrap the mainBox in the jsonData structure
+        Map<String, Object> jsonData = new LinkedHashMap<>();
+        jsonData.put("mainBox", mainBox);
+        
+        // Create the final file object with uniform keys
+        Map<String, Object> fileObject = new LinkedHashMap<>();
+        fileObject.put("fileName", defaultFileName);
+        fileObject.put("jsonData", jsonData);
+        fileObject.put("content", "");  // Initially empty
+        
+        return fileObject;
+    }
 }
 ```
 
-The changes are focused on updating the handleSave function in the JILEditor.jsx file so that it constructs and sends this payload. We’ll use the previously extracted fileNames (from context) as before. Note that we must ensure that any hooks (including useContext) are only called at the top level, not within the save handler.
+### 2. JilFileService.java  
+_(No changes beyond ensuring it uses the builder’s output.)_
 
-Please review the following updated version of the save handler (in JILEditor.jsx) as part of the final updated code. (Other portions of the file remain as in our previous update.) 
+```java
+// File: src/main/java/com/wellsfargo/utcap/service/JilFileService.java
+package com.wellsfargo.utcap.service;
 
----
+import com.wellsfargo.utcap.model.JilFile;
+import com.wellsfargo.utcap.repository.JilFileRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
-### Updated HandleSave in JILEditor.jsx
+import java.util.List;
+import java.util.Optional;
 
-Within JILEditor.jsx, update the save function so that the payload includes both jsonData and content. For example (explanatory comments included):
+@Service
+public class JilFileService {
 
-```jsx
-const handleSave = () => {
-  // At the top level, we already extracted fileNames from context.
-  // Build a payload that includes both JSON (the canonical state) and
-  // the converted JIL text.
-  const payload = {
-    jilFiles: jilFiles.map((file, idx) => ({
-      fileName: fileNames[idx] || `File_${idx + 1}`,
-      jsonData: file,  // Save the canonical JSON
-      content: convertToJILText(file, metadata.definitions)  // Save the JIL formatted text
-    }))
-  };
+    private final JilFileRepository repository;
+    private final JilFileBuilder builder;
 
-  fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
-    method: "PUT",
-    headers: {
-      ...generateSearHeader(globalState),
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  })
-    .then((res) => {
-      if (!res.ok) {
-        throw new Error("Save failed");
-      }
-      return res.json();
-    })
-    .then(() => {
-      alert("JIL file saved successfully!");
-    })
-    .catch((err) => {
-      console.error("Error saving JIL file:", err);
-    });
-};
+    @Autowired
+    public JilFileService(JilFileRepository repository, JilFileBuilder builder) {
+        this.repository = repository;
+        this.builder = builder;
+    }
+
+    public JilFile getOrBuildJilData(String requirementId) {
+        Optional<JilFile> existingOpt = repository.findByRequirementId(requirementId);
+        if (existingOpt.isPresent()) {
+            return existingOpt.get();
+        } else {
+            List<java.util.Map<String, Object>> defaultJilFiles = builder.buildJilFiles(requirementId);
+            JilFile newJilFile = new JilFile(requirementId, defaultJilFiles);
+            repository.save(newJilFile);
+            return newJilFile;
+        }
+    }
+
+    public JilFile saveJilData(String requirementId, List<java.util.Map<String, Object>> jilFiles) {
+        Optional<JilFile> existingOpt = repository.findByRequirementId(requirementId);
+        if (existingOpt.isPresent()) {
+            JilFile existing = existingOpt.get();
+            existing.setJilFiles(jilFiles);
+            return repository.save(existing);
+        } else {
+            JilFile newJilFile = new JilFile(requirementId, jilFiles);
+            return repository.save(newJilFile);
+        }
+    }
+}
+```
+
+### 3. JilFileController.java  
+_(Remains the same.)_
+
+```java
+// File: src/main/java/com/wellsfargo/utcap/controller/JilFileController.java
+package com.wellsfargo.utcap.controller;
+
+import com.wellsfargo.utcap.model.JilFile;
+import com.wellsfargo.utcap.service.JilFileService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/jilData")
+public class JilFileController {
+
+    private final JilFileService service;
+
+    @Autowired
+    public JilFileController(JilFileService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/{requirementId}")
+    public ResponseEntity<JilFile> getJilData(@PathVariable String requirementId) {
+        try {
+            JilFile jilFile = service.getOrBuildJilData(requirementId);
+            return ResponseEntity.ok(jilFile);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(null);
+        }
+    }
+
+    @PutMapping("/{requirementId}")
+    public ResponseEntity<JilFile> updateJilData(@PathVariable String requirementId,
+                                                 @RequestBody JilFile jilFileData) {
+        try {
+            JilFile updated = service.saveJilData(requirementId, jilFileData.getJilFiles());
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(null);
+        }
+    }
+}
+```
+
+### 4. AutosysParameter Repository and Model
+
+_(These are added for completeness.)_
+
+**AutosysParam.java**
+```java
+// File: src/main/java/com/wellsfargo/utcap/model/AutosysParam.java
+package com.wellsfargo.utcap.model;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document(collection = "AutosysParameter")
+public class AutosysParam {
+
+    @Id
+    private String id; // corresponds to requirement id
+
+    private String boxJobName;
+    private String cmdJobName;
+    private String dateCondition;
+    private String daysOfWeek;
+    private String startTime;
+    private String description;
+    private String wrapperScript;
+    private String connectionName;
+    private String machineName;
+    private String owner;
+    private String dependenciesCondition;
+    private String profilePath;
+    
+    // INGRESS (File 1) fields:
+    private String edlboxJobName;
+    private String edlcmdJobName;
+    private String edlDateCondition;
+    private String edlDaysOfWeek;
+    private String edlStartTime;
+    private String edlDescription;
+    private String edlWrapperScript;
+    private String edlConnectionName;
+    private String edlMachineName;
+    private String edlOwner;
+    private String edlDependenciesCondition;
+    private String edlProfilePath;
+    
+    // INGRESS (File 2) fields:
+    private String cdmpboxJobName;
+    private String cdmpcmdJobName;
+    private String cdmpDateCondition;
+    private String cdmpDaysOfWeek;
+    private String cdmpStartTime;
+    private String cdmpDescription;
+    private String cdmpWrapperScript;
+    private String cdmpConnectionName;
+    private String cdmpMachineName;
+    private String cdmpOwner;
+    private String cdmpDependenciesCondition;
+    private String cdmpProfilePath;
+
+    // Getters and setters for all fields go here.
+    // (Omitted for brevity.)
+}
+```
+
+**AutosysParameterRepository.java**
+```java
+// File: src/main/java/com/wellsfargo/utcap/repository/AutosysParameterRepository.java
+package com.wellsfargo.utcap.repository;
+
+import com.wellsfargo.utcap.model.AutosysParam;
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+public interface AutosysParameterRepository extends MongoRepository<AutosysParam, String> {
+    // Using the id as requirementId.
+}
 ```
 
 ---
 
-### Summary of Changes
+## **Frontend Updates**
 
-- **Payload Structure:**  
-  We now send both the JSON structure (in a field called `jsonData`) and the JIL formatted text (in `content`) for each file.  
-- **No Hooks Inside Save:**  
-  All hooks (like useContext, useAppGlobalState) continue to be called only at the top level, and the save handler uses the previously extracted values.  
-- **Backend Consistency:**  
-  With this payload, the backend will be able to store both representations. When fetching data, you can continue to expect the canonical JSON in `jsonData`.
+### 1. Updated JILEditorContainer.jsx
+
+```jsx
+// File: JILEditorContainer.jsx
+import React, { useState, useEffect } from "react";
+import JILEditor from "./JILEditor";
+import JILNavigation from "./JILNavigation";
+import { JILEditorProvider } from "./JILEditorContext";
+import { MICROSERVICE_URL } from "../../../util/Constant";
+import { generateSearHeader } from "../../../Authentication";
+import { useAppGlobalState } from "@wf/react-library";
+import { createDefaultJILFile, normalizeJobData } from "./JILUtils";
+import "./JILEditor.css";
+
+// For EDL: 1 file, for INGRESS: 2 files. File names are fixed per flow.
+const JILEditorContainer = ({ requirementId, flow = "EDL" }) => {
+  const [jilFiles, setJilFiles] = useState([]);
+  const [metadata, setMetadata] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const globalState = useAppGlobalState();
+
+  const fileConfig =
+    flow === "INGRESS"
+      ? { count: 2, names: ["INGRESS_JIL_1", "INGRESS_JIL_2"] }
+      : { count: 1, names: ["EDL_JIL"] };
+
+  // Fetch metadata
+  useEffect(() => {
+    fetch(`${MICROSERVICE_URL}/api/jilMetadata`, {
+      method: "GET",
+      headers: generateSearHeader(globalState)
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setMetadata(data[0].metaData);
+      })
+      .catch((err) => {
+        console.error("Error fetching metadata:", err);
+      });
+  }, [globalState]);
+
+  // Fetch JIL file data (expecting uniform structure: file.jsonData)
+  useEffect(() => {
+    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
+      method: "GET",
+      headers: generateSearHeader(globalState)
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.jilFiles && data.jilFiles.length > 0) {
+          let files = data.jilFiles;
+          if (metadata && metadata.definitions) {
+            files = files.map((file) => {
+              if (file.jsonData && file.jsonData.mainBox) {
+                return {
+                  ...file,
+                  jsonData: {
+                    ...file.jsonData,
+                    mainBox: normalizeJobData(
+                      file.jsonData.mainBox,
+                      metadata.definitions.MainBOX,
+                      metadata.definitions
+                    )
+                  }
+                };
+              }
+              return file;
+            });
+          }
+          setJilFiles(files);
+        } else {
+          if (metadata && metadata.definitions) {
+            const defaults = [];
+            for (let i = 0; i < fileConfig.count; i++) {
+              defaults.push(createDefaultJILFile(metadata.definitions));
+            }
+            setJilFiles(defaults);
+          } else {
+            const defaults = [];
+            for (let i = 0; i < fileConfig.count; i++) {
+              defaults.push({ jsonData: {} });
+            }
+            setJilFiles(defaults);
+          }
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching JIL data:", err);
+        setLoading(false);
+      });
+  }, [requirementId, globalState, metadata, fileConfig.count]);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  const contextValue = {
+    jilFiles,
+    setJilFiles,
+    currentFileIndex,
+    setCurrentFileIndex,
+    metadata,
+    fileNames: fileConfig.names
+  };
+
+  return (
+    <JILEditorProvider value={contextValue}>
+      <div className="jil-editor-container">
+        <JILNavigation />
+        <JILEditor requirementId={requirementId} />
+      </div>
+    </JILEditorProvider>
+  );
+};
+
+export default JILEditorContainer;
+```
+
+### 2. Updated JILEditor.jsx
+
+```jsx
+// File: JILEditor.jsx
+import React, { useState, useEffect, useContext } from "react";
+import { JILEditorContext } from "./JILEditorContext";
+import JILFieldRenderer from "./JILFieldRenderer";
+import { MICROSERVICE_URL } from "../../../util/Constant";
+import { generateSearHeader } from "../../../Authentication";
+import { useAppGlobalState } from "@wf/react-library";
+import { convertToJILText } from "./JILUtils";
+import "./JILEditor.css";
+
+const JILEditor = ({ requirementId }) => {
+  const { jilFiles, currentFileIndex, setJilFiles, metadata, fileNames } = useContext(JILEditorContext);
+  const [rawPreview, setRawPreview] = useState("");
+  const globalState = useAppGlobalState();
+  const currentFile = jilFiles[currentFileIndex];
+
+  // Update live preview when current file changes.
+  useEffect(() => {
+    const previewText = convertToJILText(currentFile.jsonData, metadata.definitions);
+    setRawPreview(previewText);
+  }, [JSON.stringify(currentFile), metadata.definitions]);
+
+  const handleSave = () => {
+    const payload = {
+      jilFiles: jilFiles.map((file, idx) => ({
+        fileName: fileNames[idx] || `File_${idx + 1}`,
+        jsonData: file.jsonData,
+        content: convertToJILText(file.jsonData, metadata.definitions)
+      }))
+    };
+
+    fetch(`${MICROSERVICE_URL}/api/jilData/${requirementId}`, {
+      method: "PUT",
+      headers: {
+        ...generateSearHeader(globalState),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Save failed");
+        }
+        return res.json();
+      })
+      .then(() => {
+        alert("JIL file saved successfully!");
+      })
+      .catch((err) => {
+        console.error("Error saving JIL file:", err);
+      });
+  };
+
+  if (!metadata) {
+    return <div>Loading metadata...</div>;
+  }
+
+  return (
+    <div className="jil-editor">
+      <div className="jil-editor-header">
+        <h3>JIL Editor</h3>
+        <button onClick={handleSave}>Save</button>
+      </div>
+      <div className="jil-editor-body">
+        <div className="jil-editor-left scroll-container">
+          <h4>Structured Editor</h4>
+          <div className="scroll-content">
+            <JILFieldRenderer
+              schema={metadata.definitions.MainBOX}
+              definitions={metadata.definitions}
+              data={currentFile.jsonData.mainBox || {}}
+              path={["mainBox"]}
+              onFieldChange={(updatedData) => {
+                const newFiles = [...jilFiles];
+                newFiles[currentFileIndex].jsonData.mainBox = updatedData;
+                setJilFiles(newFiles);
+              }}
+            />
+          </div>
+        </div>
+        <div className="jil-editor-right scroll-container">
+          <h4>Live Preview</h4>
+          <textarea readOnly value={rawPreview} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default JILEditor;
+```
 
 ---
 
-Please let me know if you would like any further clarifications or if this solution meets your requirements.
+## Final Summary
+
+- **Backend Changes:**  
+  - The **JilFileBuilder.java** now detects the flow type by reading the `targetType` from the Jira story and then builds one or two uniform JIL file objects (each with `fileName`, `jsonData`, and `content`) using default values from the AutosysParameter collection.
+  - Minimal changes to the service and controller ensure that the uniform structure is propagated.
+
+- **Frontend Changes:**  
+  - **JILEditorContainer.jsx** and **JILEditor.jsx** now expect each file object to have a `jsonData` key containing the JIL JSON (instead of directly using `mainBox`).  
+  - The save payload is built in the uniform structure so that both the canonical JSON and the JIL formatted text are included.
+
+Please review the updated code and let me know if you need any further modifications or clarifications.
