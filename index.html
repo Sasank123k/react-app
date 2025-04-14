@@ -1,186 +1,109 @@
-import React, { useState } from "react";
-import PropTypes from "prop-types";
-import JILFieldRenderer from "./JILFieldRenderer";
-import { fillDefaults } from "./JILUtils";
+package com.wellsfargo.utcap.controller;
 
-const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
-  const [showNewPairDropdown, setShowNewPairDropdown] = useState(false);
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wellsfargo.utcap.model.JilFile;
+import com.wellsfargo.utcap.service.JilFileService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
-  const getOrderedKeys = () =>
-    schema && schema.properties ? Object.keys(schema.properties).filter((key) => key !== "properties") : [];
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-  const handleChange = (key, value) => {
-    const newData = { ...data, [key]: value };
-    onFieldChange(newData);
-  };
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-  const removeKeyValuePair = (key) => {
-    const newData = { ...data };
-    delete newData[key];
-    onFieldChange(newData);
-  };
+@WebMvcTest(JilFileController.class)
+public class JilFileControllerTest {
 
-  const getAvailableKeys = () => {
-    const ordered = getOrderedKeys();
-    return ordered.filter((key) => !data.hasOwnProperty(key));
-  };
+    @Autowired
+    private MockMvc mockMvc;
 
-  const renderKeyValuePairs = () => {
-    const orderedKeys = getOrderedKeys();
-    const rendered = [];
-    orderedKeys.forEach((key) => {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        rendered.push(
-          <div key={`kv-${key}`} className="jil-keyvalue-row">
-            <label>{key}: </label>
-            <input
-              className="jil-input"
-              type="text"
-              value={data[key]}
-              onChange={(e) => handleChange(key, e.target.value)}
-            />
-            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
-              Remove
-            </button>
-          </div>
-        );
-      }
-    });
-    Object.keys(data)
-      .filter((key) => key !== "properties" && !orderedKeys.includes(key))
-      .forEach((key) => {
-        rendered.push(
-          <div key={`extra-${key}`} className="jil-keyvalue-row">
-            <label>{key}: </label>
-            <input
-              className="jil-input"
-              type="text"
-              value={data[key]}
-              onChange={(e) => handleChange(key, e.target.value)}
-            />
-            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
-              Remove
-            </button>
-          </div>
-        );
-      });
-    return rendered;
-  };
+    @MockBean
+    private JilFileService service;
 
-  const renderNewPairDropdown = () => {
-    const available = getAvailableKeys();
-    if (available.length === 0) return null;
-    return (
-      <select
-        className="jil-add-pair-dropdown"
-        onChange={(e) => {
-          if (e.target.value) {
-            handleChange(e.target.value, "");
-            setShowNewPairDropdown(false);
-          }
-        }}
-      >
-        <option value="">Select key to add</option>
-        {available.map((key) => (
-          <option key={key} value={key}>
-            {key}
-          </option>
-        ))}
-      </select>
-    );
-  };
+    @Autowired
+    private ObjectMapper objectMapper;
 
-  const handleChildChange = (index, childData) => {
-    const newProperties = data.properties ? [...data.properties] : [];
-    newProperties[index] = childData;
-    handleChange("properties", newProperties);
-  };
+    /**
+     * Test GET /api/jilData/{requirementId} for a successful response.
+     */
+    @Test
+    public void testGetJilDataSuccess() throws Exception {
+        // Create a sample JilFile with dummy data
+        List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
+        Map<String, Object> file = new HashMap<>();
+        file.put("fileName", "sampleFile");
+        dummyJilFiles.add(file);
+        JilFile sampleJilFile = new JilFile("req123", dummyJilFiles);
 
-  const addChildJob = (jobType) => {
-    let newJob = {};
-    if (jobType === "BOX") {
-      newJob = fillDefaults(definitions.SubBOX);
-    } else if (jobType === "CMD") {
-      newJob = fillDefaults(definitions.CMD);
-    } else if (jobType === "FW") {
-      newJob = fillDefaults(definitions.FW);
+        when(service.getOrBuildJilData("req123")).thenReturn(sampleJilFile);
+
+        mockMvc.perform(get("/api/jilData/req123"))
+               .andExpect(status().isOk())
+               .andExpect(content().json(objectMapper.writeValueAsString(sampleJilFile)));
     }
-    newJob.job_type = jobType;
-    // Set the new job's box_name to parent's insert_job.
-    const parentJobName = data.insert_job || "";
-    newJob.box_name = parentJobName;
-    if (jobType === "BOX") newJob.properties = [];
-    const newProperties = data.properties ? [...data.properties, newJob] : [newJob];
-    handleChange("properties", newProperties);
-  };
 
-  // Helper to render each child job without using just an array index for key.
-  const renderChildJob = (child, index) => {
-    const key = child.insert_job ? `${child.insert_job}-${index}` : `child-${index}`;
-    return (
-      <div key={key} className="jil-child-job">
-        <JILFieldRenderer
-          schema={child.job_type === "BOX" ? definitions.SubBOX : {}}
-          definitions={definitions}
-          data={child}
-          path={[...path, "properties", String(index)]}
-          onFieldChange={(childData) => handleChildChange(index, childData)}
-          onRemoveJob={() => {
-            const newProperties = data.properties.filter((_, idx) => idx !== index);
-            handleChange("properties", newProperties);
-          }}
-        />
-      </div>
-    );
-  };
+    /**
+     * Test GET /api/jilData/{requirementId} when the service throws an exception.
+     */
+    @Test
+    public void testGetJilDataFailure() throws Exception {
+        when(service.getOrBuildJilData("reqError")).thenThrow(new RuntimeException("Service Error"));
 
-  const renderChildJobs = () => {
-    const children = data.properties || [];
-    return children.map((child, index) => renderChildJob(child, index));
-  };
+        mockMvc.perform(get("/api/jilData/reqError"))
+               .andExpect(status().isInternalServerError());
+    }
 
-  return (
-    <div className="jil-box-editor">
-      <div className="jil-job-header">
-        <span>{path[0] === "mainBox" && path.length === 1 ? "Main Box Job" : "Sub Box"}</span>
-        <div className="jil-header-actions">
-          <select
-            className="jil-job-dropdown"
-            onChange={(e) => {
-              if (e.target.value) {
-                addChildJob(e.target.value);
-                e.target.value = "";
-              }
-            }}
-          >
-            <option value="">Add Child Job...</option>
-            <option value="BOX">Sub Box</option>
-            <option value="CMD">CMD</option>
-            <option value="FW">FW</option>
-          </select>
-          {path.length > 1 && (
-            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
-              Remove Job
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="jil-box-content">
-        {renderKeyValuePairs()}
-        {renderNewPairDropdown()}
-      </div>
-      <div className="jil-child-section">{renderChildJobs()}</div>
-    </div>
-  );
-};
+    /**
+     * Test PUT /api/jilData/{requirementId} for a successful update.
+     */
+    @Test
+    public void testUpdateJilDataSuccess() throws Exception {
+        // Create a sample input JilFile with dummy data
+        List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
+        Map<String, Object> file = new HashMap<>();
+        file.put("fileName", "updatedFile");
+        dummyJilFiles.add(file);
+        JilFile inputJilFile = new JilFile("req789", dummyJilFiles);
 
-JILBoxEditor.propTypes = {
-  schema: PropTypes.object.isRequired,
-  definitions: PropTypes.object.isRequired,
-  data: PropTypes.object.isRequired,
-  path: PropTypes.arrayOf(PropTypes.string).isRequired,
-  onFieldChange: PropTypes.func.isRequired,
-  onRemoveJob: PropTypes.func
-};
+        // Assume that the service returns the same object after saving/updating.
+        when(service.saveJilData(eq("req789"), any())).thenReturn(inputJilFile);
 
-export default JILBoxEditor;
+        mockMvc.perform(put("/api/jilData/req789")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(inputJilFile)))
+               .andExpect(status().isOk())
+               .andExpect(content().json(objectMapper.writeValueAsString(inputJilFile)));
+    }
+
+    /**
+     * Test PUT /api/jilData/{requirementId} when the service throws an exception.
+     */
+    @Test
+    public void testUpdateJilDataFailure() throws Exception {
+        // Create a sample input JilFile with dummy data
+        List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
+        Map<String, Object> file = new HashMap<>();
+        file.put("fileName", "failFile");
+        dummyJilFiles.add(file);
+        JilFile inputJilFile = new JilFile("req987", dummyJilFiles);
+
+        when(service.saveJilData(eq("req987"), any())).thenThrow(new RuntimeException("Update failed"));
+
+        mockMvc.perform(put("/api/jilData/req987")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(inputJilFile)))
+               .andExpect(status().isInternalServerError());
+    }
+}
