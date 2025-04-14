@@ -5,6 +5,7 @@ import com.wellsfargo.utcap.model.JilFile;
 import com.wellsfargo.utcap.service.JilFileService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
@@ -23,7 +24,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(JilFileController.class)
+@WebMvcTest(controllers = JilFileController.class, 
+    excludeAutoConfiguration = {DataSourceAutoConfiguration.class})
 public class JilFileControllerTest {
 
     @Autowired
@@ -40,7 +42,7 @@ public class JilFileControllerTest {
      */
     @Test
     public void testGetJilDataSuccess() throws Exception {
-        // Create a sample JilFile with dummy data
+        // Prepare a sample JilFile with dummy data
         List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
         Map<String, Object> file = new HashMap<>();
         file.put("fileName", "sampleFile");
@@ -77,7 +79,7 @@ public class JilFileControllerTest {
         dummyJilFiles.add(file);
         JilFile inputJilFile = new JilFile("req789", dummyJilFiles);
 
-        // Assume that the service returns the same object after saving/updating.
+        // Assume the service returns the same object after updating.
         when(service.saveJilData(eq("req789"), any())).thenReturn(inputJilFile);
 
         mockMvc.perform(put("/api/jilData/req789")
