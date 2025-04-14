@@ -1,48 +1,52 @@
-// File: src/main/java/com/wellsfargo/utcap/controller/JilFileController.java
-package com.wellsfargo.utcap.controller;
+package com.wellsfargo.utcap.model;
 
-import com.wellsfargo.utcap.model.JilFile;
-import com.wellsfargo.utcap.service.JilFileService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@RestController
-@RequestMapping("/api/jilData")
-public class JilFileController {
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
-    private static final Logger logger = LoggerFactory.getLogger(JilFileController.class);
+@Document(collection = "jildata")
+public class JilFile {
 
-    private final JilFileService service;
+    @Id
+    private String id;
 
-    @Autowired
-    public JilFileController(JilFileService service) {
-        this.service = service;
+    private String requirementId;
+
+    private List<Map<String, Object>> jilFiles;
+
+    public JilFile() {
     }
 
-    @GetMapping("/{requirementId}")
-    public ResponseEntity<JilFile> getJilData(@PathVariable String requirementId) {
-        try {
-            JilFile jilFile = service.getOrBuildJilData(requirementId);
-            return ResponseEntity.ok(jilFile);
-        } catch (Exception e) {
-            logger.error("Failed to get JIL data for requirementId: {}", requirementId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
+    public JilFile(String requirementId, List<Map<String, Object>> jilFiles) {
+        this.requirementId = requirementId;
+        this.jilFiles = jilFiles == null ? null : new ArrayList<>(jilFiles);
     }
 
-    @PutMapping("/{requirementId}")
-    public ResponseEntity<JilFile> updateJilData(@PathVariable String requirementId,
-                                                 @RequestBody JilFile jilFileData) {
-        try {
-            JilFile updated = service.saveJilData(requirementId, jilFileData.getJilFiles());
-            return ResponseEntity.ok(updated);
-        } catch (Exception e) {
-            logger.error("Failed to update JIL data for requirementId: {}", requirementId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getRequirementId() {
+        return requirementId;
+    }
+
+    public void setRequirementId(String requirementId) {
+        this.requirementId = requirementId;
+    }
+
+    public List<Map<String, Object>> getJilFiles() {
+        return jilFiles == null ? null : new ArrayList<>(jilFiles);
+    }
+
+    public void setJilFiles(List<Map<String, Object>> jilFiles) {
+        this.jilFiles = jilFiles == null ? null : new ArrayList<>(jilFiles);
     }
 }
