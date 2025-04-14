@@ -1,404 +1,50 @@
-Below are updated versions of your code files addressing the Sonar issues. In summary, the changes include:
+import org.bson.Document;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document as MongoDocument;
 
-1. **Using custom exceptions instead of generic ones.**  
-   Two custom exceptions—**JiraStoryNotFoundException** and **AutosysParamNotFoundException**—are created and used when data isn’t found.
+@MongoDocument(collection = "jilMetadata")
+public class JilMetadata {
 
-2. **Refactoring a method with 13 parameters.**  
-   A new data-transfer object (**JilFileConfig**) is introduced to encapsulate the 13 parameters. The helper method now accepts this single configuration object.
+    @Id
+    private String id;
 
-3. **Eliminating magic numbers.**  
-   The magic number `290` has been replaced by a constant (`DEFAULT_JOB_PRIORITY`).
+    private String document;
 
-4. **Adjusting comment formatting.**  
-   Trailing comments have been repositioned (if applicable) to adhere to style guidelines.
+    // Store as private to prevent direct access
+    private Document metaData;
 
-Below you’ll find the updated files.
-
----
-
-### 1. JilFileBuilder.java
-
-```java
-package com.wellsfargo.utcap.service;
-
-import com.wellsfargo.utcap.model.AutosysParam;
-import com.wellsfargo.utcap.model.JiraStoryIntake;
-import com.wellsfargo.utcap.repository.JiraStroyIntakerepository;
-import com.wellsfargo.utcap.repository.AutosysParameterRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import java.util.*;
-
-@Component
-public class JilFileBuilder {
-
-    private static final int DEFAULT_JOB_PRIORITY = 290;
-
-    @Autowired
-    private JiraStroyIntakerepository jiraRepo;
-    
-    @Autowired
-    private AutosysParameterRepository autosysParamRepo;
-
-    /**
-     * Builds default JIL files for a given requirement.
-     * Uses targetType from JiraStoryIntake to determine the flow type:
-     * - "Hive" means an EDL flow (build one file)
-     * - "GCP" means an INGRESS flow (build two files)
-     * 
-     * Each file object is returned in a uniform format:
-     * { "fileName": "<default>", "jsonData": { mainBox: { ... } }, "content": "" }
-     *
-     * @param requirementId The requirement ID.
-     * @return A list of JIL file objects.
-     * @throws JiraStoryNotFoundException if no Jira story is found for the given requirementId.
-     * @throws AutosysParamNotFoundException if no Autosys parameters are found for the given requirementId.
-     */
-    public List<Map<String, Object>> buildJilFiles(String requirementId) {
-        // Fetch Jira story using requirementId
-        List<JiraStoryIntake> jiraList = jiraRepo.findByRequirementId(requirementId);
-        if (jiraList == null || jiraList.isEmpty()) {
-            throw new JiraStoryNotFoundException("Jira story not found for requirementId: " + requirementId);
-        }
-        JiraStoryIntake jira = jiraList.get(0);
-        
-        // Determine flow type from targetType ("GCP" for INGRESS, "Hive" for EDL)
-        String targetType = jira.getTargetType();
-        boolean isIngress = "GCP".equalsIgnoreCase(targetType);
-        
-        // Fetch Autosys parameters for this requirement
-        Optional<AutosysParam> autosysOpt = autosysParamRepo.findById(requirementId);
-        if (!autosysOpt.isPresent()) {
-            throw new AutosysParamNotFoundException("Autosys parameters not found for requirementId: " + requirementId);
-        }
-        AutosysParam param = autosysOpt.get();
-        
-        List<Map<String, Object>> jilFiles = new ArrayList<>();
-        if (isIngress) {
-            // For INGRESS, build two files:
-            
-            // File 1 uses edl-prefixed fields.
-            JilFileConfig config1 = new JilFileConfig(
-                    param.getEdlboxJobName(),
-                    param.getEdlcmdJobName(),
-                    param.getEdlDateCondition(),
-                    param.getEdlDaysOfWeek(),
-                    param.getEdlStartTime(),
-                    param.getEdlDescription(),
-                    param.getEdlWrapperScript(),
-                    param.getEdlConnectionName(),
-                    param.getEdlMachineName(),
-                    param.getEdlOwner(),
-                    param.getEdlDependenciesCondition(),
-                    param.getEdlProfilePath(),
-                    "INGRESS_JIL_1"
-            );
-            Map<String, Object> file1 = buildJilFile(config1);
-            jilFiles.add(file1);
-            
-            // File 2 uses cdmp-prefixed fields.
-            JilFileConfig config2 = new JilFileConfig(
-                    param.getCdmpboxJobName(),
-                    param.getCdmpcmdJobName(),
-                    param.getCdmpDateCondition(),
-                    param.getCdmpDaysOfWeek(),
-                    param.getCdmpStartTime(),
-                    param.getCdmpDescription(),
-                    param.getCdmpWrapperScript(),
-                    param.getCdmpConnectionName(),
-                    param.getCdmpMachineName(),
-                    param.getCdmpOwner(),
-                    param.getCdmpDependenciesCondition(),
-                    param.getCdmpProfilePath(),
-                    "INGRESS_JIL_2"
-            );
-            Map<String, Object> file2 = buildJilFile(config2);
-            jilFiles.add(file2);
-        } else {
-            // For EDL, build one file using non-prefixed fields.
-            JilFileConfig config = new JilFileConfig(
-                    param.getBoxJobName(),
-                    param.getCmdJobName(),
-                    param.getDateCondition(),
-                    param.getDaysOfWeek(),
-                    param.getStartTime(),
-                    param.getDescription(),
-                    param.getWrapperScript(),
-                    param.getConnectionName(),
-                    param.getMachineName(),
-                    param.getOwner(),
-                    param.getDependenciesCondition(),
-                    param.getProfilePath(),
-                    "EDL_JIL"
-            );
-            Map<String, Object> file = buildJilFile(config);
-            jilFiles.add(file);
-        }
-        return jilFiles;
+    public JilMetadata() {
     }
-    
-    /**
-     * Helper method to build a uniform JIL file object using the provided configuration.
-     *
-     * @param config the configuration object containing all necessary parameters.
-     * @return A JIL file object in the uniform structure.
-     */
-    private Map<String, Object> buildJilFile(JilFileConfig config) {
-        // Build main box (the top-level job)
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put("insert_job", config.getBoxJobName());
-        mainBox.put("job_type", "BOX");
-        mainBox.put("owner", config.getOwner() != null ? config.getOwner() : "<owner name>");
-        mainBox.put("permission", "me,mx,ge,gx,we,wx");
-        mainBox.put("date_conditions", config.getDateCondition());
-        mainBox.put("days_of_week", config.getDaysOfWeek());
-        mainBox.put("start_times", "\"" + config.getStartTime() + "\"");
-        mainBox.put("description", config.getDescription());
-        mainBox.put("alarm_if_fail", 1);
-        mainBox.put("alarm_if_terminated", 1);
-        mainBox.put("timezone", "US/Central");
-        mainBox.put("application", "UTCAP");
-        
-        // Build CMD job within the main box's "properties"
-        Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put("insert_job", config.getCmdJobName());
-        cmdJob.put("job_type", "CMD");
-        cmdJob.put("box_name", config.getBoxJobName());
-        // Create a simple command string using the wrapperScript and connectionName.
-        String[] parts = config.getBoxJobName().split("_");
-        String identifier = parts.length > 1 ? parts[1] : "";
-        String command = "sh -x " + config.getWrapperScript() + " " + identifier + " " + config.getBoxJobName() + ".json " + config.getConnectionName();
-        cmdJob.put("command", command);
-        cmdJob.put("machine", config.getMachineName());
-        cmdJob.put("owner", config.getOwner() != null ? config.getOwner() : "<owner name>");
-        cmdJob.put("permission", "me,mx,ge,gx,we,wx");
-        cmdJob.put("date_conditions", 0);
-        cmdJob.put("condition", config.getDependenciesCond());
-        cmdJob.put("description", config.getDescription());
-        cmdJob.put("std_out_file", "<filename>");
-        cmdJob.put("std_err_file", "<filename>");
-        cmdJob.put("alarm_if_fail", 1);
-        cmdJob.put("profile", config.getProfilePath());
-        cmdJob.put("job_load", 30);
-        cmdJob.put("priority", DEFAULT_JOB_PRIORITY);
-        cmdJob.put("alarm_if_terminated", 1);
-        cmdJob.put("timezone", "US/Central");
-        cmdJob.put("application", "UTCAP");
-        cmdJob.put("success_codes", 0);
-        cmdJob.put("fail_codes", "1-9999");
-        
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob);
-        mainBox.put("properties", properties);
-        
-        // Wrap the mainBox in the jsonData structure
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put("mainBox", mainBox);
-        
-        // Create the final file object with uniform keys.
-        Map<String, Object> fileObject = new LinkedHashMap<>();
-        fileObject.put("fileName", config.getDefaultFileName());
-        fileObject.put("jsonData", jsonData);
-        fileObject.put("content", "");  // Initially empty
-        
-        return fileObject;
+
+    public JilMetadata(String document, Document metaData) {
+        this.document = document;
+        // Defensive copy
+        this.metaData = metaData == null ? null : Document.parse(metaData.toJson());
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getDocument() {
+        return document;
+    }
+
+    public void setDocument(String document) {
+        this.document = document;
+    }
+
+    public Document getMetaData() {
+        // Defensive copy
+        return metaData == null ? null : Document.parse(metaData.toJson());
+    }
+
+    public void setMetaData(Document metaData) {
+        // Defensive copy
+        this.metaData = metaData == null ? null : Document.parse(metaData.toJson());
     }
 }
-```
-
----
-
-### 2. JilFileConfig.java
-
-```java
-package com.wellsfargo.utcap.service;
-
-/**
- * Data Transfer Object to encapsulate configuration values for building a JIL file.
- */
-public class JilFileConfig {
-    private String boxJobName;
-    private String cmdJobName;
-    private String dateCondition;
-    private String daysOfWeek;
-    private String startTime;
-    private String description;
-    private String wrapperScript;
-    private String connectionName;
-    private String machineName;
-    private String owner;
-    private String dependenciesCond;
-    private String profilePath;
-    private String defaultFileName;
-
-    public JilFileConfig(String boxJobName, String cmdJobName, String dateCondition, String daysOfWeek,
-                         String startTime, String description, String wrapperScript, String connectionName,
-                         String machineName, String owner, String dependenciesCond, String profilePath,
-                         String defaultFileName) {
-        this.boxJobName = boxJobName;
-        this.cmdJobName = cmdJobName;
-        this.dateCondition = dateCondition;
-        this.daysOfWeek = daysOfWeek;
-        this.startTime = startTime;
-        this.description = description;
-        this.wrapperScript = wrapperScript;
-        this.connectionName = connectionName;
-        this.machineName = machineName;
-        this.owner = owner;
-        this.dependenciesCond = dependenciesCond;
-        this.profilePath = profilePath;
-        this.defaultFileName = defaultFileName;
-    }
-
-    // Getters and setters
-    public String getBoxJobName() {
-        return boxJobName;
-    }
-
-    public void setBoxJobName(String boxJobName) {
-        this.boxJobName = boxJobName;
-    }
-
-    public String getCmdJobName() {
-        return cmdJobName;
-    }
-
-    public void setCmdJobName(String cmdJobName) {
-        this.cmdJobName = cmdJobName;
-    }
-
-    public String getDateCondition() {
-        return dateCondition;
-    }
-
-    public void setDateCondition(String dateCondition) {
-        this.dateCondition = dateCondition;
-    }
-
-    public String getDaysOfWeek() {
-        return daysOfWeek;
-    }
-
-    public void setDaysOfWeek(String daysOfWeek) {
-        this.daysOfWeek = daysOfWeek;
-    }
-
-    public String getStartTime() {
-        return startTime;
-    }
-
-    public void setStartTime(String startTime) {
-        this.startTime = startTime;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getWrapperScript() {
-        return wrapperScript;
-    }
-
-    public void setWrapperScript(String wrapperScript) {
-        this.wrapperScript = wrapperScript;
-    }
-
-    public String getConnectionName() {
-        return connectionName;
-    }
-
-    public void setConnectionName(String connectionName) {
-        this.connectionName = connectionName;
-    }
-
-    public String getMachineName() {
-        return machineName;
-    }
-
-    public void setMachineName(String machineName) {
-        this.machineName = machineName;
-    }
-
-    public String getOwner() {
-        return owner;
-    }
-
-    public void setOwner(String owner) {
-        this.owner = owner;
-    }
-
-    public String getDependenciesCond() {
-        return dependenciesCond;
-    }
-
-    public void setDependenciesCond(String dependenciesCond) {
-        this.dependenciesCond = dependenciesCond;
-    }
-
-    public String getProfilePath() {
-        return profilePath;
-    }
-
-    public void setProfilePath(String profilePath) {
-        this.profilePath = profilePath;
-    }
-
-    public String getDefaultFileName() {
-        return defaultFileName;
-    }
-
-    public void setDefaultFileName(String defaultFileName) {
-        this.defaultFileName = defaultFileName;
-    }
-}
-```
-
----
-
-### 3. JiraStoryNotFoundException.java
-
-```java
-package com.wellsfargo.utcap.service;
-
-/**
- * Custom exception to indicate that a Jira story was not found for a given requirementId.
- */
-public class JiraStoryNotFoundException extends RuntimeException {
-    public JiraStoryNotFoundException(String message) {
-        super(message);
-    }
-}
-```
-
----
-
-### 4. AutosysParamNotFoundException.java
-
-```java
-package com.wellsfargo.utcap.service;
-
-/**
- * Custom exception to indicate that Autosys parameters were not found for a given requirementId.
- */
-public class AutosysParamNotFoundException extends RuntimeException {
-    public AutosysParamNotFoundException(String message) {
-        super(message);
-    }
-}
-```
-
----
-
-### Summary
-
-- The **JilFileBuilder** now uses custom exceptions for missing data.
-- The 13-parameter method has been refactored into a single method that accepts a **JilFileConfig** object.
-- The magic number `290` is now represented by the constant `DEFAULT_JOB_PRIORITY`.
-- Trailing comments have been repositioned according to standard coding style.
-
-These updates should resolve the Sonar issues while keeping your design clear and maintainable. Let me know if you need any further adjustments or clarifications!
