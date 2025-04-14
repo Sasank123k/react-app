@@ -3,16 +3,16 @@ package com.wellsfargo.utcap.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wellsfargo.utcap.model.JilFile;
 import com.wellsfargo.utcap.service.JilFileService;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@RunWith(SpringRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class JilFileControllerTest {
 
     private MockMvc mockMvc;
@@ -34,9 +34,9 @@ public class JilFileControllerTest {
     @InjectMocks
     private JilFileController jilFileController;
 
-    @Before
+    @BeforeEach
     public void setUp() {
-        // Initialize MockMvc with the controller under test
+        // Initialize MockMvc in standalone mode using JUnit 5 lifecycle annotation.
         mockMvc = MockMvcBuilders.standaloneSetup(jilFileController).build();
     }
 
@@ -56,7 +56,7 @@ public class JilFileControllerTest {
         dummyJilFiles.add(sampleFile);
         dummyJilFile.setJilFiles(dummyJilFiles);
 
-        // Set up the service mock to return the dummy JilFile.
+        // Configure the service mock to return the dummy JilFile.
         when(jilFileService.getOrBuildJilData(requirementId)).thenReturn(dummyJilFile);
 
         // Perform GET and verify HTTP 200 OK and that the response contains the expected data.
@@ -73,7 +73,7 @@ public class JilFileControllerTest {
     public void testGetJilDataError() throws Exception {
         String requirementId = "reqError";
 
-        // Configure the service to throw an exception when this requirementId is used.
+        // Configure the service mock to throw an exception.
         when(jilFileService.getOrBuildJilData(requirementId))
                 .thenThrow(new RuntimeException("Test exception"));
 
@@ -98,7 +98,7 @@ public class JilFileControllerTest {
         inputJilFiles.add(sampleInput);
         inputJilFile.setJilFiles(inputJilFiles);
 
-        // Create a dummy JilFile that simulates the updated response.
+        // Create a dummy JilFile simulating an updated response.
         JilFile updatedJilFile = new JilFile();
         updatedJilFile.setRequirementId(requirementId);
         List<Map<String, Object>> updatedJilFiles = new ArrayList<>();
@@ -141,7 +141,7 @@ public class JilFileControllerTest {
         ObjectMapper objectMapper = new ObjectMapper();
         String inputJson = objectMapper.writeValueAsString(inputJilFile);
 
-        // Configure the service mock to throw an exception to simulate a failure.
+        // Configure the service mock to throw an exception, simulating a failure.
         when(jilFileService.saveJilData(eq(requirementId), anyList()))
                 .thenThrow(new RuntimeException("Test exception"));
 
