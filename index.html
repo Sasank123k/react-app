@@ -1,178 +1,30 @@
-package com.wellsfargo.utcap.controller;
+package com.wellsfargo.utcap.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wellsfargo.utcap.model.JilMetadata;
-import com.wellsfargo.utcap.service.JilMetadataService;
-import org.bson.Document;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.when;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@ExtendWith(MockitoExtension.class)
-public class JilMetadataControllerTest {
-
-    private MockMvc mockMvc;
-
-    private ObjectMapper objectMapper;
-
-    @Mock
-    private JilMetadataService service;
-
-    @InjectMocks
-    private JilMetadataController controller;
-
-    @BeforeEach
-    public void setup() {
-        objectMapper = new ObjectMapper();
-        // Standalone setup with the controller
-        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
-    }
-
-    /**
-     * Test GET /api/jilMetadata returns the list of metadata.
-     */
-    @Test
-    public void testGetAllMetadata() throws Exception {
-        List<JilMetadata> list = new ArrayList<>();
-        JilMetadata metadata = new JilMetadata("doc1", new Document("key", "value"));
-        metadata.setId("1");
-        list.add(metadata);
-
-        when(service.getAllMetadata()).thenReturn(list);
-
-        mockMvc.perform(get("/api/jilMetadata"))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$[0].id").value("1"))
-               .andExpect(jsonPath("$[0].document").value("doc1"))
-               .andExpect(jsonPath("$[0].metaData.key").value("value"));
-    }
-
-    /**
-     * Test GET /api/jilMetadata/{id} with a valid id returns metadata.
-     */
-    @Test
-    public void testGetMetadataByIdSuccess() throws Exception {
-        JilMetadata metadata = new JilMetadata("doc1", new Document("key", "value"));
-        metadata.setId("1");
-
-        when(service.getMetadataById("1")).thenReturn(Optional.of(metadata));
-
-        mockMvc.perform(get("/api/jilMetadata/1"))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.id").value("1"))
-               .andExpect(jsonPath("$.document").value("doc1"))
-               .andExpect(jsonPath("$.metaData.key").value("value"));
-    }
-
-    /**
-     * Test GET /api/jilMetadata/{id} with an invalid id returns 404.
-     */
-    @Test
-    public void testGetMetadataByIdNotFound() throws Exception {
-        when(service.getMetadataById("1")).thenReturn(Optional.empty());
-
-        mockMvc.perform(get("/api/jilMetadata/1"))
-               .andExpect(status().isNotFound());
-    }
-
-    /**
-     * Test POST /api/jilMetadata creates new metadata.
-     */
-    @Test
-    public void testCreateMetadata() throws Exception {
-        // Input metadata (id is null before creation)
-        JilMetadata input = new JilMetadata("doc1", new Document("key", "value"));
-
-        // Simulated saved metadata with id assigned.
-        JilMetadata saved = new JilMetadata("doc1", new Document("key", "value"));
-        saved.setId("1");
-
-        when(service.createMetadata(any(JilMetadata.class))).thenReturn(saved);
-
-        String inputJson = objectMapper.writeValueAsString(input);
-
-        mockMvc.perform(post("/api/jilMetadata")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(inputJson))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.id").value("1"))
-               .andExpect(jsonPath("$.document").value("doc1"))
-               .andExpect(jsonPath("$.metaData.key").value("value"));
-    }
-
-    /**
-     * Test PUT /api/jilMetadata/{id} updates metadata successfully.
-     */
-    @Test
-    public void testUpdateMetadataSuccess() throws Exception {
-        // Input for update
-        JilMetadata input = new JilMetadata("docUpdated", new Document("key", "newValue"));
-        // Updated metadata with id assigned
-        JilMetadata updated = new JilMetadata("docUpdated", new Document("key", "newValue"));
-        updated.setId("1");
-
-        when(service.updateMetadata(eq("1"), any(JilMetadata.class))).thenReturn(updated);
-
-        String inputJson = objectMapper.writeValueAsString(input);
-
-        mockMvc.perform(put("/api/jilMetadata/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(inputJson))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.id").value("1"))
-               .andExpect(jsonPath("$.document").value("docUpdated"))
-               .andExpect(jsonPath("$.metaData.key").value("newValue"));
-    }
-
-    /**
-     * Test PUT /api/jilMetadata/{id} returns 404 if metadata is not found.
-     */
-    @Test
-    public void testUpdateMetadataNotFound() throws Exception {
-        JilMetadata input = new JilMetadata("docUpdated", new Document("key", "newValue"));
-
-        when(service.updateMetadata(eq("1"), any(JilMetadata.class)))
-                .thenThrow(new RuntimeException("Metadata not found with id: 1"));
-
-        String inputJson = objectMapper.writeValueAsString(input);
-
-        mockMvc.perform(put("/api/jilMetadata/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(inputJson))
-               .andExpect(status().isNotFound());
-    }
-
-    /**
-     * Test DELETE /api/jilMetadata/{id} deletes metadata.
-     */
-    @Test
-    public void testDeleteMetadata() throws Exception {
-        // Configure the service to do nothing; deleteMetadata returns void.
-        doNothing().when(service).deleteMetadata("1");
-
-        mockMvc.perform(delete("/api/jilMetadata/1"))
-               .andExpect(status().isNoContent());
-    }
+/**
+ * Data Transfer Object to encapsulate configuration values for building a JIL file.
+ * This version uses Lombok to avoid writing a constructor with 13 parameters and to remove duplicated code.
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class JilFileConfig {
+    private String boxJobName;
+    private String cmdJobName;
+    private String dateCondition;
+    private String daysOfWeek;
+    private String startTime;
+    private String description;
+    private String wrapperScript;
+    private String connectionName;
+    private String machineName;
+    private String owner;
+    private String dependenciesCond;
+    private String profilePath;
+    private String defaultFileName;
 }
