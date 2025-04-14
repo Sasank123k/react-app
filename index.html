@@ -1,69 +1,178 @@
 package com.wellsfargo.utcap.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wellsfargo.utcap.model.JilMetadata;
 import com.wellsfargo.utcap.service.JilMetadataService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;  // Added logging import
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.bson.Document;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Collections;  // Added for unmodifiableList
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-@RestController
-@RequestMapping("/api/jilMetadata")
-public class JilMetadataController {
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-    private static final Logger logger = LoggerFactory.getLogger(JilMetadataController.class);
-    private final JilMetadataService service;
+@ExtendWith(MockitoExtension.class)
+public class JilMetadataControllerTest {
 
-    @Autowired
-    public JilMetadataController(JilMetadataService service) {
-        this.service = service;
+    private MockMvc mockMvc;
+
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private JilMetadataService service;
+
+    @InjectMocks
+    private JilMetadataController controller;
+
+    @BeforeEach
+    public void setup() {
+        objectMapper = new ObjectMapper();
+        // Standalone setup with the controller
+        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
-    // Get all metadata documents
-    @GetMapping
-    public ResponseEntity<List<JilMetadata>> getAllMetadata() {
-        List<JilMetadata> metadataList = service.getAllMetadata();
-        // Return an unmodifiable list to prevent external modifications.
-        return ResponseEntity.ok(Collections.unmodifiableList(metadataList));
+    /**
+     * Test GET /api/jilMetadata returns the list of metadata.
+     */
+    @Test
+    public void testGetAllMetadata() throws Exception {
+        List<JilMetadata> list = new ArrayList<>();
+        JilMetadata metadata = new JilMetadata("doc1", new Document("key", "value"));
+        metadata.setId("1");
+        list.add(metadata);
+
+        when(service.getAllMetadata()).thenReturn(list);
+
+        mockMvc.perform(get("/api/jilMetadata"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$[0].id").value("1"))
+               .andExpect(jsonPath("$[0].document").value("doc1"))
+               .andExpect(jsonPath("$[0].metaData.key").value("value"));
     }
 
-    // Get metadata by id
-    @GetMapping("/{id}")
-    public ResponseEntity<JilMetadata> getMetadataById(@PathVariable String id) {
-        Optional<JilMetadata> metadata = service.getMetadataById(id);
-        return metadata.map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    /**
+     * Test GET /api/jilMetadata/{id} with a valid id returns metadata.
+     */
+    @Test
+    public void testGetMetadataByIdSuccess() throws Exception {
+        JilMetadata metadata = new JilMetadata("doc1", new Document("key", "value"));
+        metadata.setId("1");
+
+        when(service.getMetadataById("1")).thenReturn(Optional.of(metadata));
+
+        mockMvc.perform(get("/api/jilMetadata/1"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.id").value("1"))
+               .andExpect(jsonPath("$.document").value("doc1"))
+               .andExpect(jsonPath("$.metaData.key").value("value"));
     }
 
-    // Create new metadata
-    @PostMapping
-    public ResponseEntity<JilMetadata> createMetadata(@RequestBody JilMetadata metadata) {
-        JilMetadata created = service.createMetadata(metadata);
-        return ResponseEntity.ok(created);
+    /**
+     * Test GET /api/jilMetadata/{id} with an invalid id returns 404.
+     */
+    @Test
+    public void testGetMetadataByIdNotFound() throws Exception {
+        when(service.getMetadataById("1")).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/jilMetadata/1"))
+               .andExpect(status().isNotFound());
     }
 
-    // Update existing metadata
-    @PutMapping("/{id}")
-    public ResponseEntity<JilMetadata> updateMetadata(@PathVariable String id, @RequestBody JilMetadata metadata) {
-        try {
-            JilMetadata updated = service.updateMetadata(id, metadata);
-            return ResponseEntity.ok(updated);
-        } catch (RuntimeException ex) {
-            // Log the exception details and rethrow it.
-            logger.error("Error updating JilMetadata for id: {}", id, ex);
-            throw ex;
-        }
+    /**
+     * Test POST /api/jilMetadata creates new metadata.
+     */
+    @Test
+    public void testCreateMetadata() throws Exception {
+        // Input metadata (id is null before creation)
+        JilMetadata input = new JilMetadata("doc1", new Document("key", "value"));
+
+        // Simulated saved metadata with id assigned.
+        JilMetadata saved = new JilMetadata("doc1", new Document("key", "value"));
+        saved.setId("1");
+
+        when(service.createMetadata(any(JilMetadata.class))).thenReturn(saved);
+
+        String inputJson = objectMapper.writeValueAsString(input);
+
+        mockMvc.perform(post("/api/jilMetadata")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inputJson))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.id").value("1"))
+               .andExpect(jsonPath("$.document").value("doc1"))
+               .andExpect(jsonPath("$.metaData.key").value("value"));
     }
 
-    // Delete metadata by id
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteMetadata(@PathVariable String id) {
-        service.deleteMetadata(id);
-        return ResponseEntity.noContent().build();
+    /**
+     * Test PUT /api/jilMetadata/{id} updates metadata successfully.
+     */
+    @Test
+    public void testUpdateMetadataSuccess() throws Exception {
+        // Input for update
+        JilMetadata input = new JilMetadata("docUpdated", new Document("key", "newValue"));
+        // Updated metadata with id assigned
+        JilMetadata updated = new JilMetadata("docUpdated", new Document("key", "newValue"));
+        updated.setId("1");
+
+        when(service.updateMetadata(eq("1"), any(JilMetadata.class))).thenReturn(updated);
+
+        String inputJson = objectMapper.writeValueAsString(input);
+
+        mockMvc.perform(put("/api/jilMetadata/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inputJson))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.id").value("1"))
+               .andExpect(jsonPath("$.document").value("docUpdated"))
+               .andExpect(jsonPath("$.metaData.key").value("newValue"));
+    }
+
+    /**
+     * Test PUT /api/jilMetadata/{id} returns 404 if metadata is not found.
+     */
+    @Test
+    public void testUpdateMetadataNotFound() throws Exception {
+        JilMetadata input = new JilMetadata("docUpdated", new Document("key", "newValue"));
+
+        when(service.updateMetadata(eq("1"), any(JilMetadata.class)))
+                .thenThrow(new RuntimeException("Metadata not found with id: 1"));
+
+        String inputJson = objectMapper.writeValueAsString(input);
+
+        mockMvc.perform(put("/api/jilMetadata/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inputJson))
+               .andExpect(status().isNotFound());
+    }
+
+    /**
+     * Test DELETE /api/jilMetadata/{id} deletes metadata.
+     */
+    @Test
+    public void testDeleteMetadata() throws Exception {
+        // Configure the service to do nothing; deleteMetadata returns void.
+        doNothing().when(service).deleteMetadata("1");
+
+        mockMvc.perform(delete("/api/jilMetadata/1"))
+               .andExpect(status().isNoContent());
     }
 }
