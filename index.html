@@ -3,109 +3,155 @@ package com.wellsfargo.utcap.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wellsfargo.utcap.model.JilFile;
 import com.wellsfargo.utcap.service.JilFileService;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.mockito.ArgumentMatchers.any;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.*;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = JilFileController.class, 
-    excludeAutoConfiguration = {DataSourceAutoConfiguration.class})
+@ExtendWith(MockitoExtension.class)
+@RunWith(SpringRunner.class)
 public class JilFileControllerTest {
 
-    @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
-    private JilFileService service;
+    @Mock
+    private JilFileService jilFileService;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @InjectMocks
+    private JilFileController jilFileController;
 
-    /**
-     * Test GET /api/jilData/{requirementId} for a successful response.
-     */
-    @Test
-    public void testGetJilDataSuccess() throws Exception {
-        // Prepare a sample JilFile with dummy data
-        List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
-        Map<String, Object> file = new HashMap<>();
-        file.put("fileName", "sampleFile");
-        dummyJilFiles.add(file);
-        JilFile sampleJilFile = new JilFile("req123", dummyJilFiles);
-
-        when(service.getOrBuildJilData("req123")).thenReturn(sampleJilFile);
-
-        mockMvc.perform(get("/api/jilData/req123"))
-               .andExpect(status().isOk())
-               .andExpect(content().json(objectMapper.writeValueAsString(sampleJilFile)));
+    @Before
+    public void setUp() {
+        // Initialize MockMvc with the controller under test
+        mockMvc = MockMvcBuilders.standaloneSetup(jilFileController).build();
     }
 
     /**
-     * Test GET /api/jilData/{requirementId} when the service throws an exception.
+     * Test the GET /api/jilData/{requirementId} endpoint for a successful retrieval.
      */
     @Test
-    public void testGetJilDataFailure() throws Exception {
-        when(service.getOrBuildJilData("reqError")).thenThrow(new RuntimeException("Service Error"));
+    public void testGetJilDataSuccess() throws Exception {
+        String requirementId = "req123";
 
-        mockMvc.perform(get("/api/jilData/reqError"))
+        // Create a dummy JilFile object to be returned by the mocked service.
+        JilFile dummyJilFile = new JilFile();
+        dummyJilFile.setRequirementId(requirementId);
+        List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
+        Map<String, Object> sampleFile = new HashMap<>();
+        sampleFile.put("fileName", "sampleFile");
+        dummyJilFiles.add(sampleFile);
+        dummyJilFile.setJilFiles(dummyJilFiles);
+
+        // Set up the service mock to return the dummy JilFile.
+        when(jilFileService.getOrBuildJilData(requirementId)).thenReturn(dummyJilFile);
+
+        // Perform GET and verify HTTP 200 OK and that the response contains the expected data.
+        mockMvc.perform(get("/api/jilData/" + requirementId))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.requirementId").value(requirementId))
+               .andExpect(jsonPath("$.jilFiles[0].fileName").value("sampleFile"));
+    }
+
+    /**
+     * Test the GET /api/jilData/{requirementId} endpoint when the service throws an exception.
+     */
+    @Test
+    public void testGetJilDataError() throws Exception {
+        String requirementId = "reqError";
+
+        // Configure the service to throw an exception when this requirementId is used.
+        when(jilFileService.getOrBuildJilData(requirementId))
+                .thenThrow(new RuntimeException("Test exception"));
+
+        // Perform GET and verify that a 500 Internal Server Error status is returned.
+        mockMvc.perform(get("/api/jilData/" + requirementId))
                .andExpect(status().isInternalServerError());
     }
 
     /**
-     * Test PUT /api/jilData/{requirementId} for a successful update.
+     * Test the PUT /api/jilData/{requirementId} endpoint for a successful update.
      */
     @Test
-    public void testUpdateJilDataSuccess() throws Exception {
-        // Create a sample input JilFile with dummy data
-        List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
-        Map<String, Object> file = new HashMap<>();
-        file.put("fileName", "updatedFile");
-        dummyJilFiles.add(file);
-        JilFile inputJilFile = new JilFile("req789", dummyJilFiles);
+    public void testPutJilDataSuccess() throws Exception {
+        String requirementId = "req123";
 
-        // Assume the service returns the same object after updating.
-        when(service.saveJilData(eq("req789"), any())).thenReturn(inputJilFile);
+        // Create a dummy JilFile input for the request.
+        JilFile inputJilFile = new JilFile();
+        inputJilFile.setRequirementId(requirementId);
+        List<Map<String, Object>> inputJilFiles = new ArrayList<>();
+        Map<String, Object> sampleInput = new HashMap<>();
+        sampleInput.put("fileName", "inputFile");
+        inputJilFiles.add(sampleInput);
+        inputJilFile.setJilFiles(inputJilFiles);
 
-        mockMvc.perform(put("/api/jilData/req789")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(inputJilFile)))
+        // Create a dummy JilFile that simulates the updated response.
+        JilFile updatedJilFile = new JilFile();
+        updatedJilFile.setRequirementId(requirementId);
+        List<Map<String, Object>> updatedJilFiles = new ArrayList<>();
+        Map<String, Object> sampleUpdated = new HashMap<>();
+        sampleUpdated.put("fileName", "updatedFile");
+        updatedJilFiles.add(sampleUpdated);
+        updatedJilFile.setJilFiles(updatedJilFiles);
+
+        // Configure the service mock to return the updated object.
+        when(jilFileService.saveJilData(eq(requirementId), anyList())).thenReturn(updatedJilFile);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String inputJson = objectMapper.writeValueAsString(inputJilFile);
+
+        // Perform PUT and verify HTTP 200 OK with the expected updated content.
+        mockMvc.perform(put("/api/jilData/" + requirementId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inputJson))
                .andExpect(status().isOk())
-               .andExpect(content().json(objectMapper.writeValueAsString(inputJilFile)));
+               .andExpect(jsonPath("$.requirementId").value(requirementId))
+               .andExpect(jsonPath("$.jilFiles[0].fileName").value("updatedFile"));
     }
 
     /**
-     * Test PUT /api/jilData/{requirementId} when the service throws an exception.
+     * Test the PUT /api/jilData/{requirementId} endpoint when the service throws an exception.
      */
     @Test
-    public void testUpdateJilDataFailure() throws Exception {
-        // Create a sample input JilFile with dummy data
-        List<Map<String, Object>> dummyJilFiles = new ArrayList<>();
-        Map<String, Object> file = new HashMap<>();
-        file.put("fileName", "failFile");
-        dummyJilFiles.add(file);
-        JilFile inputJilFile = new JilFile("req987", dummyJilFiles);
+    public void testPutJilDataError() throws Exception {
+        String requirementId = "reqError";
 
-        when(service.saveJilData(eq("req987"), any())).thenThrow(new RuntimeException("Update failed"));
+        // Create a dummy JilFile input for the request.
+        JilFile inputJilFile = new JilFile();
+        inputJilFile.setRequirementId(requirementId);
+        List<Map<String, Object>> inputJilFiles = new ArrayList<>();
+        Map<String, Object> sampleInput = new HashMap<>();
+        sampleInput.put("fileName", "inputFile");
+        inputJilFiles.add(sampleInput);
+        inputJilFile.setJilFiles(inputJilFiles);
 
-        mockMvc.perform(put("/api/jilData/req987")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(inputJilFile)))
+        ObjectMapper objectMapper = new ObjectMapper();
+        String inputJson = objectMapper.writeValueAsString(inputJilFile);
+
+        // Configure the service mock to throw an exception to simulate a failure.
+        when(jilFileService.saveJilData(eq(requirementId), anyList()))
+                .thenThrow(new RuntimeException("Test exception"));
+
+        // Perform PUT and verify that a 500 Internal Server Error status is returned.
+        mockMvc.perform(put("/api/jilData/" + requirementId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inputJson))
                .andExpect(status().isInternalServerError());
     }
 }
