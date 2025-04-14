@@ -1,50 +1,69 @@
-import org.bson.Document;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document as MongoDocument;
+package com.wellsfargo.utcap.controller;
 
-@MongoDocument(collection = "jilMetadata")
-public class JilMetadata {
+import com.wellsfargo.utcap.model.JilMetadata;
+import com.wellsfargo.utcap.service.JilMetadataService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;  // Added logging import
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-    @Id
-    private String id;
+import java.util.Collections;  // Added for unmodifiableList
+import java.util.List;
+import java.util.Optional;
 
-    private String document;
+@RestController
+@RequestMapping("/api/jilMetadata")
+public class JilMetadataController {
 
-    // Store as private to prevent direct access
-    private Document metaData;
+    private static final Logger logger = LoggerFactory.getLogger(JilMetadataController.class);
+    private final JilMetadataService service;
 
-    public JilMetadata() {
+    @Autowired
+    public JilMetadataController(JilMetadataService service) {
+        this.service = service;
     }
 
-    public JilMetadata(String document, Document metaData) {
-        this.document = document;
-        // Defensive copy
-        this.metaData = metaData == null ? null : Document.parse(metaData.toJson());
+    // Get all metadata documents
+    @GetMapping
+    public ResponseEntity<List<JilMetadata>> getAllMetadata() {
+        List<JilMetadata> metadataList = service.getAllMetadata();
+        // Return an unmodifiable list to prevent external modifications.
+        return ResponseEntity.ok(Collections.unmodifiableList(metadataList));
     }
 
-    public String getId() {
-        return id;
+    // Get metadata by id
+    @GetMapping("/{id}")
+    public ResponseEntity<JilMetadata> getMetadataById(@PathVariable String id) {
+        Optional<JilMetadata> metadata = service.getMetadataById(id);
+        return metadata.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    public void setId(String id) {
-        this.id = id;
+    // Create new metadata
+    @PostMapping
+    public ResponseEntity<JilMetadata> createMetadata(@RequestBody JilMetadata metadata) {
+        JilMetadata created = service.createMetadata(metadata);
+        return ResponseEntity.ok(created);
     }
 
-    public String getDocument() {
-        return document;
+    // Update existing metadata
+    @PutMapping("/{id}")
+    public ResponseEntity<JilMetadata> updateMetadata(@PathVariable String id, @RequestBody JilMetadata metadata) {
+        try {
+            JilMetadata updated = service.updateMetadata(id, metadata);
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException ex) {
+            // Log the exception details and rethrow it.
+            logger.error("Error updating JilMetadata for id: {}", id, ex);
+            throw ex;
+        }
     }
 
-    public void setDocument(String document) {
-        this.document = document;
-    }
-
-    public Document getMetaData() {
-        // Defensive copy
-        return metaData == null ? null : Document.parse(metaData.toJson());
-    }
-
-    public void setMetaData(Document metaData) {
-        // Defensive copy
-        this.metaData = metaData == null ? null : Document.parse(metaData.toJson());
+    // Delete metadata by id
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteMetadata(@PathVariable String id) {
+        service.deleteMetadata(id);
+        return ResponseEntity.noContent().build();
     }
 }
