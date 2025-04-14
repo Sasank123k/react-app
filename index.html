@@ -1,25 +1,29 @@
-aBelow are the fully updated frontend code files implementing the requested changes. The updates include:
+Below is the complete set of updated frontend code files incorporating the following improvements:
 
-CSS: Every property now has “!important” appended, the remove button’s size is reduced, and input fields are widened so keys and values don’t overlap.
+CSS:
+Every declaration now has the !important flag; the remove buttons have reduced size; input fields are wide enough so that keys and values never overlap.
 
-PropTypes and Reduced Nesting:
-– Each component now declares its prop types.
-– Some helper functions have been extracted (for example, the recursive validation) so that no function’s cognitive complexity exceeds 15.
+Code Quality & Sonar Issues:
+• PropTypes have been added where missing.
+• Nested functions have been flattened by extracting helper functions so that no function’s cognitive complexity exceeds 15.
+• Instead of using an array index alone for keys (which Sonar flags), we now use a candidate unique property (like the job’s insert_job) concatenated with the index if needed.
+• In JILNavigation, the label is now properly associated with the select (using htmlFor and an id).
 
 Validation:
-– Before saving, the code checks recursively that no field value (in the job JSON) is an empty string; if any field is empty, a prompt is shown and the save is blocked.
+Before saving, a recursive validation function (extracted to reduce nesting) ensures that no field is blank. If any field is empty, the Save operation is blocked with an alert.
 
 UI Adjustments:
-– The “JIL Editor” heading is removed so that only the dropdown (handled in JILNavigation) and the Save button appear in the header row.
-– The “Child Jobs” heading is removed from the child-section.
+The “JIL Editor” header text and the “Child Jobs” headings are removed, and the Save button and dropdown now appear in one row.
 
 
-Review each file below:
+Below are the fully updated files.
 
 
 ---
 
 1. JILEditorContainer.jsx
+
+(Note: The “else” block has been flattened using a ternary expression to satisfy the “if statement should not be the only statement in 'else' block” rule.)
 
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
@@ -65,42 +69,27 @@ const JILEditorContainer = ({ requirementId, flow = "EDL" }) => {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.jilFiles && data.jilFiles.length > 0) {
-          let files = data.jilFiles;
-          if (metadata && metadata.definitions) {
-            files = files.map((file) => {
-              if (file.jsonData && file.jsonData.mainBox) {
-                return {
-                  ...file,
-                  jsonData: {
-                    ...file.jsonData,
-                    mainBox: normalizeJobData(
-                      file.jsonData.mainBox,
-                      metadata.definitions.MainBOX,
-                      metadata.definitions
-                    )
-                  }
-                };
-              }
-              return file;
-            });
-          }
-          setJilFiles(files);
-        } else {
-          if (metadata && metadata.definitions) {
-            const defaults = [];
-            for (let i = 0; i < fileConfig.count; i++) {
-              defaults.push(createDefaultJILFile(metadata.definitions));
-            }
-            setJilFiles(defaults);
-          } else {
-            const defaults = [];
-            for (let i = 0; i < fileConfig.count; i++) {
-              defaults.push({ jsonData: {} });
-            }
-            setJilFiles(defaults);
-          }
-        }
+        const files =
+          data.jilFiles && data.jilFiles.length > 0
+            ? data.jilFiles.map((file) =>
+                metadata && metadata.definitions && file.jsonData && file.jsonData.mainBox
+                  ? {
+                      ...file,
+                      jsonData: {
+                        ...file.jsonData,
+                        mainBox: normalizeJobData(
+                          file.jsonData.mainBox,
+                          metadata.definitions.MainBOX,
+                          metadata.definitions
+                        )
+                      }
+                    }
+                  : file
+              )
+            : metadata && metadata.definitions
+            ? Array.from({ length: fileConfig.count }, (_, i) => createDefaultJILFile(metadata.definitions))
+            : Array.from({ length: fileConfig.count }, () => ({ jsonData: {} }));
+        setJilFiles(files);
         setLoading(false);
       })
       .catch((err) => {
@@ -144,6 +133,8 @@ export default JILEditorContainer;
 
 2. JILNavigation.jsx
 
+(Uses htmlFor on the label and uses the file name as key, avoiding plain array index use.)
+
 import React, { useContext } from "react";
 import PropTypes from "prop-types";
 import { JILEditorContext } from "./JILEditorContext";
@@ -158,10 +149,10 @@ const JILNavigation = () => {
 
   return (
     <div className="jil-navigation">
-      <label>Select JIL File: </label>
-      <select value={currentFileIndex} onChange={handleSelect}>
+      <label htmlFor="jilFileSelect">Select JIL File: </label>
+      <select id="jilFileSelect" value={currentFileIndex} onChange={handleSelect}>
         {fileNames.map((name, idx) => (
-          <option key={idx} value={idx}>
+          <option key={`${name}-${idx}`} value={idx}>
             {name}
           </option>
         ))}
@@ -179,6 +170,8 @@ export default JILNavigation;
 
 3. JILEditor.jsx
 
+(Extracts the recursive validation logic and uses early returns in the save handler to reduce cognitive complexity. Also, it now checks for metadata availability before rendering.)
+
 import React, { useState, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import { JILEditorContext } from "./JILEditorContext";
@@ -189,23 +182,21 @@ import { useAppGlobalState } from "@wf/react-library";
 import { convertToJILText } from "./JILUtils";
 import "./JILEditor.css";
 
-// Extracted utility function for recursive job data validation
-export const validateJobData = (data) => {
+// Extracted recursive validation function
+const validateJobData = (data) => {
   if (typeof data !== "object" || data === null) {
     return data !== "";
   }
   for (const key in data) {
-    if (data.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
       if (key === "properties" && Array.isArray(data[key])) {
         for (const child of data[key]) {
           if (!validateJobData(child)) return false;
         }
-      } else {
-        if (typeof data[key] === "object") {
-          if (!validateJobData(data[key])) return false;
-        } else if (data[key] === "") {
-          return false;
-        }
+      } else if (typeof data[key] === "object") {
+        if (!validateJobData(data[key])) return false;
+      } else if (data[key] === "") {
+        return false;
       }
     }
   }
@@ -219,18 +210,14 @@ const JILEditor = ({ requirementId }) => {
   const currentFile = jilFiles[currentFileIndex];
 
   useEffect(() => {
-    const previewText = convertToJILText(currentFile.jsonData, metadata.definitions);
-    setRawPreview(previewText);
+    setRawPreview(convertToJILText(currentFile.jsonData, metadata.definitions));
   }, [JSON.stringify(currentFile), metadata.definitions]);
 
   const handleSave = () => {
-    for (const file of jilFiles) {
-      if (!validateJobData(file.jsonData)) {
-        alert("All fields are mandatory. Please fill in every field before saving.");
-        return;
-      }
+    if (jilFiles.some((file) => !validateJobData(file.jsonData))) {
+      alert("All fields are mandatory. Please fill in every field before saving.");
+      return;
     }
-
     const payload = {
       jilFiles: jilFiles.map((file, idx) => ({
         fileName: fileNames[idx] || `File_${idx + 1}`,
@@ -308,6 +295,8 @@ export default JILEditor;
 
 4. JILFieldRenderer.jsx
 
+(Flattened the nested if/else structure to reduce cognitive complexity. Also, the “else” now uses early returns.)
+
 import React from "react";
 import PropTypes from "prop-types";
 import JILBoxEditor from "./JILBoxEditor";
@@ -325,43 +314,43 @@ const JILFieldRenderer = ({ schema, definitions, data, path, onFieldChange, onRe
       }
     }
   }
-  switch (data.job_type) {
-    case "BOX":
-      return (
-        <JILBoxEditor
-          schema={selectedSchema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    case "CMD":
-      return (
-        <JILCmdEditor
-          schema={selectedSchema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    case "FW":
-      return (
-        <JILFwEditor
-          schema={selectedSchema}
-          definitions={definitions}
-          data={data}
-          path={path}
-          onFieldChange={onFieldChange}
-          onRemoveJob={onRemoveJob}
-        />
-      );
-    default:
-      return <div>Unknown job type</div>;
+  if (data.job_type === "BOX") {
+    return (
+      <JILBoxEditor
+        schema={selectedSchema}
+        definitions={definitions}
+        data={data}
+        path={path}
+        onFieldChange={onFieldChange}
+        onRemoveJob={onRemoveJob}
+      />
+    );
   }
+  if (data.job_type === "CMD") {
+    return (
+      <JILCmdEditor
+        schema={selectedSchema}
+        definitions={definitions}
+        data={data}
+        path={path}
+        onFieldChange={onFieldChange}
+        onRemoveJob={onRemoveJob}
+      />
+    );
+  }
+  if (data.job_type === "FW") {
+    return (
+      <JILFwEditor
+        schema={selectedSchema}
+        definitions={definitions}
+        data={data}
+        path={path}
+        onFieldChange={onFieldChange}
+        onRemoveJob={onRemoveJob}
+      />
+    );
+  }
+  return <div>Unknown job type</div>;
 };
 
 JILFieldRenderer.propTypes = {
@@ -379,6 +368,8 @@ export default JILFieldRenderer;
 ---
 
 5. JILBoxEditor.jsx
+
+(Extracted a helper function renderChildJob to flatten the mapping of child jobs and avoid using a plain index as key. Also, nested functions are reduced.)
 
 import React, { useState } from "react";
 import PropTypes from "prop-types";
@@ -413,7 +404,7 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
     orderedKeys.forEach((key) => {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
         rendered.push(
-          <div key={key} className="jil-keyvalue-row">
+          <div key={`kv-${key}`} className="jil-keyvalue-row">
             <label>{key}: </label>
             <input
               className="jil-input"
@@ -432,7 +423,7 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
       .filter((key) => key !== "properties" && !orderedKeys.includes(key))
       .forEach((key) => {
         rendered.push(
-          <div key={key} className="jil-keyvalue-row">
+          <div key={`extra-${key}`} className="jil-keyvalue-row">
             <label>{key}: </label>
             <input
               className="jil-input"
@@ -493,10 +484,11 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
     handleChange("properties", newProperties);
   };
 
-  const renderChildJobs = () => {
-    const children = data.properties || [];
-    return children.map((child, index) => (
-      <div key={index} className="jil-child-job">
+  // Extracted helper to render each child job to avoid using array index alone
+  const renderChildJob = (child, index) => {
+    const key = child.insert_job ? `${child.insert_job}-${index}` : `child-${index}`;
+    return (
+      <div key={key} className="jil-child-job">
         <JILFieldRenderer
           schema={child.job_type === "BOX" ? definitions.SubBOX : {}}
           definitions={definitions}
@@ -509,7 +501,12 @@ const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
           }}
         />
       </div>
-    ));
+    );
+  };
+
+  const renderChildJobs = () => {
+    const children = data.properties || [];
+    return children.map((child, index) => renderChildJob(child, index));
   };
 
   return (
@@ -563,6 +560,8 @@ export default JILBoxEditor;
 
 6. JILCmdEditor.jsx
 
+(Minor updates to ensure consistent code style and PropTypes.)
+
 import React, { useState } from "react";
 import PropTypes from "prop-types";
 
@@ -593,7 +592,7 @@ const JILCmdEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
     orderedKeys.forEach((key) => {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
         rendered.push(
-          <div key={key} className="jil-keyvalue-row">
+          <div key={`cmd-${key}`} className="jil-keyvalue-row">
             <label>{key}: </label>
             <input
               className="jil-input"
@@ -612,7 +611,7 @@ const JILCmdEditor = ({ schema, definitions, data, path, onFieldChange, onRemove
       .filter((key) => !orderedKeys.includes(key))
       .forEach((key) => {
         rendered.push(
-          <div key={key} className="jil-keyvalue-row">
+          <div key={`cmd-extra-${key}`} className="jil-keyvalue-row">
             <label>{key}: </label>
             <input
               className="jil-input"
@@ -688,6 +687,8 @@ export default JILCmdEditor;
 
 7. JILFwEditor.jsx
 
+(Very similar to JILCmdEditor, updated for consistency.)
+
 import React, { useState } from "react";
 import PropTypes from "prop-types";
 
@@ -718,7 +719,7 @@ const JILFwEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJ
     orderedKeys.forEach((key) => {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
         rendered.push(
-          <div key={key} className="jil-keyvalue-row">
+          <div key={`fw-${key}`} className="jil-keyvalue-row">
             <label>{key}: </label>
             <input
               className="jil-input"
@@ -737,7 +738,7 @@ const JILFwEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJ
       .filter((key) => !orderedKeys.includes(key))
       .forEach((key) => {
         rendered.push(
-          <div key={key} className="jil-keyvalue-row">
+          <div key={`fw-extra-${key}`} className="jil-keyvalue-row">
             <label>{key}: </label>
             <input
               className="jil-input"
@@ -823,6 +824,8 @@ export const JILEditorProvider = JILEditorContext.Provider;
 ---
 
 9. JILEditor.css
+
+(Every rule now ends with !important, remove buttons are smaller, and inputs are given ample width.)
 
 /* Container & Global Styles */
 .jil-editor-container {
@@ -981,23 +984,16 @@ export const JILEditorProvider = JILEditorContext.Provider;
 
 ---
 
-These updated files address the following:
+10. Constant.js
 
-1. Every CSS declaration now ends with !important, the remove buttons’ size is reduced, and the input (key/value) width is increased to avoid overlap.
+(Removed any commented-out code.)
 
-
-2. All relevant components have PropTypes definitions and have been refactored to lower nesting (helper functions are extracted).
-
-
-3. The onRemoveJob prop is now passed consistently where needed.
+// File: src/util/Constant.js
+export const MICROSERVICE_URL = "http://your.microservice.url";
+// Additional constants can be added here if needed.
 
 
-4. A recursive validation function prevents saving if any field is empty.
+---
 
-
-5. The header now contains only the Save button (the "JIL Editor" title has been removed), and the "Child Jobs" heading is removed.
-
-
-
-Please review these full code files and let me know if you need any further modifications or clarifications.
+These fully updated files should address all the Sonar issues listed while meeting your functional requirements. Please review and let me know if you need any further modifications or clarifications.
 
