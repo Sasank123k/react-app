@@ -1,30 +1,118 @@
-package com.wellsfargo.utcap.service;
+package com.wellsfargo.utcap.model;
 
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import org.junit.jupiter.api.Test;
 
-/**
- * Data Transfer Object to encapsulate configuration values for building a JIL file.
- * This version uses Lombok to avoid writing a constructor with 13 parameters and to remove duplicated code.
- */
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class JilFileConfig {
-    private String boxJobName;
-    private String cmdJobName;
-    private String dateCondition;
-    private String daysOfWeek;
-    private String startTime;
-    private String description;
-    private String wrapperScript;
-    private String connectionName;
-    private String machineName;
-    private String owner;
-    private String dependenciesCond;
-    private String profilePath;
-    private String defaultFileName;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class JilFileTest {
+
+    /**
+     * Test the default constructor along with setters and getters.
+     * Verifies that defensive copying is applied in the setter.
+     */
+    @Test
+    void testDefaultConstructorAndSetters() {
+        // Create a new JilFile using the default constructor.
+        JilFile jilFile = new JilFile();
+        jilFile.setId("1");
+        jilFile.setRequirementId("req123");
+
+        // Create a sample list to set.
+        List<Map<String, Object>> originalList = new ArrayList<>();
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", "value");
+        originalList.add(map);
+
+        // Set the list
+        jilFile.setJilFiles(originalList);
+
+        // Validate that the id and requirementId are stored correctly.
+        assertEquals("1", jilFile.getId());
+        assertEquals("req123", jilFile.getRequirementId());
+
+        // Validate that the list is correctly set.
+        List<Map<String, Object>> resultList = jilFile.getJilFiles();
+        assertEquals(1, resultList.size());
+        assertEquals("value", resultList.get(0).get("key"));
+
+        // Modify the original list after setting it.
+        originalList.clear();
+
+        // The defensive copy in the setter should preserve the original data.
+        List<Map<String, Object>> afterModification = jilFile.getJilFiles();
+        assertEquals(1, afterModification.size(), 
+                     "Defensive copy in setter should ensure internal list is not affected by external modifications");
+    }
+
+    /**
+     * Test that the parameterized constructor makes a defensive copy of the input list.
+     */
+    @Test
+    void testConstructorDefensiveCopy() {
+        // Prepare a modifiable list with one element.
+        List<Map<String, Object>> originalList = new ArrayList<>();
+        Map<String, Object> map = new HashMap<>();
+        map.put("name", "test");
+        originalList.add(map);
+
+        // Create a new JilFile via the parameterized constructor.
+        JilFile jilFile = new JilFile("req456", originalList);
+
+        // Now modify the original list.
+        originalList.clear();
+
+        // The internal state should remain unaffected.
+        List<Map<String, Object>> returnedList = jilFile.getJilFiles();
+        assertNotNull(returnedList, "Internal list should not be null if non-null was passed");
+        assertEquals(1, returnedList.size(), 
+                     "Defensive copy in constructor should preserve the original elements");
+        assertEquals("test", returnedList.get(0).get("name"));
+    }
+
+    /**
+     * Test that the getter returns a copy instead of a direct reference.
+     */
+    @Test
+    void testGetterReturnsCopy() {
+        // Prepare the sample list.
+        List<Map<String, Object>> list = new ArrayList<>();
+        Map<String, Object> map = new HashMap<>();
+        map.put("a", "b");
+        list.add(map);
+
+        // Create a JilFile.
+        JilFile jilFile = new JilFile("req789", list);
+
+        // Retrieve the list using the getter.
+        List<Map<String, Object>> firstCall = jilFile.getJilFiles();
+
+        // Modify the returned list.
+        firstCall.clear();
+
+        // A subsequent call should still return the original data because the getter returns a copy.
+        List<Map<String, Object>> secondCall = jilFile.getJilFiles();
+        assertNotNull(secondCall, "Getter should not return null when list is non-null");
+        assertEquals(1, secondCall.size(), 
+                     "Getter must return a new copy that reflects the internal state and is unaffected by modifications on previous copy");
+    }
+
+    /**
+     * Test that null values are correctly handled.
+     */
+    @Test
+    void testNullHandling() {
+        // Test with setter using null.
+        JilFile jilFile = new JilFile();
+        jilFile.setJilFiles(null);
+        assertNull(jilFile.getJilFiles(), "Getter should return null when internal list is set to null");
+
+        // Test with constructor passing null for the list.
+        JilFile jilFile2 = new JilFile("req000", null);
+        assertNull(jilFile2.getJilFiles(), "Defensive copy should handle null safely in constructor");
+    }
 }
