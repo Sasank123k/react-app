@@ -1,60 +1,232 @@
-Here are relevant FAQ suggestions you can include on your Jenkins build-trigger webpage:
+import React, { useState } from "react";
+import PropTypes from "prop-types";
+import JILFieldRenderer from "./JILFieldRenderer";
+import { fillDefaults } from "./JILUtils";
 
-### General Usage FAQs:
-1. **What is Jenkins?**
-   - Jenkins is an open-source automation server used for continuous integration (CI) and continuous delivery (CD) of software projects.
+const JILBoxEditor = ({ schema, definitions, data, path, onFieldChange, onRemoveJob }) => {
+  const [showNewPairDropdown, setShowNewPairDropdown] = useState(false);
 
-2. **How do I trigger a Jenkins build?**
-   - You can trigger a build by clicking the "Trigger Build" button provided on this page.
+  const getOrderedKeys = () =>
+    schema && schema.properties ? Object.keys(schema.properties).filter((key) => key !== "properties") : [];
 
-3. **Where can I view the build status?**
-   - The build stages and their status (Success or Fail) are displayed clearly on the left side of this page.
+  const handleChange = (key, value) => {
+    const newData = { ...data, [key]: value };
+    onFieldChange(newData);
+  };
 
-4. **How do I know if a build fails?**
-   - The stage that fails will be highlighted with a clear "Failed" status indicator. You can click on the failed stage to view logs and errors.
+  const removeKeyValuePair = (key) => {
+    const newData = { ...data };
+    delete newData[key];
+    onFieldChange(newData);
+  };
 
----
+  const getAvailableKeys = () => {
+    const ordered = getOrderedKeys();
+    return ordered.filter((key) => !data.hasOwnProperty(key));
+  };
 
-### Troubleshooting FAQs:
-1. **My build failed. What should I do next?**
-   - Click on the failed stage to view the detailed logs. Identify the issue and rectify it in your code or configuration, then re-trigger the build.
+  const renderKeyValuePairs = () => {
+    const orderedKeys = getOrderedKeys();
+    const rendered = [];
+    orderedKeys.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        rendered.push(
+          <div key={`kv-${key}`} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      }
+    });
+    Object.keys(data)
+      .filter((key) => key !== "properties" && !orderedKeys.includes(key))
+      .forEach((key) => {
+        rendered.push(
+          <div key={`extra-${key}`} className="jil-keyvalue-row">
+            <label>{key}: </label>
+            <input
+              className="jil-input"
+              type="text"
+              value={data[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+            />
+            <button className="jil-remove-btn" onClick={() => removeKeyValuePair(key)}>
+              Remove
+            </button>
+          </div>
+        );
+      });
+    return rendered;
+  };
 
-2. **Why is my build taking too long?**
-   - Long builds can be due to complex build scripts, slow servers, or network delays. Review the logs or consult your DevOps team.
+  const renderNewPairDropdown = () => {
+    const available = getAvailableKeys();
+    if (available.length === 0) return null;
+    return (
+      <select
+        className="jil-add-pair-dropdown"
+        onChange={(e) => {
+          if (e.target.value) {
+            handleChange(e.target.value, "");
+            setShowNewPairDropdown(false);
+          }
+        }}
+      >
+        <option value="">Select key to add</option>
+        {available.map((key) => (
+          <option key={key} value={key}>
+            {key}
+          </option>
+        ))}
+      </select>
+    );
+  };
 
-3. **Can I restart a failed build stage directly?**
-   - No, you generally need to restart the whole build. Jenkins doesn't typically support resuming from a failed stage directly.
+  const handleChildChange = (index, childData) => {
+    const newProperties = data.properties ? [...data.properties] : [];
+    newProperties[index] = childData;
+    handleChange("properties", newProperties);
+  };
 
-4. **Why can't I trigger a new build?**
-   - You may not have sufficient permissions or there might be another build currently running. Ensure you have the necessary access rights or wait until the current build completes.
+  /**
+   * Enhanced addChildJob:
+   * - For CMD jobs, copy specific fields from the parent's initial CMD job.
+   * - For BOX jobs, copy specific fields from the parent (main box).
+   * In either case, set the job's insert_job to empty.
+   */
+  const addChildJob = (jobType) => {
+    let newJob = {};
+    if (jobType === "BOX") {
+      newJob = fillDefaults(definitions.SubBOX);
+      // Prepopulate BOX fields from parent's data.
+      newJob.owner = data.owner || "";
+      newJob.permission = data.permission || "";
+      newJob.date_conditions = data.date_conditions || "";
+      newJob.condition = data.condition || "";
+      newJob.description = data.description || "";
+      newJob.alarm_if_fail = data.alarm_if_fail || "";
+      newJob.alarm_if_terminated = data.alarm_if_terminated || "";
+      newJob.group = data.group || "";
+      newJob.application = data.application || "";
+      newJob.insert_job = "";
+    } else if (jobType === "CMD") {
+      newJob = fillDefaults(definitions.CMD);
+      // Prepopulate from the parent's initial CMD job (assumed to be at index 0 in properties).
+      const parentCmdJob = (data.properties || []).find((prop) => prop.job_type === "CMD") || {};
+      const fieldsToCopy = [
+        "machine",
+        "owner",
+        "permission",
+        "date_conditions",
+        "condition",
+        "description",
+        "std_out_file",
+        "std_err_file",
+        "alarm_if_fail",
+        "profile",
+        "job_load",
+        "priority",
+        "alarm_if_terminated",
+        "timezone",
+        "group",
+        "application",
+        "success_codes",
+        "fail_codes"
+      ];
+      fieldsToCopy.forEach((field) => {
+        newJob[field] = parentCmdJob[field] || "";
+      });
+      // Ensure insert_job and command are left empty
+      newJob.insert_job = "";
+      newJob.command = "";
+    } else if (jobType === "FW") {
+      newJob = fillDefaults(definitions.FW);
+      // For FW, simply set box_name as parent's name (no additional prepopulation requested)
+    }
+    newJob.job_type = jobType;
+    // Set the new job's box_name to the parent's insert_job.
+    const parentJobName = data.insert_job || "";
+    newJob.box_name = parentJobName;
+    if (jobType === "BOX") newJob.properties = [];
+    const newProperties = data.properties ? [...data.properties, newJob] : [newJob];
+    handleChange("properties", newProperties);
+  };
 
----
+  // Helper: Render each child job, using a combination of insert_job and index for a unique key.
+  const renderChildJob = (child, index) => {
+    const key = child.insert_job ? `${child.insert_job}-${index}` : `child-${index}`;
+    return (
+      <div key={key} className="jil-child-job">
+        <JILFieldRenderer
+          schema={child.job_type === "BOX" ? definitions.SubBOX : {}}
+          definitions={definitions}
+          data={child}
+          path={[...path, "properties", String(index)]}
+          onFieldChange={(childData) => handleChildChange(index, childData)}
+          onRemoveJob={() => {
+            const newProperties = data.properties.filter((_, idx) => idx !== index);
+            handleChange("properties", newProperties);
+          }}
+        />
+      </div>
+    );
+  };
 
-### Technical FAQs:
-1. **Can Jenkins automatically trigger builds?**
-   - Yes, Jenkins can automatically trigger builds via scheduled jobs, webhook integration (e.g., Git commits), or manual triggers like this webpage.
+  const renderChildJobs = () => {
+    const children = data.properties || [];
+    return children.map((child, index) => renderChildJob(child, index));
+  };
 
-2. **How do I integrate Jenkins with GitHub or GitLab?**
-   - Jenkins supports integration via webhooks and plugins, enabling automatic builds upon repository changes. Consult the DevOps team for specific configurations.
+  return (
+    <div className="jil-box-editor">
+      <div className="jil-job-header">
+        <span>{path[0] === "mainBox" && path.length === 1 ? "Main Box Job" : "Sub Box"}</span>
+        <div className="jil-header-actions">
+          <select
+            className="jil-job-dropdown"
+            onChange={(e) => {
+              if (e.target.value) {
+                addChildJob(e.target.value);
+                e.target.value = "";
+              }
+            }}
+          >
+            <option value="">Add Child Job...</option>
+            <option value="BOX">Sub Box</option>
+            <option value="CMD">CMD</option>
+            <option value="FW">FW</option>
+          </select>
+          {path.length > 1 && (
+            <button className="jil-remove-job-btn" onClick={() => onRemoveJob && onRemoveJob()}>
+              Remove Job
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="jil-box-content">
+        {renderKeyValuePairs()}
+        {renderNewPairDropdown()}
+      </div>
+      <div className="jil-child-section">{renderChildJobs()}</div>
+    </div>
+  );
+};
 
-3. **What are Jenkins stages?**
-   - Jenkins stages represent individual phases in your build pipeline, such as compile, test, deploy, etc., helping visualize and manage the workflow clearly.
+JILBoxEditor.propTypes = {
+  schema: PropTypes.object.isRequired,
+  definitions: PropTypes.object.isRequired,
+  data: PropTypes.object.isRequired,
+  path: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onFieldChange: PropTypes.func.isRequired,
+  onRemoveJob: PropTypes.func
+};
 
-4. **How can I configure notifications for build status?**
-   - Jenkins provides plugins for email, Slack, or Teams notifications. Contact your DevOps team to enable these notification channels.
-
----
-
-### Security & Permissions FAQs:
-1. **Who can trigger a build on Jenkins?**
-   - Typically, developers or QA teams with appropriate permissions granted by the Jenkins administrator.
-
-2. **What if I don’t have access to trigger builds?**
-   - Contact your Jenkins or project administrator to request access permissions.
-
-3. **Is triggering a Jenkins build secure from this webpage?**
-   - Yes, triggering builds through this webpage follows secure authentication protocols managed by your organization's Jenkins instance.
-
----
-
-You can organize these FAQs into collapsible accordions or clearly delineated sections to enhance user experience and readability.
+export default JILBoxEditor;
