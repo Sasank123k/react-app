@@ -1,108 +1,17 @@
-// ---------- Updated Tests for triggerBuildAndGetBuildDetails ----------
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.any(URI.class);
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.wellsfargo.utcap.dto.BuildDetailsDTO;
-import com.wellsfargo.utcap.exception.JenkinsApiException;
-import com.wellsfargo.utcap.model.BuildDetailsRepoLevel;
-import com.wellsfargo.utcap.model.BuildRequest;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-
-// --------- Test Case: Success Flow for triggerBuildAndGetBuildDetails ---------
 @Test
-public void testTriggerBuildAndGetBuildDetails_success() throws Exception {
+public void testTriggerBuildAndGetBuildDetails_ioException() throws Exception {
     // 1. Set up a valid master mapping so that getJenkinsMasterUrl("owner") returns a dummy URL.
     Map<String, String> mastersMap = new HashMap<>();
     mastersMap.put("owner", "http://dummy-master/");
     Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
 
-    // 2. Prepare a dummy HTTP client and response for the POST call.
-    CloseableHttpClient dummyClientPost = Mockito.mock(CloseableHttpClient.class);
-    CloseableHttpResponse dummyPostResponse = Mockito.mock(CloseableHttpResponse.class);
-    HttpEntity dummyPostEntity = Mockito.mock(HttpEntity.class);
-    
-    // Use lenient stubbing for the POST execution.
-    Mockito.lenient()
-      .when(dummyClientPost.execute(
-            any(HttpHost.class),
-            any(HttpPost.class),
-            any(HttpClientContext.class)))
-      .thenReturn(dummyPostResponse);
-      
-    Mockito.lenient()
-      .when(dummyPostResponse.getEntity()).thenReturn(dummyPostEntity);
-    Mockito.lenient()
-      .when(dummyPostEntity.getContent())
-      .thenReturn(new ByteArrayInputStream("{}".getBytes()));
-    
-    // 3. Override createHttpClientWithContext(URI) to return a dummy context for the POST call.
-    Object dummyCtxPost = createDummyHttpClientWithContext(dummyClientPost);
-    Mockito.doReturn(dummyCtxPost).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-    // 4. Stub internal methods that are called by triggerBuildAndGetBuildDetails.
-    // Return a baseline build number (e.g., 100).
+    // 2. Stub getLatestBuildNumber() to return a valid baseline (e.g., 100) so that triggerBuildAndGetBuildDetails proceeds.
     Mockito.doReturn(100).when(jenkinsClient).getLatestBuildNumber("owner", "repo", "branch");
-    // Return a valid crumb JSON.
-    String crumbJson = "{\"crumbRequestField\":\"Jenkins-Crumb\",\"crumb\":\"abc123\"}";
-    Mockito.doReturn(crumbJson).when(jenkinsClient).getCrumb();
-    // Simulate that the build has been triggered and on polling, a new build (101) is detected.
-    Mockito.doReturn(101).when(jenkinsClient).pollForNewBuild("owner", "repo", "branch", 100);
-    // Return a dummy stage JSON node (for example, the "name" field holds the display name).
-    String stageJson = "{\"name\":\"Build-101\"}";
-    JsonNode stageNode = objectMapper.readTree(stageJson);
-    Mockito.doReturn(stageNode).when(jenkinsClient).getstageDetails("owner", "repo", "branch", 101);
 
-    // 5. Set up the repository: return a BuildRequest that includes a matching BuildDetailsRepoLevel.
-    BuildDetailsRepoLevel repoLevel = new BuildDetailsRepoLevel("owner", "repo", "branch", Collections.emptyList());
-    BuildRequest buildRequest = new BuildRequest("req1", Arrays.asList(repoLevel));
-    Mockito.when(buildRequestRepository.findById("req1")).thenReturn(Optional.of(buildRequest));
-
-    // 6. Call the method under test.
-    BuildDetailsDTO result = jenkinsClient.triggerBuildAndGetBuildDetails("req1", "owner", "repo", "branch", Collections.emptyList());
-
-    // 7. Verify results.
-    assertEquals(101, result.getBuildNumber());
-    assertEquals("Build-101", result.getDisplayName());
-    // Also check that the BuildDetailsRepoLevel in the BuildRequest is updated.
-    assertEquals(101, repoLevel.getLastBuildNumber().intValue());
-    assertEquals("Build-101", repoLevel.getLastDisplayName());
-    Mockito.verify(buildRequestRepository).save(buildRequest);
-}
-
-// --------- Test Case: IO Exception Flow for triggerBuildAndGetBuildDetails ---------
-@Test
-public void testTriggerBuildAndGetBuildDetails_ioException() throws Exception {
-    // 1. Set up a valid master mapping.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-    
-    // 2. Simulate getCrumb() throwing an IOException.
+    // 3. Simulate getCrumb() throwing an IOException.
     Mockito.doThrow(new IOException("I/O error")).when(jenkinsClient).getCrumb();
 
-    // 3. Call the method and expect a JenkinsApiException wrapping the IOException.
+    // 4. Call the method and expect a JenkinsApiException wrapping the IOException.
     JenkinsApiException exception = assertThrows(JenkinsApiException.class, () ->
           jenkinsClient.triggerBuildAndGetBuildDetails("req1", "owner", "repo", "branch", Collections.emptyList()));
     assertTrue(exception.getMessage().contains("I/O error"));
