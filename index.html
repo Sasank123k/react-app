@@ -15,7 +15,7 @@ import static org.mockito.ArgumentMatchers.any(URI.class);
 // Test for getJenkinsMasterUrl(String owner)
 @Test
 public void testGetJenkinsMasterUrl_success() {
-    // Simulate a masters map with a valid URL for the given owner.
+    // Prepare a masters map with a valid URL for the given owner.
     Map<String, String> mastersMap = new HashMap<>();
     mastersMap.put("owner1", "http://master-owner1/");
     Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
@@ -36,7 +36,7 @@ public void testGetJenkinsMasterUrl_noMasters() {
 }
 
 // Test for getBuildTriggerUrl(String owner, String repo, String branch, List<String> objectList)
-// Use reflection to call this private method.
+// Using reflection to call this private method.
 @Test
 public void testGetBuildTriggerUrl_nonCNAPP() throws Exception {
     // Set up the masters map for a non-app-CNAPP owner.
@@ -76,7 +76,7 @@ public void testGetBuildTriggerUrl_appCNAPP() throws Exception {
 
     // ETL_OBJECT_LIST should be included and URL-encoded.
     assertTrue(url.contains("ETL_OBJECT_LIST="));
-    // Verify that the encoded list contains %0A (URL encoded newline)
+    // Verify that the encoded list contains a URL encoded newline (e.g. %0A)
     assertTrue(url.contains("%0A"));
 }
 
@@ -123,6 +123,11 @@ private Object createDummyHttpClientWithContext(CloseableHttpClient dummyClient)
 
 @Test
 public void testGetLatestBuildNumber_withBuilds() throws Exception {
+    // Set a non-null master mapping.
+    Map<String, String> mastersMap = new HashMap<>();
+    mastersMap.put("owner", "http://dummy-master/");
+    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+
     // Dummy JSON response with a build.
     String jsonResponse = "{\"builds\": [{\"number\": 42}]}";
     CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
@@ -144,6 +149,11 @@ public void testGetLatestBuildNumber_withBuilds() throws Exception {
 
 @Test
 public void testGetLatestBuildNumber_noBuilds() throws Exception {
+    // Set a non-null master mapping.
+    Map<String, String> mastersMap = new HashMap<>();
+    mastersMap.put("owner", "http://dummy-master/");
+    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+
     // Dummy JSON response with no builds.
     String jsonResponse = "{\"builds\": []}";
     CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
@@ -165,6 +175,11 @@ public void testGetLatestBuildNumber_noBuilds() throws Exception {
 
 @Test
 public void testPollForNewBuild_success() throws Exception {
+    // Set a non-null master mapping.
+    Map<String, String> mastersMap = new HashMap<>();
+    mastersMap.put("owner", "http://dummy-master/");
+    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+
     // Simulate that a new build (number 101) is found at the first poll.
     String jsonResponse = "{\"builds\": [{\"number\": 101, \"timestamp\": 1234567890}]}";
     CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
@@ -187,6 +202,11 @@ public void testPollForNewBuild_success() throws Exception {
 
 @Test
 public void testPollForNewBuild_timeout() throws Exception {
+    // Set a non-null master mapping.
+    Map<String, String> mastersMap = new HashMap<>();
+    mastersMap.put("owner", "http://dummy-master/");
+    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+
     // Simulate a response that always returns a build number below the baseline.
     String jsonResponse = "{\"builds\": [{\"number\": 50, \"timestamp\": 1234567890}]}";
     CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
@@ -211,6 +231,11 @@ public void testPollForNewBuild_timeout() throws Exception {
 
 @Test
 public void testGetstageDetails() throws Exception {
+    // Set a non-null master mapping.
+    Map<String, String> mastersMap = new HashMap<>();
+    mastersMap.put("owner", "http://dummy-master/");
+    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+
     // Dummy JSON for stage details.
     String jsonResponse = "{\"name\": \"StageA\", \"status\": \"IN_PROGRESS\"}";
     CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
@@ -233,6 +258,11 @@ public void testGetstageDetails() throws Exception {
 
 @Test
 public void testGetBuildDetails() throws Exception {
+    // Set a non-null master mapping.
+    Map<String, String> mastersMap = new HashMap<>();
+    mastersMap.put("owner", "http://dummy-master/");
+    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+
     // Dummy JSON response containing builds data.
     String jsonResponse = "{ \"builds\": [ " +
                           " { \"number\": 10, \"displayName\": \"Build-10\", \"result\": \"SUCCESS\" }, " +
