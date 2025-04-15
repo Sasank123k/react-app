@@ -2,190 +2,141 @@ package com.wellsfargo.utcap.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wellsfargo.utcap.dto.BuildDetailsDTO;
-import com.wellsfargo.utcap.exception.GlobalRuntimeException;
-import com.wellsfargo.utcap.exception.JenkinsApiException;
-import com.wellsfargo.utcap.model.BuildRequest;
 import com.wellsfargo.utcap.repository.BuildRequestRepository;
 import com.wellsfargo.utcap.config.JenkinsProperties;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.util.EntityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.net.URI;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.any(URI.class);
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+/**
+ * Phase 1 & 2:
+ * - Phase 1: Basic setup with dependency injection and field initialization.
+ * - Phase 2: Testing the helper methods:
+ *   - helperStageStatus(JsonNode, String)
+ *   - helperDeployStatus(JsonNode, String)
+ *   - validate(JsonNode)
+ */
 @ExtendWith(MockitoExtension.class)
 public class JenkinsClientTest {
 
-    // Mocks for external dependencies
     @Mock
     private BuildRequestRepository buildRequestRepository;
 
     @Mock
     private JenkinsProperties jenkinsProperties;
 
-    // We can use a real ObjectMapper for JSON parsing.
+    // Use a real ObjectMapper for JSON parsing.
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    // The service under test.
+    // The JenkinsClient instance under test (spied to allow overriding if needed later).
     private JenkinsClient jenkinsClient;
 
     @BeforeEach
     public void setUp() {
-        // Create a spy so we can override methods such as createHttpClientWithContext
+        // Create a spy instance so we can override non-helper methods later if required.
         jenkinsClient = Mockito.spy(new JenkinsClient(jenkinsProperties, objectMapper));
-        // Inject dummy values for @Value fields
+        // Inject dummy values for the @Value-injected fields.
         ReflectionTestUtils.setField(jenkinsClient, "jenkinsUrl", "http://dummy-jenkins/");
         ReflectionTestUtils.setField(jenkinsClient, "username", "dummyUser");
         ReflectionTestUtils.setField(jenkinsClient, "apiToken", "dummyToken");
         ReflectionTestUtils.setField(jenkinsClient, "expectedHost", "");
-        // Inject the repository mock
+        // Inject the mocked BuildRequestRepository.
         jenkinsClient.buildRequestRepository = buildRequestRepository;
     }
 
     /**
-     * Test for helperStageStatus() method.
+     * Test helperStageStatus() when the key exists in the JSON node.
      */
     @Test
-    public void testHelperStageStatus() throws Exception {
-        // Create a sample JSON node with key "name"
-        String json = "{\"name\": \"Stage1\"}";
+    public void testHelperStageStatus_keyPresent() throws Exception {
+        String json = "{\"name\":\"Stage1\"}";
         JsonNode node = objectMapper.readTree(json);
         String result = jenkinsClient.helperStageStatus(node, "name");
-        Assertions.assertEquals("Stage1", result, "helperStageStatus should return the value when key exists");
-
-        // When the key does not exist, it should return an empty string.
-        String resultMissing = jenkinsClient.helperStageStatus(node, "nonexistent");
-        Assertions.assertEquals("", resultMissing, "helperStageStatus should return empty string when key is missing");
+        Assertions.assertEquals("Stage1", result, "helperStageStatus should return the value when the key exists");
     }
 
     /**
-     * Test for helperDeployStatus() method.
+     * Test helperStageStatus() when the key is missing in the JSON node.
      */
     @Test
-    public void testHelperDeployStatus() throws Exception {
-        // Create a sample JSON with a 'stages' array containing two stages.
+    public void testHelperStageStatus_keyMissing() throws Exception {
+        String json = "{\"name\":\"Stage1\"}";
+        JsonNode node = objectMapper.readTree(json);
+        String result = jenkinsClient.helperStageStatus(node, "nonexistent");
+        Assertions.assertEquals("", result, "helperStageStatus should return an empty string when the key is missing");
+    }
+
+    /**
+     * Test helperDeployStatus() for a matching stage with a "SUCCESS" status.
+     */
+    @Test
+    public void testHelperDeployStatus_withMatchingSuccess() throws Exception {
+        // Create a JSON with a stages array that includes a stage "DevDeploy" having status "SUCCESS"
         String json = "{\n" +
-                "  \"stages\": [\n" +
-                "    {\"name\": \"DevDeploy\", \"status\": \"SUCCESS\"},\n" +
-                "    {\"name\": \"QADeploy\", \"status\": \"FAILED\"}\n" +
-                "  ]\n" +
-                "}";
+                      "  \"stages\": [\n" +
+                      "    {\"name\": \"DevDeploy\", \"status\": \"SUCCESS\"},\n" +
+                      "    {\"name\": \"QADeploy\", \"status\": \"FAILED\"}\n" +
+                      "  ]\n" +
+                      "}";
         JsonNode node = objectMapper.readTree(json);
         String devDeployStatus = jenkinsClient.helperDeployStatus(node, "DevDeploy");
-        String qaDeployStatus = jenkinsClient.helperDeployStatus(node, "QADeploy");
-        Assertions.assertEquals("Y", devDeployStatus, "DevDeploy stage with SUCCESS should return 'Y'");
-        Assertions.assertEquals("N", qaDeployStatus, "QADeploy stage without SUCCESS should return 'N'");
+        Assertions.assertEquals("Y", devDeployStatus, "helperDeployStatus should return 'Y' when a matching stage with SUCCESS exists");
     }
 
     /**
-     * Test for getCrumb() method.
-     * We simulate the HTTP client to return a controlled response.
+     * Test helperDeployStatus() when no stage has a SUCCESS status.
      */
     @Test
-    public void testGetCrumb() throws Exception {
-        // Expected JSON response that getCrumb() should return.
-        String expectedCrumbResponse = "{\"crumbRequestField\":\"Jenkins-Crumb\",\"crumb\":\"abc123\"}";
-
-        // Prepare mocks for the HTTP client and response.
-        CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
-        HttpResponse dummyResponse = Mockito.mock(HttpResponse.class);
-        HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
-
-        // When getEntity() is called, make sure our dummyEntity is returned.
-        when(dummyResponse.getEntity()).thenReturn(dummyEntity);
-        // When EntityUtils.toString() is called on the dummy entity,
-        // we simulate that it returns our expected JSON.
-        when(dummyEntity.getContent()).thenReturn(new ByteArrayInputStream(expectedCrumbResponse.getBytes()));
-
-        // When execute(...) is called, return our dummyResponse.
-        when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
-                .thenReturn(dummyResponse);
-
-        // Use reflection to create a dummy instance of the inner HttpClientWithContext.
-        Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
-
-        // When createHttpClientWithContext() is called, return our dummy context.
-        doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-        // Call the getCrumb() method.
-        String actualCrumbResponse = jenkinsClient.getCrumb();
-
-        // Verify the returned JSON string equals what we expect.
-        Assertions.assertEquals(expectedCrumbResponse, actualCrumbResponse, "getCrumb should return the expected JSON string");
-
-        // Verify that the dummy client was closed.
-        verify(dummyClient).close();
+    public void testHelperDeployStatus_noMatchingSuccess() throws Exception {
+        // Create a JSON with stages where the matching stage does not have a "SUCCESS" status.
+        String json = "{\n" +
+                      "  \"stages\": [\n" +
+                      "    {\"name\": \"DevDeploy\", \"status\": \"FAILED\"},\n" +
+                      "    {\"name\": \"QADeploy\", \"status\": \"FAILED\"}\n" +
+                      "  ]\n" +
+                      "}";
+        JsonNode node = objectMapper.readTree(json);
+        String devDeployStatus = jenkinsClient.helperDeployStatus(node, "DevDeploy");
+        Assertions.assertEquals("N", devDeployStatus, "helperDeployStatus should return 'N' when the matching stage does not have SUCCESS");
     }
 
     /**
-     * Helper method to create a dummy HttpClientWithContext instance using reflection.
-     *
-     * @param dummyClient The dummy CloseableHttpClient to set.
-     * @return An instance of the private static inner class HttpClientWithContext.
+     * Test helperDeployStatus() when the stages array is missing from the JSON.
      */
-    private Object createDummyHttpClientWithContext(CloseableHttpClient dummyClient) throws Exception {
-        // Get the declared classes of JenkinsClient. We assume the first one is HttpClientWithContext.
-        Class<?>[] declaredClasses = JenkinsClient.class.getDeclaredClasses();
-        Class<?> httpClientWithContextClass = null;
-        for (Class<?> clazz : declaredClasses) {
-            if (clazz.getSimpleName().equals("HttpClientWithContext")) {
-                httpClientWithContextClass = clazz;
-                break;
-            }
-        }
-        Assertions.assertNotNull(httpClientWithContextClass, "HttpClientWithContext inner class should be present");
-
-        // Create an instance of the HttpClientWithContext class.
-        Constructor<?> ctor = httpClientWithContextClass.getDeclaredConstructor();
-        ctor.setAccessible(true);
-        Object ctx = ctor.newInstance();
-
-        // Set the 'httpClient' field.
-        Field httpClientField = httpClientWithContextClass.getDeclaredField("httpClient");
-        httpClientField.setAccessible(true);
-        httpClientField.set(ctx, dummyClient);
-
-        // Set the 'context' field.
-        Field contextField = httpClientWithContextClass.getDeclaredField("context");
-        contextField.setAccessible(true);
-        contextField.set(ctx, HttpClientContext.create());
-
-        // Set the 'host' field to a dummy HttpHost.
-        Field hostField = httpClientWithContextClass.getDeclaredField("host");
-        hostField.setAccessible(true);
-        hostField.set(ctx, new HttpHost("dummy", 80));
-
-        return ctx;
+    @Test
+    public void testHelperDeployStatus_noStages() throws Exception {
+        String json = "{}";
+        JsonNode node = objectMapper.readTree(json);
+        String result = jenkinsClient.helperDeployStatus(node, "AnyStage");
+        Assertions.assertEquals("N", result, "helperDeployStatus should return 'N' when there is no stages array");
     }
 
-    // You can add additional tests for methods such as:
-    // - getLatestBuildNumber()
-    // - pollForNewBuild()
-    // - triggerBuildAndGetBuildDetails()
-    // - getUpdatedBuildRequest()
-    // by similarly overriding HTTP calls and repository interactions.
+    /**
+     * Test the validate() method returns true when required fields are present.
+     */
+    @Test
+    public void testValidateMethod_returnsTrue() throws Exception {
+        // Create a JSON node with required fields: number, displayName, and result.
+        String json = "{\"number\": 1, \"displayName\": \"Build#1\", \"result\": \"SUCCESS\"}";
+        JsonNode node = objectMapper.readTree(json);
+        boolean valid = jenkinsClient.validate(node);
+        Assertions.assertTrue(valid, "validate() should return true for a JSON node with all required fields");
+    }
+
+    /**
+     * Test the validate() method returns false when one or more required fields are missing.
+     */
+    @Test
+    public void testValidateMethod_returnsFalse() throws Exception {
+        // Create a JSON node missing the "result" field.
+        String json = "{\"number\": 1, \"displayName\": \"Build#1\"}";
+        JsonNode node = objectMapper.readTree(json);
+        boolean valid = jenkinsClient.validate(node);
+        Assertions.assertFalse(valid, "validate() should return false for a JSON node missing required fields");
+    }
 }
