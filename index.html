@@ -8,8 +8,8 @@ public void testTriggerBuildAndGetBuildDetails_ioException() throws Exception {
     // 2. Stub getLatestBuildNumber() to return a valid baseline (e.g., 100) so that triggerBuildAndGetBuildDetails proceeds.
     Mockito.doReturn(100).when(jenkinsClient).getLatestBuildNumber("owner", "repo", "branch");
 
-    // 3. Simulate getCrumb() throwing an IOException.
-    Mockito.doThrow(new IOException("I/O error")).when(jenkinsClient).getCrumb();
+    // 3. Use lenient stubbing for getCrumb() so that it throws an IOException.
+    Mockito.lenient().doThrow(new IOException("I/O error")).when(jenkinsClient).getCrumb();
 
     // 4. Call the method and expect a JenkinsApiException wrapping the IOException.
     JenkinsApiException exception = assertThrows(JenkinsApiException.class, () ->
