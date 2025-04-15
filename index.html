@@ -1,110 +1,113 @@
-Based on the error messages, here’s what’s happening:
+// ---------- Updated Tests for triggerBuildAndGetBuildDetails ----------
 
----
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.any(URI.class);
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-### **Error Analysis**
+import com.fasterxml.jackson.databind.JsonNode;
+import com.wellsfargo.utcap.dto.BuildDetailsDTO;
+import com.wellsfargo.utcap.exception.JenkinsApiException;
+import com.wellsfargo.utcap.model.BuildDetailsRepoLevel;
+import com.wellsfargo.utcap.model.BuildRequest;
+import com.wellsfargo.utcap.service.JenkinsClient;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
-1. **`testTriggerBuildAndGetBuildDetails_success` Failure:**  
-   - **Error:**  
-     ```
-     Cannot invoke "String.endsWith(String)" because "masterUrl" is null
-     ```
-   - **Cause:**  
-     In the success test, the method `triggerBuildAndGetBuildDetails()` calls `getBuildTriggerUrl()` (line ~211), which starts by calling `getJenkinsMasterUrl(owner)`. That method retrieves the master URL from `jenkinsProperties.getMasters()`. Because the master mapping wasn’t set up in your test, it returns null. When the code later attempts to call `endsWith("/")` on the master URL, a NPE is thrown.
-   - **Fix:**  
-     Before calling `triggerBuildAndGetBuildDetails()`, set up a non‑null masters map for the given owner (e.g. `"owner"`) so that a valid dummy master URL is returned.
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
-2. **`testTriggerBuildAndGetBuildDetails_ioException` Failure:**  
-   - **Error:**  
-     The test expected a `JenkinsApiException`, but instead a `NullPointerException` was thrown.
-   - **Cause:**  
-     This happens because before your override of `getCrumb()` can trigger an `IOException` (which should then be wrapped in a `JenkinsApiException`), the code fails even earlier when calling `getBuildTriggerUrl()` due to a missing master URL (i.e. the same issue as above).
-   - **Fix:**  
-     Just like in the success flow, set up the master mapping (with a valid dummy URL) so that `getJenkinsMasterUrl(owner)` returns a non-null master URL. This ensures the code reaches the overridden `getCrumb()` that throws the desired exception.
-
----
-
-### **Suggested Code Fixes**
-
-For both of your failing tests, add something like this at the beginning of the test:
-
-```java
-Map<String, String> mastersMap = new HashMap<>();
-mastersMap.put("owner", "http://dummy-master/");
-Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-```
-
-Then proceed with the rest of the test overrides. For example:
-
-#### **Updated Test for Success Flow:**
-
-```java
+// --------- Test Case: Success Flow for triggerBuildAndGetBuildDetails ---------
 @Test
 public void testTriggerBuildAndGetBuildDetails_success() throws Exception {
-    // Set up master mapping so masterUrl is not null.
+    // 1. Set up a valid master mapping so that getJenkinsMasterUrl("owner") returns a dummy URL.
     Map<String, String> mastersMap = new HashMap<>();
     mastersMap.put("owner", "http://dummy-master/");
     Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+
+    // 2. Prepare a dummy HTTP client and response for the POST call that will be used in triggerBuildAndGetBuildDetails.
+    CloseableHttpClient dummyClientPost = Mockito.mock(CloseableHttpClient.class);
+    CloseableHttpResponse dummyPostResponse = Mockito.mock(CloseableHttpResponse.class);
+    HttpEntity dummyPostEntity = Mockito.mock(HttpEntity.class);
+    // Return an empty (but valid) response for the POST call.
+    Mockito.when(dummyPostResponse.getEntity()).thenReturn(dummyPostEntity);
+    Mockito.when(dummyPostEntity.getContent())
+           .thenReturn(new ByteArrayInputStream("{}".getBytes()));
+    // Stub the execute() call for POST requests.
+    Mockito.when(dummyClientPost.execute(
+            any(HttpHost.class),
+            any(HttpPost.class),
+            any(HttpClientContext.class)))
+           .thenReturn(dummyPostResponse);
     
-    // Override getLatestBuildNumber to return baseline (100)
+    // 3. Override createHttpClientWithContext(URI) to return a dummy context for the POST call.
+    Object dummyCtxPost = createDummyHttpClientWithContext(dummyClientPost);
+    Mockito.doReturn(dummyCtxPost).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
+
+    // 4. Stub internal methods that are called by triggerBuildAndGetBuildDetails.
+    // Return a baseline build number (e.g., 100).
     Mockito.doReturn(100).when(jenkinsClient).getLatestBuildNumber("owner", "repo", "branch");
-    
-    // Override getCrumb to return valid crumb JSON.
+    // Return a valid crumb JSON.
     String crumbJson = "{\"crumbRequestField\":\"Jenkins-Crumb\",\"crumb\":\"abc123\"}";
     Mockito.doReturn(crumbJson).when(jenkinsClient).getCrumb();
-    
-    // Override pollForNewBuild to return new build number (101)
+    // Simulate that the build has been triggered and on polling, a new build (101) is detected.
     Mockito.doReturn(101).when(jenkinsClient).pollForNewBuild("owner", "repo", "branch", 100);
-    
-    // Override getstageDetails to return a dummy JSON node with a display name.
+    // Return a dummy stage JSON node (for example, the "name" field holds the display name).
     String stageJson = "{\"name\":\"Build-101\"}";
     JsonNode stageNode = objectMapper.readTree(stageJson);
     Mockito.doReturn(stageNode).when(jenkinsClient).getstageDetails("owner", "repo", "branch", 101);
-    
-    // Setup repository: return a BuildRequest with one BuildDetailsRepoLevel matching the parameters.
+
+    // 5. Set up the repository: return a BuildRequest that includes a matching BuildDetailsRepoLevel.
     BuildDetailsRepoLevel repoLevel = new BuildDetailsRepoLevel("owner", "repo", "branch", Collections.emptyList());
     BuildRequest buildRequest = new BuildRequest("req1", Arrays.asList(repoLevel));
     Mockito.when(buildRequestRepository.findById("req1")).thenReturn(Optional.of(buildRequest));
-    
-    // Call the method.
+
+    // 6. Call the method under test.
     BuildDetailsDTO result = jenkinsClient.triggerBuildAndGetBuildDetails("req1", "owner", "repo", "branch", Collections.emptyList());
-    
-    // Validate result.
+
+    // 7. Verify results.
     assertEquals(101, result.getBuildNumber());
     assertEquals("Build-101", result.getDisplayName());
-    
-    // Validate that repository's BuildDetailsRepoLevel got updated.
+    // Also check that the BuildDetailsRepoLevel in the BuildRequest is updated.
     assertEquals(101, repoLevel.getLastBuildNumber().intValue());
     assertEquals("Build-101", repoLevel.getLastDisplayName());
     Mockito.verify(buildRequestRepository).save(buildRequest);
 }
-```
 
-#### **Updated Test for IOException Flow:**
-
-```java
+// --------- Test Case: IO Exception Flow for triggerBuildAndGetBuildDetails ---------
 @Test
 public void testTriggerBuildAndGetBuildDetails_ioException() throws Exception {
-    // Set up master mapping so masterUrl is available.
+    // 1. Set up a valid master mapping.
     Map<String, String> mastersMap = new HashMap<>();
     mastersMap.put("owner", "http://dummy-master/");
     Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-    
-    // Simulate getCrumb() throwing an IOException.
+
+    // 2. In this test, we simulate getCrumb() throwing an IOException.
     Mockito.doThrow(new IOException("I/O error")).when(jenkinsClient).getCrumb();
-    
+
+    // 3. Call the method and expect a JenkinsApiException wrapping the IOException.
     JenkinsApiException exception = assertThrows(JenkinsApiException.class, () ->
           jenkinsClient.triggerBuildAndGetBuildDetails("req1", "owner", "repo", "branch", Collections.emptyList()));
     assertTrue(exception.getMessage().contains("I/O error"));
 }
-```
-
----
-
-### **Summary**
-
-- The root cause in both failing tests is that `getJenkinsMasterUrl(owner)` is returning null because the master mapping wasn’t set up.
-- Adding a master mapping for the specific owner resolves the NPE.
-- Once a valid master URL is provided, the tests will progress to the intended overridden behaviors (like throwing an `IOException` in `getCrumb()` for the ioException test).
-
-Implement these fixes in your tests, and the failing tests should pass with the expected exceptions.
