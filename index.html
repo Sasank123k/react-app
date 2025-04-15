@@ -1,288 +1,151 @@
-// ----- Phase 3: URL Construction & Basic Retrieval Methods -----
-import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+// ----- Tests for Remaining Functions -----
 
-import org.apache.http.HttpHost;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.wellsfargo.utcap.dto.BuildDetailsDTO;
+import com.wellsfargo.utcap.exception.GlobalRuntimeException;
+import com.wellsfargo.utcap.exception.JenkinsApiException;
+import com.wellsfargo.utcap.model.BuildDetails;
+import com.wellsfargo.utcap.model.BuildDetailsRepoLevel;
+import com.wellsfargo.utcap.model.BuildRequest;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.net.URI;
+import java.util.*;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.any(URI.class);
 
-// Test for getJenkinsMasterUrl(String owner)
+// ----------- getCrumb() Test --------------
 @Test
-public void testGetJenkinsMasterUrl_success() {
-    // Prepare a masters map with a valid URL for the given owner.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner1", "http://master-owner1/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    String masterUrl = jenkinsClient.getJenkinsMasterUrl("owner1");
-    assertEquals("http://master-owner1/", masterUrl);
-}
-
-@Test
-public void testGetJenkinsMasterUrl_noMasters() {
-    // Simulate that the masters map is null.
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(null);
-
-    Exception exception = assertThrows(RuntimeException.class, () -> {
-        jenkinsClient.getJenkinsMasterUrl("owner2");
-    });
-    assertTrue(exception.getMessage().contains("No Jenkins master URL configured for owner: owner2"));
-}
-
-// Test for getBuildTriggerUrl(String owner, String repo, String branch, List<String> objectList)
-// Using reflection to call this private method.
-@Test
-public void testGetBuildTriggerUrl_nonCNAPP() throws Exception {
-    // Set up the masters map for a non-app-CNAPP owner.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("ownerNonCNAPP", "http://master-noncnapp/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Access the private method using reflection.
-    java.lang.reflect.Method method = JenkinsClient.class.getDeclaredMethod("getBuildTriggerUrl", String.class, String.class, String.class, List.class);
-    method.setAccessible(true);
-
-    // For a non-app-CNAPP owner, ETL_OBJECT_LIST should not be appended.
-    List<String> objectList = Arrays.asList("obj1", "obj2");  // Ignored for non-app-CNAPP
-    String url = (String) method.invoke(jenkinsClient, "ownerNonCNAPP", "repo1", "branch1", objectList);
-
-    // Expected URL fragments.
-    assertTrue(url.contains("buildWithParameters"));
-    assertTrue(url.contains("REPO=repo1"));
-    assertTrue(url.contains("PIPELINE=RELEASE"));
-    assertTrue(url.contains("BRANCH=branch1"));
-    assertFalse(url.contains("ETL_OBJECT_LIST"));
-}
-
-@Test
-public void testGetBuildTriggerUrl_appCNAPP() throws Exception {
-    // Set up the masters map for app-CNAPP owner.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("app-CNAPP", "http://master-cnapp/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Access private getBuildTriggerUrl.
-    java.lang.reflect.Method method = JenkinsClient.class.getDeclaredMethod("getBuildTriggerUrl", String.class, String.class, String.class, List.class);
-    method.setAccessible(true);
-
-    List<String> objectList = Arrays.asList("object1", "object2");
-    String url = (String) method.invoke(jenkinsClient, "app-CNAPP", "repo1", "branch1", objectList);
-
-    // ETL_OBJECT_LIST should be included and URL-encoded.
-    assertTrue(url.contains("ETL_OBJECT_LIST="));
-    // Verify that the encoded list contains a URL encoded newline (e.g. %0A)
-    assertTrue(url.contains("%0A"));
-}
-
-
-// ----- Phase 4: HTTP Client Interactions & JSON Parsing -----
-import org.apache.http.HttpEntity;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.client.methods.CloseableHttpResponse;
-
-// Helper method: creates a dummy instance of the private inner class HttpClientWithContext.
-private Object createDummyHttpClientWithContext(CloseableHttpClient dummyClient) throws Exception {
-    // Find the private inner class HttpClientWithContext.
-    Class<?>[] declaredClasses = JenkinsClient.class.getDeclaredClasses();
-    Class<?> httpClientCtxClass = null;
-    for (Class<?> cls : declaredClasses) {
-        if (cls.getSimpleName().equals("HttpClientWithContext")) {
-            httpClientCtxClass = cls;
-            break;
-        }
-    }
-    assertNotNull(httpClientCtxClass, "HttpClientWithContext class not found");
-
-    // Create an instance using its default constructor.
-    java.lang.reflect.Constructor<?> constructor = httpClientCtxClass.getDeclaredConstructor();
-    constructor.setAccessible(true);
-    Object instance = constructor.newInstance();
-
-    // Set the httpClient, context, and host fields.
-    java.lang.reflect.Field clientField = httpClientCtxClass.getDeclaredField("httpClient");
-    clientField.setAccessible(true);
-    clientField.set(instance, dummyClient);
-
-    java.lang.reflect.Field contextField = httpClientCtxClass.getDeclaredField("context");
-    contextField.setAccessible(true);
-    contextField.set(instance, HttpClientContext.create());
-
-    java.lang.reflect.Field hostField = httpClientCtxClass.getDeclaredField("host");
-    hostField.setAccessible(true);
-    hostField.set(instance, new HttpHost("dummy", 80));
-
-    return instance;
-}
-
-@Test
-public void testGetLatestBuildNumber_withBuilds() throws Exception {
-    // Set a non-null master mapping.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Dummy JSON response with a build.
-    String jsonResponse = "{\"builds\": [{\"number\": 42}]}";
+public void testGetCrumb_success() throws Exception {
+    // Set jenkinsUrl (assumed already injected in setup)
+    // Setup a dummy crumb JSON response.
+    String expectedCrumbResponse = "{\"crumbRequestField\":\"Jenkins-Crumb\",\"crumb\":\"abc123\"}";
+    
+    // Create dummy HTTP client and response.
     CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
     CloseableHttpResponse dummyResponse = Mockito.mock(CloseableHttpResponse.class);
     HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
-
+    
     Mockito.when(dummyResponse.getEntity()).thenReturn(dummyEntity);
-    Mockito.when(dummyEntity.getContent()).thenReturn(new java.io.ByteArrayInputStream(jsonResponse.getBytes()));
+    Mockito.when(dummyEntity.getContent()).thenReturn(new ByteArrayInputStream(expectedCrumbResponse.getBytes()));
     Mockito.when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
            .thenReturn(dummyResponse);
-
+    
+    // Use our helper to create a dummy context.
     Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
     Mockito.doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-    int latestBuild = jenkinsClient.getLatestBuildNumber("owner", "repo", "branch");
-    assertEquals(42, latestBuild);
+    
+    // Call getCrumb().
+    String actualCrumbResponse = jenkinsClient.getCrumb();
+    assertEquals(expectedCrumbResponse, actualCrumbResponse);
+    
     Mockito.verify(dummyClient).close();
 }
 
+// ----------- triggerBuildAndGetBuildDetails() Tests --------------
+
+// Success flow: override internal methods to simulate a complete, successful build trigger.
 @Test
-public void testGetLatestBuildNumber_noBuilds() throws Exception {
-    // Set a non-null master mapping.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Dummy JSON response with no builds.
-    String jsonResponse = "{\"builds\": []}";
-    CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
-    CloseableHttpResponse dummyResponse = Mockito.mock(CloseableHttpResponse.class);
-    HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
-
-    Mockito.when(dummyResponse.getEntity()).thenReturn(dummyEntity);
-    Mockito.when(dummyEntity.getContent()).thenReturn(new java.io.ByteArrayInputStream(jsonResponse.getBytes()));
-    Mockito.when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
-           .thenReturn(dummyResponse);
-
-    Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
-    Mockito.doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-    int latestBuild = jenkinsClient.getLatestBuildNumber("owner", "repo", "branch");
-    assertEquals(0, latestBuild);
-    Mockito.verify(dummyClient).close();
+public void testTriggerBuildAndGetBuildDetails_success() throws Exception {
+    // Override getLatestBuildNumber to return baseline (100)
+    Mockito.doReturn(100).when(jenkinsClient).getLatestBuildNumber("owner", "repo", "branch");
+    
+    // Override getCrumb to return valid crumb JSON.
+    String crumbJson = "{\"crumbRequestField\":\"Jenkins-Crumb\",\"crumb\":\"abc123\"}";
+    Mockito.doReturn(crumbJson).when(jenkinsClient).getCrumb();
+    
+    // Override pollForNewBuild to return new build number (101)
+    Mockito.doReturn(101).when(jenkinsClient).pollForNewBuild("owner", "repo", "branch", 100);
+    
+    // Override getstageDetails to return a dummy JSON node with a display name.
+    String stageJson = "{\"name\":\"Build-101\"}";
+    JsonNode stageNode = objectMapper.readTree(stageJson);
+    Mockito.doReturn(stageNode).when(jenkinsClient).getstageDetails("owner", "repo", "branch", 101);
+    
+    // Setup repository: return a BuildRequest with one BuildDetailsRepoLevel matching the parameters.
+    BuildDetailsRepoLevel repoLevel = new BuildDetailsRepoLevel("owner", "repo", "branch", Collections.emptyList());
+    BuildRequest buildRequest = new BuildRequest("req1", Arrays.asList(repoLevel));
+    Mockito.when(buildRequestRepository.findById("req1")).thenReturn(Optional.of(buildRequest));
+    
+    // Call the method.
+    BuildDetailsDTO result = jenkinsClient.triggerBuildAndGetBuildDetails("req1", "owner", "repo", "branch", Collections.emptyList());
+    
+    // Validate result.
+    assertEquals(101, result.getBuildNumber());
+    assertEquals("Build-101", result.getDisplayName());
+    
+    // Validate that repository's BuildDetailsRepoLevel got updated.
+    assertEquals(101, repoLevel.getLastBuildNumber().intValue());
+    assertEquals("Build-101", repoLevel.getLastDisplayName());
+    Mockito.verify(buildRequestRepository).save(buildRequest);
 }
 
+// Test triggerBuildAndGetBuildDetails when an IOException occurs (simulate via getCrumb throwing IOException)
 @Test
-public void testPollForNewBuild_success() throws Exception {
-    // Set a non-null master mapping.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Simulate that a new build (number 101) is found at the first poll.
-    String jsonResponse = "{\"builds\": [{\"number\": 101, \"timestamp\": 1234567890}]}";
-    CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
-    CloseableHttpResponse dummyResponse = Mockito.mock(CloseableHttpResponse.class);
-    HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
-
-    Mockito.when(dummyResponse.getEntity()).thenReturn(dummyEntity);
-    Mockito.when(dummyEntity.getContent()).thenReturn(new java.io.ByteArrayInputStream(jsonResponse.getBytes()));
-    Mockito.when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
-           .thenReturn(dummyResponse);
-
-    Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
-    Mockito.doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-    // Baseline is 100, and the returned build number 101 is greater than baseline.
-    int newBuild = jenkinsClient.pollForNewBuild("owner", "repo", "branch", 100);
-    assertEquals(101, newBuild);
-    Mockito.verify(dummyClient, Mockito.atLeastOnce()).close();
+public void testTriggerBuildAndGetBuildDetails_ioException() throws Exception {
+    // Simulate getCrumb() throwing an IOException.
+    Mockito.doThrow(new IOException("I/O error")).when(jenkinsClient).getCrumb();
+    
+    JenkinsApiException exception = assertThrows(JenkinsApiException.class, () ->
+          jenkinsClient.triggerBuildAndGetBuildDetails("req1", "owner", "repo", "branch", Collections.emptyList()));
+    assertTrue(exception.getMessage().contains("I/O error"));
 }
 
+// ----------- getUpdatedBuildRequest() Tests --------------
+
+// Success flow: repository returns a BuildRequest and getBuildDetails and getstageDetails provide valid data.
 @Test
-public void testPollForNewBuild_timeout() throws Exception {
-    // Set a non-null master mapping.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Simulate a response that always returns a build number below the baseline.
-    String jsonResponse = "{\"builds\": [{\"number\": 50, \"timestamp\": 1234567890}]}";
-    CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
-    CloseableHttpResponse dummyResponse = Mockito.mock(CloseableHttpResponse.class);
-    HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
-
-    Mockito.when(dummyResponse.getEntity()).thenReturn(dummyEntity);
-    Mockito.when(dummyEntity.getContent()).thenReturn(new java.io.ByteArrayInputStream(jsonResponse.getBytes()));
-    Mockito.when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
-           .thenReturn(dummyResponse);
-
-    Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
-    Mockito.doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-    // Expect a GlobalRuntimeException due to timeout.
-    Exception exception = assertThrows(RuntimeException.class, () -> {
-        jenkinsClient.pollForNewBuild("owner", "repo", "branch", 100);
-    });
-    assertTrue(exception.getMessage().contains("Timed out waiting for new build."));
-    Mockito.verify(dummyClient, Mockito.atLeast(1)).close();
+public void testGetUpdatedBuildRequest_success() throws Exception {
+    // Create a BuildRequest with one BuildDetailsRepoLevel.
+    BuildDetailsRepoLevel repoLevel = new BuildDetailsRepoLevel("owner", "repo", "branch", Collections.emptyList());
+    BuildRequest buildRequest = new BuildRequest("req1", Arrays.asList(repoLevel));
+    Mockito.when(buildRequestRepository.findById("req1")).thenReturn(Optional.of(buildRequest));
+    
+    // Override getBuildDetails to return a list with one BuildDetails.
+    BuildDetails dummyBuildDetail = new BuildDetails(50, "Build-50", "SUCCESS");
+    List<BuildDetails> buildDetailsList = Arrays.asList(dummyBuildDetail);
+    Mockito.doReturn(buildDetailsList).when(jenkinsClient).getBuildDetails("owner", "repo", "branch");
+    
+    // Override getstageDetails to return a stage JSON that helps update the repo level.
+    // For instance, the JSON contains "name": "MyDisplay", "status": "SUCCESS", 
+    // and a stages array with a DevDeploy stage as SUCCESS and QADeploy as FAILED.
+    String stageJson = "{ \"name\": \"MyDisplay\", \"status\": \"SUCCESS\", \"stages\": [ " +
+                       "{ \"name\": \"DevDeploy\", \"status\": \"SUCCESS\" }, { \"name\": \"QADeploy\", \"status\": \"FAILED\" } ] }";
+    JsonNode stageNode = objectMapper.readTree(stageJson);
+    Mockito.doReturn(stageNode).when(jenkinsClient).getstageDetails("owner", "repo", "branch", 50);
+    
+    // Call getUpdatedBuildRequest.
+    BuildRequest updatedRequest = jenkinsClient.getUpdatedBuildRequest("req1");
+    
+    // Validate that the BuildDetailsRepoLevel is updated.
+    BuildDetailsRepoLevel updatedRepoLevel = updatedRequest.getBuildDetails().get(0);
+    assertEquals(50, updatedRepoLevel.getLastBuildNumber().intValue());
+    assertEquals("MyDisplay", updatedRepoLevel.getLastDisplayName());
+    // As per helperDeployStatus logic, DevDeploy with SUCCESS returns "Y", QADeploy returns "N".
+    assertEquals("Y", updatedRepoLevel.getIsDevDeployed());
+    assertEquals("N", updatedRepoLevel.getIsQaDeployed());
+    assertEquals("SUCCESS", updatedRepoLevel.getLastOverallStatus());
+    
+    Mockito.verify(buildRequestRepository).save(buildRequest);
 }
 
+// Test getUpdatedBuildRequest when the repository returns an empty Optional.
 @Test
-public void testGetstageDetails() throws Exception {
-    // Set a non-null master mapping.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Dummy JSON for stage details.
-    String jsonResponse = "{\"name\": \"StageA\", \"status\": \"IN_PROGRESS\"}";
-    CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
-    CloseableHttpResponse dummyResponse = Mockito.mock(CloseableHttpResponse.class);
-    HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
-
-    Mockito.when(dummyResponse.getEntity()).thenReturn(dummyEntity);
-    Mockito.when(dummyEntity.getContent()).thenReturn(new java.io.ByteArrayInputStream(jsonResponse.getBytes()));
-    Mockito.when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
-           .thenReturn(dummyResponse);
-
-    Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
-    Mockito.doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-    JsonNode stageDetails = jenkinsClient.getstageDetails("owner", "repo", "branch", 123);
-    assertNotNull(stageDetails);
-    assertEquals("StageA", stageDetails.get("name").asText());
-    Mockito.verify(dummyClient).close();
-}
-
-@Test
-public void testGetBuildDetails() throws Exception {
-    // Set a non-null master mapping.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
-
-    // Dummy JSON response containing builds data.
-    String jsonResponse = "{ \"builds\": [ " +
-                          " { \"number\": 10, \"displayName\": \"Build-10\", \"result\": \"SUCCESS\" }, " +
-                          " { \"number\": 9, \"displayName\": \"Build-9\", \"result\": \"FAILED\" }, " +
-                          " { \"number\": 8, \"displayName\": \"Build-8\", \"result\": \"SUCCESS\" } " +
-                          "]}";
-    CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
-    CloseableHttpResponse dummyResponse = Mockito.mock(CloseableHttpResponse.class);
-    HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
-
-    Mockito.when(dummyResponse.getEntity()).thenReturn(dummyEntity);
-    Mockito.when(dummyEntity.getContent()).thenReturn(new java.io.ByteArrayInputStream(jsonResponse.getBytes()));
-    Mockito.when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
-           .thenReturn(dummyResponse);
-
-    Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
-    Mockito.doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
-
-    List<?> buildDetails = jenkinsClient.getBuildDetails("owner", "repo", "branch");
-    // Expecting only 2 valid builds (ignoring the FAILED one).
-    assertEquals(2, buildDetails.size());
-    Mockito.verify(dummyClient).close();
+public void testGetUpdatedBuildRequest_notFound() {
+    Mockito.when(buildRequestRepository.findById("req-not-found")).thenReturn(Optional.empty());
+    GlobalRuntimeException exception = assertThrows(GlobalRuntimeException.class, () ->
+        jenkinsClient.getUpdatedBuildRequest("req-not-found"));
+    assertTrue(exception.getMessage().contains("No build request found for requirement ID: req-not-found"));
 }
