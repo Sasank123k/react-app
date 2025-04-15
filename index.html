@@ -1,18 +1,83 @@
+import org.apache.http.HttpHost;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.net.URI;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.lenient;
+
+// Test cases for createHttpClientWithContext
+
 @Test
-public void testTriggerBuildAndGetBuildDetails_ioException() throws Exception {
-    // 1. Set up a valid master mapping so that getJenkinsMasterUrl("owner") returns a dummy URL.
-    Map<String, String> mastersMap = new HashMap<>();
-    mastersMap.put("owner", "http://dummy-master/");
-    Mockito.when(jenkinsProperties.getMasters()).thenReturn(mastersMap);
+public void testCreateHttpClientWithContext_noExpectedHost() throws Exception {
+    // Assume expectedHost is empty.
+    ReflectionTestUtils.setField(jenkinsClient, "expectedHost", "");  
+    // Also ensure that required fields are set:
+    ReflectionTestUtils.setField(jenkinsClient, "username", "dummyUser");
+    ReflectionTestUtils.setField(jenkinsClient, "apiToken", "dummyToken");
+    
+    URI uri = new URI("http://localhost:8080");
+    // Call the method under test.
+    Object ctx = jenkinsClient.createHttpClientWithContext(uri);
+    
+    // Use reflection to retrieve values from the returned inner class.
+    Object hostObj = ReflectionTestUtils.getField(ctx, "host");
+    assertNotNull(hostObj);
+    assertTrue(hostObj instanceof HttpHost);
+    HttpHost host = (HttpHost) hostObj;
+    assertEquals("localhost", host.getHostName());
+    assertEquals(8080, host.getPort());
+    assertEquals("http", host.getSchemeName());
+    
+    // Verify that the httpClient is not null.
+    Object httpClientObj = ReflectionTestUtils.getField(ctx, "httpClient");
+    assertNotNull(httpClientObj);
+    assertTrue(httpClientObj instanceof CloseableHttpClient);
+    
+    // Verify that the context is not null.
+    Object contextObj = ReflectionTestUtils.getField(ctx, "context");
+    assertNotNull(contextObj);
+    assertTrue(contextObj instanceof HttpClientContext);
+}
 
-    // 2. Stub getLatestBuildNumber() to return a valid baseline (e.g., 100) so that triggerBuildAndGetBuildDetails proceeds.
-    Mockito.doReturn(100).when(jenkinsClient).getLatestBuildNumber("owner", "repo", "branch");
-
-    // 3. Use lenient stubbing for getCrumb() so that it throws an IOException.
-    Mockito.lenient().doThrow(new IOException("I/O error")).when(jenkinsClient).getCrumb();
-
-    // 4. Call the method and expect a JenkinsApiException wrapping the IOException.
-    JenkinsApiException exception = assertThrows(JenkinsApiException.class, () ->
-          jenkinsClient.triggerBuildAndGetBuildDetails("req1", "owner", "repo", "branch", Collections.emptyList()));
-    assertTrue(exception.getMessage().contains("I/O error"));
+@Test
+public void testCreateHttpClientWithContext_withExpectedHost() throws Exception {
+    // Set expectedHost to a non-empty value. For example, "testhost".
+    ReflectionTestUtils.setField(jenkinsClient, "expectedHost", "testhost");
+    // Ensure other properties are available.
+    ReflectionTestUtils.setField(jenkinsClient, "username", "dummyUser");
+    ReflectionTestUtils.setField(jenkinsClient, "apiToken", "dummyToken");
+    
+    URI uri = new URI("http://localhost:8080");
+    // For this test, if any stubbing is created internally that is unnecessary, mark them lenient.
+    lenient().when(jenkinsProperties.getMasters()).thenReturn(new java.util.HashMap<>());
+    
+    // Call the method.
+    Object ctx = jenkinsClient.createHttpClientWithContext(uri);
+    
+    // Use reflection to retrieve the 'host' field.
+    Object hostObj = ReflectionTestUtils.getField(ctx, "host");
+    assertNotNull(hostObj);
+    assertTrue(hostObj instanceof HttpHost);
+    HttpHost host = (HttpHost) hostObj;
+    assertEquals("localhost", host.getHostName());
+    assertEquals(8080, host.getPort());
+    assertEquals("http", host.getSchemeName());
+    
+    // Verify that the httpClient is not null.
+    Object httpClientObj = ReflectionTestUtils.getField(ctx, "httpClient");
+    assertNotNull(httpClientObj);
+    assertTrue(httpClientObj instanceof CloseableHttpClient);
+    
+    // Verify that the context is not null.
+    Object contextObj = ReflectionTestUtils.getField(ctx, "context");
+    assertNotNull(contextObj);
+    assertTrue(contextObj instanceof HttpClientContext);
+    
+    // Optionally: although verifying the interceptor is not straightforward,
+    // you could later create a fake request, run it through the client's interceptor chain,
+    // and assert that the "Host" header is set to "testhost".
 }
