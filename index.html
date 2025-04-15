@@ -1,56 +1,60 @@
-// Additional tests for the validate() method to improve branch coverage
+Here are relevant FAQ suggestions you can include on your Jenkins build-trigger webpage:
 
-/**
- * Test validate() returns true when all required fields are present.
- */
-@Test
-public void testValidate_allFieldsPresent() throws Exception {
-    String json = "{\"number\": 1, \"displayName\": \"Build#1\", \"result\": \"SUCCESS\"}";
-    JsonNode node = objectMapper.readTree(json);
-    boolean valid = jenkinsClient.validate(node);
-    Assertions.assertTrue(valid, "validate() should return true when all required fields are present");
-}
+### General Usage FAQs:
+1. **What is Jenkins?**
+   - Jenkins is an open-source automation server used for continuous integration (CI) and continuous delivery (CD) of software projects.
 
-/**
- * Test validate() returns false when the "result" field is missing.
- */
-@Test
-public void testValidate_missingResultField() throws Exception {
-    String json = "{\"number\": 1, \"displayName\": \"Build#1\"}";
-    JsonNode node = objectMapper.readTree(json);
-    boolean valid = jenkinsClient.validate(node);
-    Assertions.assertFalse(valid, "validate() should return false when the 'result' field is missing");
-}
+2. **How do I trigger a Jenkins build?**
+   - You can trigger a build by clicking the "Trigger Build" button provided on this page.
 
-/**
- * Test validate() returns false when the "displayName" field is missing.
- */
-@Test
-public void testValidate_missingDisplayNameField() throws Exception {
-    String json = "{\"number\": 1, \"result\": \"SUCCESS\"}";
-    JsonNode node = objectMapper.readTree(json);
-    boolean valid = jenkinsClient.validate(node);
-    Assertions.assertFalse(valid, "validate() should return false when the 'displayName' field is missing");
-}
+3. **Where can I view the build status?**
+   - The build stages and their status (Success or Fail) are displayed clearly on the left side of this page.
 
-/**
- * Test validate() returns false when the "number" field is missing.
- */
-@Test
-public void testValidate_missingNumberField() throws Exception {
-    String json = "{\"displayName\": \"Build#1\", \"result\": \"SUCCESS\"}";
-    JsonNode node = objectMapper.readTree(json);
-    boolean valid = jenkinsClient.validate(node);
-    Assertions.assertFalse(valid, "validate() should return false when the 'number' field is missing");
-}
+4. **How do I know if a build fails?**
+   - The stage that fails will be highlighted with a clear "Failed" status indicator. You can click on the failed stage to view logs and errors.
 
-/**
- * Test validate() returns false when all required fields are missing.
- */
-@Test
-public void testValidate_allFieldsMissing() throws Exception {
-    String json = "{}";
-    JsonNode node = objectMapper.readTree(json);
-    boolean valid = jenkinsClient.validate(node);
-    Assertions.assertFalse(valid, "validate() should return false when all required fields are missing");
-}
+---
+
+### Troubleshooting FAQs:
+1. **My build failed. What should I do next?**
+   - Click on the failed stage to view the detailed logs. Identify the issue and rectify it in your code or configuration, then re-trigger the build.
+
+2. **Why is my build taking too long?**
+   - Long builds can be due to complex build scripts, slow servers, or network delays. Review the logs or consult your DevOps team.
+
+3. **Can I restart a failed build stage directly?**
+   - No, you generally need to restart the whole build. Jenkins doesn't typically support resuming from a failed stage directly.
+
+4. **Why can't I trigger a new build?**
+   - You may not have sufficient permissions or there might be another build currently running. Ensure you have the necessary access rights or wait until the current build completes.
+
+---
+
+### Technical FAQs:
+1. **Can Jenkins automatically trigger builds?**
+   - Yes, Jenkins can automatically trigger builds via scheduled jobs, webhook integration (e.g., Git commits), or manual triggers like this webpage.
+
+2. **How do I integrate Jenkins with GitHub or GitLab?**
+   - Jenkins supports integration via webhooks and plugins, enabling automatic builds upon repository changes. Consult the DevOps team for specific configurations.
+
+3. **What are Jenkins stages?**
+   - Jenkins stages represent individual phases in your build pipeline, such as compile, test, deploy, etc., helping visualize and manage the workflow clearly.
+
+4. **How can I configure notifications for build status?**
+   - Jenkins provides plugins for email, Slack, or Teams notifications. Contact your DevOps team to enable these notification channels.
+
+---
+
+### Security & Permissions FAQs:
+1. **Who can trigger a build on Jenkins?**
+   - Typically, developers or QA teams with appropriate permissions granted by the Jenkins administrator.
+
+2. **What if I don’t have access to trigger builds?**
+   - Contact your Jenkins or project administrator to request access permissions.
+
+3. **Is triggering a Jenkins build secure from this webpage?**
+   - Yes, triggering builds through this webpage follows secure authentication protocols managed by your organization's Jenkins instance.
+
+---
+
+You can organize these FAQs into collapsible accordions or clearly delineated sections to enhance user experience and readability.
