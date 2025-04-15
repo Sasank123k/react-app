@@ -1,70 +1,22 @@
-import org.bson.Document;
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+package com.wellsfargo.utcap.service;
 
-public class JilMetadataTest {
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-    @Test
-    public void testConstructorDefensiveCopy() {
-        // Create an initial Document
-        Document originalDoc = new Document("key", "value");
-        
-        // Create a new instance with the original Document
-        JilMetadata metadata = new JilMetadata("TestDocument", originalDoc);
-        
-        // Modify the original document after constructing the object
-        originalDoc.put("key", "modifiedValue");
-        
-        // Retrieve the internal metadata
-        Document internalDoc = metadata.getMetaData();
-        
-        // Check that the internal document still has the original value,
-        // proving that the constructor made a defensive copy.
-        assertEquals("value", internalDoc.get("key"), "Defensive copy in constructor did not work as expected");
-    }
-
-    @Test
-    public void testSetterAndGetterDefensiveCopy() {
-        // Create an initial Document
-        Document originalDoc = new Document("key", "value");
-        
-        // Use no-arg constructor and set metaData via setter
-        JilMetadata metadata = new JilMetadata();
-        metadata.setMetaData(originalDoc);
-        
-        // Retrieve the metadata via getter
-        Document fetchedDoc = metadata.getMetaData();
-        
-        // Modify the fetched document
-        fetchedDoc.put("key", "changedValue");
-        
-        // Get metadata again from the object
-        Document internalDoc = metadata.getMetaData();
-        
-        // The internal document should remain unchanged
-        assertEquals("value", internalDoc.get("key"), "Defensive copy in getter/setter did not work as expected");
-    }
-
-    @Test
-    public void testSetterAndGetterReturnDifferentReferences() {
-        Document doc = new Document("key", "value");
-        JilMetadata metadata = new JilMetadata();
-        metadata.setMetaData(doc);
-        
-        Document firstFetch = metadata.getMetaData();
-        Document secondFetch = metadata.getMetaData();
-        
-        // The returned objects should not be the same instance
-        assertNotSame(firstFetch, secondFetch, "Getter should return a defensive copy, not the same reference");
-    }
-
-    @Test
-    public void testNullMetaDataHandling() {
-        // Test that setting and getting a null Document works correctly
-        JilMetadata metadata = new JilMetadata("TestDocument", null);
-        assertNull(metadata.getMetaData(), "getMetaData() should return null when initialized with null");
-
-        metadata.setMetaData(null);
-        assertNull(metadata.getMetaData(), "getMetaData() should return null after setting metaData to null");
-    }
+/**
+ * Data Transfer Object to encapsulate configuration values for building a JIL file.
+ * This version uses Lombok to reduce boilerplate and combines the field declarations
+ * into a single statement to avoid duplicate code blocks.
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class JilFileConfig {
+    // All fields are declared together as a single block.
+    private String boxJobName, cmdJobName, dateCondition, daysOfWeek, startTime,
+                   description, wrapperScript, connectionName, machineName, owner,
+                   dependenciesCond, profilePath, defaultFileName;
 }
