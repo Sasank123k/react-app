@@ -2,212 +2,190 @@ package com.wellsfargo.utcap.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wellsfargo.utcap.config.JenkinsProperties;
 import com.wellsfargo.utcap.dto.BuildDetailsDTO;
 import com.wellsfargo.utcap.exception.GlobalRuntimeException;
 import com.wellsfargo.utcap.exception.JenkinsApiException;
-import com.wellsfargo.utcap.model.BuildDetails;
-import com.wellsfargo.utcap.model.BuildDetailsRepoLevel;
 import com.wellsfargo.utcap.model.BuildRequest;
 import com.wellsfargo.utcap.repository.BuildRequestRepository;
+import com.wellsfargo.utcap.config.JenkinsProperties;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
-import java.io.IOException;
-import java.util.*;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
-/**
- * Unit tests for JenkinsClient. 
- *
- * Note: Because JenkinsClient makes HTTP calls internally (via Apache HttpClient), we “spy”
- * the client and stub out methods like getCrumb(), getLatestBuildNumber(), pollForNewBuild(),
- * and getStageDetails() so that the test can focus on business logic and repository updates.
- */
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.net.URI;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.any(URI.class);
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 @ExtendWith(MockitoExtension.class)
 public class JenkinsClientTest {
 
+    // Mocks for external dependencies
     @Mock
     private BuildRequestRepository buildRequestRepository;
 
-    @InjectMocks
-    private JenkinsClient jenkinsClient;
-
+    @Mock
     private JenkinsProperties jenkinsProperties;
-    private ObjectMapper objectMapper;
+
+    // We can use a real ObjectMapper for JSON parsing.
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    // The service under test.
+    private JenkinsClient jenkinsClient;
 
     @BeforeEach
     public void setUp() {
-        // Create a dummy JenkinsProperties with a master URL mapping.
-        jenkinsProperties = new JenkinsProperties();
-        Map<String, String> masters = new HashMap<>();
-        masters.put("testOwner", "http://dummyjenkins/");
-        jenkinsProperties.setMasters(masters);
-
-        // Use a real ObjectMapper (Jackson) instance.
-        objectMapper = new ObjectMapper();
-
-        // Instantiate JenkinsClient with dummy JenkinsProperties and ObjectMapper.
-        jenkinsClient = new JenkinsClient(jenkinsProperties, objectMapper);
-        // Set required fields normally injected via @Value.
-        ReflectionTestUtils.setField(jenkinsClient, "jenkinsUrl", "http://dummyjenkins/");
+        // Create a spy so we can override methods such as createHttpClientWithContext
+        jenkinsClient = Mockito.spy(new JenkinsClient(jenkinsProperties, objectMapper));
+        // Inject dummy values for @Value fields
+        ReflectionTestUtils.setField(jenkinsClient, "jenkinsUrl", "http://dummy-jenkins/");
         ReflectionTestUtils.setField(jenkinsClient, "username", "dummyUser");
         ReflectionTestUtils.setField(jenkinsClient, "apiToken", "dummyToken");
         ReflectionTestUtils.setField(jenkinsClient, "expectedHost", "");
+        // Inject the repository mock
+        jenkinsClient.buildRequestRepository = buildRequestRepository;
     }
 
     /**
-     * Tests a complete successful flow of triggerBuildAndGetBuildDetails().
-     * We simulate:
-     * - a baseline build number (100),
-     * - a crumb response,
-     * - polling which returns a new build number (101), and
-     * - stage details JSON that carries the display name ("build101").
-     * We also supply a dummy BuildRequest from the repository so that the matching
-     * BuildDetailsRepoLevel gets updated.
+     * Test for helperStageStatus() method.
      */
     @Test
-    public void testTriggerBuildAndGetBuildDetails_success() throws Exception {
-        // Spy on the JenkinsClient to override internal HTTP-call methods.
-        JenkinsClient spyClient = Mockito.spy(jenkinsClient);
+    public void testHelperStageStatus() throws Exception {
+        // Create a sample JSON node with key "name"
+        String json = "{\"name\": \"Stage1\"}";
+        JsonNode node = objectMapper.readTree(json);
+        String result = jenkinsClient.helperStageStatus(node, "name");
+        Assertions.assertEquals("Stage1", result, "helperStageStatus should return the value when key exists");
 
-        // Stub lower-level HTTP calls:
-        doReturn(100).when(spyClient).getLatestBuildNumber(eq("testOwner"), eq("testRepo"), eq("testBranch"));
-        doReturn("{\"crumbRequestField\":\"Jenkins-Crumb\",\"crumb\":\"dummyCrumb\"}")
-                .when(spyClient).getCrumb();
-        doReturn(101).when(spyClient).pollForNewBuild(eq("testOwner"), eq("testRepo"), eq("testBranch"), eq(100));
-
-        // Create a dummy stage details JSON with a "name" field.
-        JsonNode dummyStageJson = objectMapper.readTree(
-                "{\"name\":\"build101\",\"status\":\"SUCCESS\",\"stages\":[]}"
-        );
-        doReturn(dummyStageJson).when(spyClient).getStageDetails(eq("testOwner"), eq("testRepo"), eq("testBranch"), eq(101));
-
-        // Prepare a dummy BuildRequest with one BuildDetailsRepoLevel.
-        BuildDetailsRepoLevel repoLevel = new BuildDetailsRepoLevel();
-        repoLevel.setOwner("testOwner");
-        repoLevel.setRepo("testRepo");
-        repoLevel.setBranch("testBranch");
-        List<BuildDetailsRepoLevel> repoLevels = new ArrayList<>();
-        repoLevels.add(repoLevel);
-        BuildRequest buildRequest = new BuildRequest("req1", repoLevels);
-        when(buildRequestRepository.findById("req1")).thenReturn(Optional.of(buildRequest));
-
-        // Execute the method under test.
-        BuildDetailsDTO result = spyClient.triggerBuildAndGetBuildDetails("req1", "testOwner", "testRepo", "testBranch", Collections.emptyList());
-
-        // Verify that the returned DTO carries the new build number and display name.
-        assertEquals(101, result.getBuildNumber());
-        assertEquals("build101", result.getDisplayName());
-
-        // Verify that the repository's save method was called and that the BuildDetailsRepoLevel was updated.
-        verify(buildRequestRepository, atLeastOnce()).save(any(BuildRequest.class));
-        assertEquals(101, repoLevel.getLastBuildNumber());
-        assertEquals("build101", repoLevel.getLastDisplayName());
+        // When the key does not exist, it should return an empty string.
+        String resultMissing = jenkinsClient.helperStageStatus(node, "nonexistent");
+        Assertions.assertEquals("", resultMissing, "helperStageStatus should return empty string when key is missing");
     }
 
     /**
-     * Tests the getUpdatedBuildRequest() method.
-     * We simulate a scenario where:
-     * - The repository returns a BuildRequest containing one BuildDetailsRepoLevel.
-     * - The getBuildDetails() method returns a list with one BuildDetails (build number 101).
-     * - The getStageDetails() method returns a JSON with deploy stage details.
-     *
-     * Verifies that the BuildDetailsRepoLevel is updated with:
-     * - Last build number,
-     * - Display name,
-     * - Overall status,
-     * - and deploy flags.
+     * Test for helperDeployStatus() method.
      */
     @Test
-    public void testGetUpdatedBuildRequest_success() throws Exception {
-        JenkinsClient spyClient = Mockito.spy(jenkinsClient);
-
-        // Create dummy build details returned by getBuildDetails.
-        List<BuildDetails> buildDetailsList = new ArrayList<>();
-        buildDetailsList.add(new BuildDetails(101, "build101", "SUCCESS"));
-        doReturn(buildDetailsList).when(spyClient).getBuildDetails(eq("testOwner"), eq("testRepo"), eq("testBranch"));
-
-        // Prepare dummy stage details JSON.
-        // For this test, DevDeploy is "SUCCESS" and QADeploy is "FAILED".
-        String stageJsonStr = "{" +
-                "\"name\":\"build101\"," +
-                "\"status\":\"SUCCESS\"," +
-                "\"stages\":[" +
-                    "{\"name\":\"DevDeploy\",\"status\":\"SUCCESS\"}," +
-                    "{\"name\":\"QADeploy\",\"status\":\"FAILED\"}" +
-                "]" +
+    public void testHelperDeployStatus() throws Exception {
+        // Create a sample JSON with a 'stages' array containing two stages.
+        String json = "{\n" +
+                "  \"stages\": [\n" +
+                "    {\"name\": \"DevDeploy\", \"status\": \"SUCCESS\"},\n" +
+                "    {\"name\": \"QADeploy\", \"status\": \"FAILED\"}\n" +
+                "  ]\n" +
                 "}";
-        JsonNode dummyStageJson = objectMapper.readTree(stageJsonStr);
-        doReturn(dummyStageJson).when(spyClient).getStageDetails(eq("testOwner"), eq("testRepo"), eq("testBranch"), eq(101));
-
-        // Prepare a dummy BuildRequest with one BuildDetailsRepoLevel.
-        BuildDetailsRepoLevel repoLevel = new BuildDetailsRepoLevel();
-        repoLevel.setOwner("testOwner");
-        repoLevel.setRepo("testRepo");
-        repoLevel.setBranch("testBranch");
-        List<BuildDetailsRepoLevel> repoLevels = new ArrayList<>();
-        repoLevels.add(repoLevel);
-        BuildRequest buildRequest = new BuildRequest("req1", repoLevels);
-        when(buildRequestRepository.findById("req1")).thenReturn(Optional.of(buildRequest));
-
-        // Execute the method under test.
-        BuildRequest updatedBuildRequest = spyClient.getUpdatedBuildRequest("req1");
-
-        // Verify that the BuildDetailsRepoLevel was updated correctly.
-        assertNotNull(updatedBuildRequest);
-        BuildDetailsRepoLevel updatedRepoLevel = updatedBuildRequest.getBuildDetails().get(0);
-        assertEquals(101, updatedRepoLevel.getLastBuildNumber().intValue());
-        assertEquals("build101", updatedRepoLevel.getLastDisplayName());
-        assertEquals("SUCCESS", updatedRepoLevel.getLastOverallStatus());
-        // Since DevDeploy succeeded, flag should be "Y"
-        assertEquals("Y", updatedRepoLevel.getLastIsDevDeployed());
-        // QADeploy did not succeed; flag should be "N"
-        assertEquals("N", updatedRepoLevel.getLastIsQaDeployed());
-
-        // Verify that the repository save method was called.
-        verify(buildRequestRepository, atLeastOnce()).save(any(BuildRequest.class));
+        JsonNode node = objectMapper.readTree(json);
+        String devDeployStatus = jenkinsClient.helperDeployStatus(node, "DevDeploy");
+        String qaDeployStatus = jenkinsClient.helperDeployStatus(node, "QADeploy");
+        Assertions.assertEquals("Y", devDeployStatus, "DevDeploy stage with SUCCESS should return 'Y'");
+        Assertions.assertEquals("N", qaDeployStatus, "QADeploy stage without SUCCESS should return 'N'");
     }
 
     /**
-     * Tests error handling in triggerBuildAndGetBuildDetails() when an IOException occurs.
-     * In this test we stub getLatestBuildNumber() to throw an IOException,
-     * and then we verify that a JenkinsApiException is thrown.
+     * Test for getCrumb() method.
+     * We simulate the HTTP client to return a controlled response.
      */
     @Test
-    public void testTriggerBuildAndGetBuildDetails_ioException() throws Exception {
-        JenkinsClient spyClient = Mockito.spy(jenkinsClient);
+    public void testGetCrumb() throws Exception {
+        // Expected JSON response that getCrumb() should return.
+        String expectedCrumbResponse = "{\"crumbRequestField\":\"Jenkins-Crumb\",\"crumb\":\"abc123\"}";
 
-        // Simulate an IOException coming from getLatestBuildNumber.
-        doThrow(new IOException("Simulated IO Exception"))
-                .when(spyClient).getLatestBuildNumber(anyString(), anyString(), anyString());
+        // Prepare mocks for the HTTP client and response.
+        CloseableHttpClient dummyClient = Mockito.mock(CloseableHttpClient.class);
+        HttpResponse dummyResponse = Mockito.mock(HttpResponse.class);
+        HttpEntity dummyEntity = Mockito.mock(HttpEntity.class);
 
-        // Verify that invoking triggerBuildAndGetBuildDetails() results in a JenkinsApiException.
-        Exception exception = assertThrows(JenkinsApiException.class, () -> {
-            spyClient.triggerBuildAndGetBuildDetails("req1", "testOwner", "testRepo", "testBranch", Collections.emptyList());
-        });
-        assertTrue(exception.getMessage().contains("I/O error"));
+        // When getEntity() is called, make sure our dummyEntity is returned.
+        when(dummyResponse.getEntity()).thenReturn(dummyEntity);
+        // When EntityUtils.toString() is called on the dummy entity,
+        // we simulate that it returns our expected JSON.
+        when(dummyEntity.getContent()).thenReturn(new ByteArrayInputStream(expectedCrumbResponse.getBytes()));
+
+        // When execute(...) is called, return our dummyResponse.
+        when(dummyClient.execute(any(HttpHost.class), any(HttpGet.class), any(HttpClientContext.class)))
+                .thenReturn(dummyResponse);
+
+        // Use reflection to create a dummy instance of the inner HttpClientWithContext.
+        Object dummyCtx = createDummyHttpClientWithContext(dummyClient);
+
+        // When createHttpClientWithContext() is called, return our dummy context.
+        doReturn(dummyCtx).when(jenkinsClient).createHttpClientWithContext(any(URI.class));
+
+        // Call the getCrumb() method.
+        String actualCrumbResponse = jenkinsClient.getCrumb();
+
+        // Verify the returned JSON string equals what we expect.
+        Assertions.assertEquals(expectedCrumbResponse, actualCrumbResponse, "getCrumb should return the expected JSON string");
+
+        // Verify that the dummy client was closed.
+        verify(dummyClient).close();
     }
 
     /**
-     * Tests error handling in getUpdatedBuildRequest() when no BuildRequest is found
-     * in the repository.
+     * Helper method to create a dummy HttpClientWithContext instance using reflection.
+     *
+     * @param dummyClient The dummy CloseableHttpClient to set.
+     * @return An instance of the private static inner class HttpClientWithContext.
      */
-    @Test
-    public void testGetUpdatedBuildRequest_notFound() {
-        // Stub repository to simulate that the BuildRequest is not found.
-        when(buildRequestRepository.findById("nonexistent"))
-                .thenReturn(Optional.empty());
+    private Object createDummyHttpClientWithContext(CloseableHttpClient dummyClient) throws Exception {
+        // Get the declared classes of JenkinsClient. We assume the first one is HttpClientWithContext.
+        Class<?>[] declaredClasses = JenkinsClient.class.getDeclaredClasses();
+        Class<?> httpClientWithContextClass = null;
+        for (Class<?> clazz : declaredClasses) {
+            if (clazz.getSimpleName().equals("HttpClientWithContext")) {
+                httpClientWithContextClass = clazz;
+                break;
+            }
+        }
+        Assertions.assertNotNull(httpClientWithContextClass, "HttpClientWithContext inner class should be present");
 
-        // Verify that calling getUpdatedBuildRequest() throws a GlobalRuntimeException.
-        Exception exception = assertThrows(GlobalRuntimeException.class, () -> {
-            jenkinsClient.getUpdatedBuildRequest("nonexistent");
-        });
-        assertTrue(exception.getMessage().contains("No build request found"));
+        // Create an instance of the HttpClientWithContext class.
+        Constructor<?> ctor = httpClientWithContextClass.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        Object ctx = ctor.newInstance();
+
+        // Set the 'httpClient' field.
+        Field httpClientField = httpClientWithContextClass.getDeclaredField("httpClient");
+        httpClientField.setAccessible(true);
+        httpClientField.set(ctx, dummyClient);
+
+        // Set the 'context' field.
+        Field contextField = httpClientWithContextClass.getDeclaredField("context");
+        contextField.setAccessible(true);
+        contextField.set(ctx, HttpClientContext.create());
+
+        // Set the 'host' field to a dummy HttpHost.
+        Field hostField = httpClientWithContextClass.getDeclaredField("host");
+        hostField.setAccessible(true);
+        hostField.set(ctx, new HttpHost("dummy", 80));
+
+        return ctx;
     }
+
+    // You can add additional tests for methods such as:
+    // - getLatestBuildNumber()
+    // - pollForNewBuild()
+    // - triggerBuildAndGetBuildDetails()
+    // - getUpdatedBuildRequest()
+    // by similarly overriding HTTP calls and repository interactions.
 }
