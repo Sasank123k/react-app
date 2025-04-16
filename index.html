@@ -1,161 +1,341 @@
-Ace Editor itself does not include built‑in SQL auto formatting. However, you can add auto formatting functionality by using a separate package such as sql-formatter. This package accepts a SQL string and returns a neatly formatted version.
+Below is an example implementation for your new DagSql functionality. In this sample, we assume your package structure is under com.example and that you already have similar model/repository files for the JiraStoryIntake and HiveTable collections. You can adjust the package names and field names as needed.
 
-Below, I’ll show you how to update your sqleditor.jsx file to include an "Auto Format" button that applies the formatting.
+For clarity, the implementation includes:
+
+Model: A DagSql document that holds the requirement ID, create SQL content, delete SQL content, and some timestamp info.
+
+Repository: A Spring Data MongoDB repository to look up a DagSql record by requirementId.
+
+Service: A service that first checks if a DagSql record exists for a given requirementId. If not, it will fetch the corresponding JiraStoryIntake and HiveTable details, parse the Hive table’s fileSetAttr to generate column definitions, and then generate (and save) the two SQL strings. It also provides an update method.
+
+Controller: A REST controller exposing a GET endpoint (to fetch/generate the SQL files) and a POST endpoint (to update them).
+
+
+You can then test these endpoints using Postman (instructions follow the code listings).
 
 
 ---
 
-Updated File 1: sqleditor.jsx
+1. DagSql Model
 
-import React, { useState } from "react";
-import AceEditor from "react-ace";
-import ace from "ace-builds";
-import sqlFormatter from "sql-formatter";
-import "./SqlEditor.css";
+package com.example.model;
 
-// Import Ace packages: SQL mode, a theme, and the language tools extension.
-import "ace-builds/src-noconflict/mode-sql";
-import "ace-builds/src-noconflict/theme-github";
-import "ace-builds/src-noconflict/ext-language_tools";
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import java.time.LocalDateTime;
 
-// Define a custom completer for SQL keywords.
-const customSqlCompleter = {
-  getCompletions: function(editor, session, pos, prefix, callback) {
-    if (prefix.length === 0) {
-      callback(null, []);
-      return;
+@Document(collection = "dagSql")
+public class DagSql {
+
+    @Id
+    private String id;
+    private String requirementId;
+    private String createSqlContent;
+    private String deleteSqlContent;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public DagSql() {
     }
-    const keywords = [
-      "SELECT",
-      "FROM",
-      "WHERE",
-      "INSERT",
-      "UPDATE",
-      "DELETE",
-      "JOIN"
-    ];
-    const completions = keywords.map((word) => ({
-      caption: word,
-      value: word,
-      meta: "keyword"
-    }));
-    callback(null, completions);
-  }
-};
 
-// Register the custom completer with Ace's language tools.
-ace.require("ace/ext/language_tools").addCompleter(customSqlCompleter);
-
-const SqlEditor = () => {
-  const [sqlContent, setSqlContent] = useState("SELECT * FROM your_table;");
-
-  const handleChange = (newValue) => {
-    setSqlContent(newValue);
-  };
-
-  // Function to auto format the SQL content
-  const handleFormat = () => {
-    try {
-      const formatted = sqlFormatter.format(sqlContent);
-      setSqlContent(formatted);
-    } catch (error) {
-      console.error("Formatting Error:", error);
+    public DagSql(String requirementId, String createSqlContent, String deleteSqlContent) {
+        this.requirementId = requirementId;
+        this.createSqlContent = createSqlContent;
+        this.deleteSqlContent = deleteSqlContent;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
-  };
 
-  return (
-    <div className="sql-editor-container">
-      <div className="editor-controls">
-        <button onClick={handleFormat}>Auto Format</button>
-      </div>
-      <AceEditor
-        mode="sql"
-        theme="github"
-        name="sqlEditor"
-        onChange={handleChange}
-        fontSize={14}
-        value={sqlContent}
-        setOptions={{
-          enableBasicAutocompletion: true,
-          enableLiveAutocompletion: true,
-          enableSnippets: true,
-          showLineNumbers: true,
-          tabSize: 2
-        }}
-        style={{ width: "100%", height: "500px" }}
-      />
-    </div>
-  );
-};
+    // Getters and Setters
 
-export default SqlEditor;
-
-
----
-
-File 2: SqlEditor.css
-
-.sql-editor-container {
-  margin: 20px auto;
-  width: 90%;
-  max-width: 1200px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.editor-controls {
-  margin: 10px;
-  text-align: right;
-}
-
-.editor-controls button {
-  padding: 8px 12px;
-  font-size: 14px;
-  border: none;
-  border-radius: 4px;
-  background-color: #007bff;
-  color: #fff;
-  cursor: pointer;
-}
-
-.editor-controls button:hover {
-  background-color: #0056b3;
+    public String getId() {
+        return id;
+    }
+    public void setId(String id) {
+        this.id = id;
+    }
+    public String getRequirementId() {
+        return requirementId;
+    }
+    public void setRequirementId(String requirementId) {
+        this.requirementId = requirementId;
+    }
+    public String getCreateSqlContent() {
+        return createSqlContent;
+    }
+    public void setCreateSqlContent(String createSqlContent) {
+        this.createSqlContent = createSqlContent;
+    }
+    public String getDeleteSqlContent() {
+        return deleteSqlContent;
+    }
+    public void setDeleteSqlContent(String deleteSqlContent) {
+        this.deleteSqlContent = deleteSqlContent;
+    }
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }
 
 
 ---
 
-How It Works
+2. DagSql Repository
 
-1. Installation:
+package com.example.repository;
 
-Make sure you install both the Ace Editor dependencies and the sql-formatter package:
+import org.springframework.data.mongodb.repository.MongoRepository;
+import com.example.model.DagSql;
+import java.util.Optional;
 
-npm install react-ace ace-builds sql-formatter
-
-
-2. Custom Completer:
-
-The custom completer is still in place to provide basic SQL keyword suggestions.
-
-
-3. Auto Format Function:
-
-The handleFormat function uses sqlFormatter.format(sqlContent) to convert the current SQL in the editor into a nicely formatted string.
-
-The formatted SQL is then set as the editor's content.
-
-
-
-4. UI Enhancements:
-
-An "Auto Format" button is added above the editor. When clicked, it triggers the auto format function.
-
-
+public interface DagSqlRepository extends MongoRepository<DagSql, String> {
+    Optional<DagSql> findByRequirementId(String requirementId);
+}
 
 
 ---
 
-This approach lets you take advantage of Ace Editor’s robust editing features, while using an external library to add a SQL auto formatting feature. Feel free to extend or adjust the styling and functionality as needed!
+3. DagSql Service
+
+This service uses the JiraStoryIntakeRepository and HiveTableRepository (already in your project) to generate the SQL if one does not exist.
+
+package com.example.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import com.example.model.DagSql;
+import com.example.repository.DagSqlRepository;
+import com.example.model.JiraStoryIntake;
+import com.example.model.HiveTable;
+import com.example.repository.JiraStoryIntakeRepository;
+import com.example.repository.HiveTableRepository;
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+@Service
+public class DagSqlService {
+
+    @Autowired
+    private DagSqlRepository dagSqlRepository;
+
+    @Autowired
+    private JiraStoryIntakeRepository jiraStoryIntakeRepository;
+
+    @Autowired
+    private HiveTableRepository hiveTableRepository;
+
+    /**
+     * Get DagSql by requirementId. If not present, generate and save it.
+     */
+    public DagSql getDagSql(String requirementId) {
+        Optional<DagSql> existing = dagSqlRepository.findByRequirementId(requirementId);
+        if (existing.isPresent()) {
+            return existing.get();
+        } else {
+            return generateAndSaveDagSql(requirementId);
+        }
+    }
+
+    /**
+     * Generate the SQL files by fetching Jira and Hive table details.
+     */
+    public DagSql generateAndSaveDagSql(String requirementId) {
+        // Retrieve Jira story details using requirementId
+        JiraStoryIntake jiraStory = jiraStoryIntakeRepository.findById(requirementId)
+                .orElseThrow(() -> new RuntimeException("JiraStoryIntake record not found for requirementId: " + requirementId));
+
+        String targetSchema = jiraStory.getTargetSchema();
+        String targetTableName = jiraStory.getTargetTableName();
+        String tableKey = targetSchema + "." + targetTableName;
+
+        // Retrieve Hive table details using the constructed key.
+        HiveTable hiveTable = hiveTableRepository.findByTableName(tableKey)
+                .orElseThrow(() -> new RuntimeException("HiveTable record not found for table: " + tableKey));
+
+        // Generate column definitions by parsing the fileSetAttr.
+        String columns = generateColumnDefinitions(hiveTable.getFileSetAttr());
+
+        // Replace the table placeholder in SQL template dynamically.
+        String tableIdentifier = targetSchema + "." + targetTableName;
+        String createSql = "CREATE TABLE " + tableIdentifier + "(\n" + columns + "\n);";
+        String deleteSql = "DROP TABLE " + tableIdentifier;
+
+        // Create and save the DagSql record.
+        DagSql dagSql = new DagSql();
+        dagSql.setRequirementId(requirementId);
+        dagSql.setCreateSqlContent(createSql);
+        dagSql.setDeleteSqlContent(deleteSql);
+        dagSql.setCreatedAt(LocalDateTime.now());
+        dagSql.setUpdatedAt(LocalDateTime.now());
+
+        return dagSqlRepository.save(dagSql);
+    }
+
+    /**
+     * Parse fileSetAttr to generate SQL column definitions.
+     * Assumes fileSetAttr is in the format:
+     * "encr_uik|string,best_ecn|NUMERIC,uik_comb_age_cd|string,..."
+     */
+    private String generateColumnDefinitions(String fileSetAttr) {
+        StringBuilder columnsBuilder = new StringBuilder();
+        String[] columnTokens = fileSetAttr.split(",");
+        for (int i = 0; i < columnTokens.length; i++) {
+            String token = columnTokens[i].trim();
+            String[] parts = token.split("\\|");
+            if (parts.length >= 2) {
+                String colName = parts[0].trim();
+                String colType = parts[1].trim().toUpperCase();
+                columnsBuilder.append("  ").append(colName).append(" ").append(colType);
+                if (i < columnTokens.length - 1) {
+                    columnsBuilder.append(",\n");
+                }
+            }
+        }
+        return columnsBuilder.toString();
+    }
+
+    /**
+     * Update an existing DagSql record with new SQL content.
+     */
+    public DagSql updateDagSql(String requirementId, String createSqlContent, String deleteSqlContent) {
+        DagSql dagSql = dagSqlRepository.findByRequirementId(requirementId)
+                .orElseThrow(() -> new RuntimeException("DagSql record not found for requirementId: " + requirementId));
+        dagSql.setCreateSqlContent(createSqlContent);
+        dagSql.setDeleteSqlContent(deleteSqlContent);
+        dagSql.setUpdatedAt(LocalDateTime.now());
+        return dagSqlRepository.save(dagSql);
+    }
+}
+
+
+---
+
+4. DagSql Controller
+
+This controller exposes two endpoints:
+
+A GET endpoint (/api/sql/{requirementId}) to retrieve (or generate if missing) the SQL files.
+
+A POST endpoint (/api/sql/{requirementId}) to update both SQL file contents.
+
+
+package com.example.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import com.example.model.DagSql;
+import com.example.service.DagSqlService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
+@RestController
+@RequestMapping("/api/sql")
+public class DagSqlController {
+
+    @Autowired
+    private DagSqlService dagSqlService;
+
+    /**
+     * GET endpoint to fetch the generated SQL files by requirementId.
+     */
+    @GetMapping("/{requirementId}")
+    public ResponseEntity<DagSql> getDagSql(@PathVariable String requirementId) {
+        try {
+            DagSql dagSql = dagSqlService.getDagSql(requirementId);
+            return ResponseEntity.ok(dagSql);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
+        }
+    }
+
+    /**
+     * POST endpoint to update SQL files.
+     * The request body should be a JSON with createSqlContent and deleteSqlContent.
+     */
+    @PostMapping("/{requirementId}")
+    public ResponseEntity<DagSql> updateDagSql(
+            @PathVariable String requirementId,
+            @RequestBody DagSql updateRequest) {
+        try {
+            DagSql updatedDagSql = dagSqlService.updateDagSql(
+                    requirementId,
+                    updateRequest.getCreateSqlContent(),
+                    updateRequest.getDeleteSqlContent());
+            return ResponseEntity.ok(updatedDagSql);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
+        }
+    }
+}
+
+
+---
+
+Testing the Endpoints Using Postman
+
+1. Start Your Application:
+Make sure your Spring Boot application is running and connected to MongoDB.
+
+
+2. Testing the GET Endpoint:
+
+URL:
+http://localhost:8080/api/sql/BZLS-4501
+(Replace BZLS-4501 with any valid requirement ID.)
+
+Method:
+GET
+
+Expected Result:
+
+If a DagSql record already exists for the given requirement ID, you’ll receive the JSON response with both createSqlContent and deleteSqlContent.
+
+If it does not exist, the service will generate it using the JiraStoryIntake and HiveTable collections, save it, and then return the generated SQLs.
+
+
+
+
+3. Testing the POST Endpoint:
+
+URL:
+http://localhost:8080/api/sql/BZLS-4501
+
+Method:
+POST
+
+Headers:
+Set Content-Type to application/json.
+
+Body (raw JSON):
+
+{
+  "createSqlContent": "CREATE TABLE consumer_bmg_sanitized.acct_pma_rel_hist_cdb (\n  encr_uik STRING,\n  best_ecn NUMERIC\n);",
+  "deleteSqlContent": "DROP TABLE consumer_bmg_sanitized.acct_pma_rel_hist_cdb"
+}
+
+Expected Result:
+The response should return the updated DagSql record reflecting the new SQL file contents.
+
+
+
+
+Using these steps in Postman, you can verify that:
+
+The GET endpoint correctly returns (or generates) the SQL files.
+
+The POST endpoint updates the record as intended.
+
+
+This setup provides a clear separation of concerns and a maintainable structure for your SQL file generation and update component on the backend. Let me know if you need further details or adjustments!
 
