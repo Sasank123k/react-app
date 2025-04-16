@@ -1,464 +1,231 @@
-Below are complete sample implementations for your backend files based on your requirements and the package structure (using the base package of `com.wellsfargo.utcap`). These examples assume that you already have models and repositories for the JiraStoryIntake and HiveTable collections.
+Below is an example implementation for your SQL editor page using React. In this example, we use:
 
-In summary, you’ll have:
+- **react-ace** and **ace-builds** to render the code editor.  
+- **sql-formatter** to format the SQL content.
+- A dropdown to select between the two SQL files (“Create SQL” and “Delete SQL”).
+- A **Format** button that formats the active editor content.
+- A **Save** button that formats both SQL file contents and calls the update endpoint.
 
-1. A **DagSql** model, repository, service, and controller to generate and update the SQL files.
-2. A **SqlDatatype** (or sqlDatatype) model and repository that stores the Hive‑to‑BigQuery type mapping in MongoDB.
-
----
-
-### 1. DagSql Collection Files
-
-#### 1.1 Model – DagSql.java  
-*Location: `com/wellsfargo/utcap/model/DagSql.java`*
-
-```java
-package com.wellsfargo.utcap.model;
-
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-import java.time.LocalDateTime;
-
-@Document(collection = "dagSql")
-public class DagSql {
-
-    @Id
-    private String id;
-    private String requirementId;
-    private String createSqlContent;
-    private String deleteSqlContent;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-
-    public DagSql() {
-    }
-
-    public DagSql(String requirementId, String createSqlContent, String deleteSqlContent) {
-        this.requirementId = requirementId;
-        this.createSqlContent = createSqlContent;
-        this.deleteSqlContent = deleteSqlContent;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // Getters and Setters
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getRequirementId() {
-        return requirementId;
-    }
-
-    public void setRequirementId(String requirementId) {
-        this.requirementId = requirementId;
-    }
-
-    public String getCreateSqlContent() {
-        return createSqlContent;
-    }
-
-    public void setCreateSqlContent(String createSqlContent) {
-        this.createSqlContent = createSqlContent;
-    }
-
-    public String getDeleteSqlContent() {
-        return deleteSqlContent;
-    }
-
-    public void setDeleteSqlContent(String deleteSqlContent) {
-        this.deleteSqlContent = deleteSqlContent;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-}
-```
+You can adjust the endpoint URLs and requirement id as needed. The code is split into a JSX file (for the component) and a CSS file (for styling).
 
 ---
 
-#### 1.2 Repository – DagSqlRepository.java  
-*Location: `com/wellsfargo/utcap/repository/DagSqlRepository.java`*
+### 1. SQL Editor Page Component (SqlEditorPage.jsx)
 
-```java
-package com.wellsfargo.utcap.repository;
+```jsx
+import React, { useEffect, useState } from 'react';
+import AceEditor from 'react-ace';
+import sqlFormatter from 'sql-formatter';
+import 'ace-builds/src-noconflict/mode-sql';
+import 'ace-builds/src-noconflict/theme-github';
+import './SqlEditorPage.css'; // Ensure this file is in the same folder or adjust the path accordingly.
 
-import com.wellsfargo.utcap.model.DagSql;
-import org.springframework.data.mongodb.repository.MongoRepository;
-import java.util.Optional;
+function SqlEditorPage() {
+  // For demonstration we hardcode the requirement id; in production, this might come from props, route params, etc.
+  const requirementId = "BZLS-4501";
 
-public interface DagSqlRepository extends MongoRepository<DagSql, String> {
-    Optional<DagSql> findByRequirementId(String requirementId);
-}
-```
+  // State to hold the two SQL files
+  const [sqlFiles, setSqlFiles] = useState({
+    createSqlContent: '',
+    deleteSqlContent: ''
+  });
 
----
+  // State for the currently active file and its content
+  const [activeFile, setActiveFile] = useState('create'); // possible values: 'create' or 'delete'
+  const [editorContent, setEditorContent] = useState('');
 
-#### 1.3 Service – DagSqlService.java  
-*Location: `com/wellsfargo/utcap/service/DagSqlService.java`*
+  const [loading, setLoading] = useState(true);
 
-> **Note:** This service uses the existing JiraStoryIntake and HiveTable repositories (assumed to be defined already). It also uses the new SqlDatatypeRepository (see next section) to retrieve the Hive-to‑BigQuery mapping.
+  // Fetch SQL file from backend on component mount
+  useEffect(() => {
+    fetch(`/api/sql/${requirementId}`)
+      .then(response => response.json())
+      .then(data => {
+        // Auto-format the SQL files initially using sqlFormatter
+        const formattedCreate = sqlFormatter.format(data.createSqlContent);
+        const formattedDelete = sqlFormatter.format(data.deleteSqlContent);
 
-```java
-package com.wellsfargo.utcap.service;
+        // Save formatted files to state
+        const files = {
+          createSqlContent: formattedCreate,
+          deleteSqlContent: formattedDelete
+        };
+        setSqlFiles(files);
+        // Set the active editor content (default to Create SQL)
+        setEditorContent(formattedCreate);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error("Error fetching SQL files:", error);
+        setLoading(false);
+      });
+  }, [requirementId]);
 
-import com.wellsfargo.utcap.model.DagSql;
-import com.wellsfargo.utcap.model.HiveTable;          // Assumed existing
-import com.wellsfargo.utcap.model.JiraStoryIntake;      // Assumed existing
-import com.wellsfargo.utcap.model.SqlDatatype;
-import com.wellsfargo.utcap.repository.DagSqlRepository;
-import com.wellsfargo.utcap.repository.HiveTableRepository;       // Assumed existing
-import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;   // Assumed existing
-import com.wellsfargo.utcap.repository.SqlDatatypeRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import java.time.LocalDateTime;
-import java.util.*;
+  // Handle change in the dropdown selection
+  const handleFileChange = (event) => {
+    const selected = event.target.value;
+    setActiveFile(selected);
+    if (selected === 'create') {
+      setEditorContent(sqlFiles.createSqlContent);
+    } else {
+      setEditorContent(sqlFiles.deleteSqlContent);
+    }
+  };
 
-@Service
-public class DagSqlService {
+  // Handle editor content change
+  const handleEditorChange = (newValue) => {
+    setEditorContent(newValue);
+    // Update the correct SQL file in state
+    setSqlFiles(prev => {
+      if (activeFile === 'create') {
+        return { ...prev, createSqlContent: newValue };
+      } else {
+        return { ...prev, deleteSqlContent: newValue };
+      }
+    });
+  };
 
-    @Autowired
-    private DagSqlRepository dagSqlRepository;
+  // Format the active SQL file using sql-formatter
+  const handleFormat = () => {
+    const formatted = sqlFormatter.format(editorContent);
+    setEditorContent(formatted);
+    setSqlFiles(prev => {
+      if (activeFile === 'create') {
+        return { ...prev, createSqlContent: formatted };
+      } else {
+        return { ...prev, deleteSqlContent: formatted };
+      }
+    });
+  };
 
-    @Autowired
-    private JiraStoryIntakeRepository jiraStoryIntakeRepository;
+  // Save button click handler – format both files and call the update endpoint
+  const handleSave = () => {
+    // Format both files before saving
+    const formattedCreate = sqlFormatter.format(sqlFiles.createSqlContent);
+    const formattedDelete = sqlFormatter.format(sqlFiles.deleteSqlContent);
 
-    @Autowired
-    private HiveTableRepository hiveTableRepository;
+    // Update state with the formatted values
+    const updatedFiles = {
+      createSqlContent: formattedCreate,
+      deleteSqlContent: formattedDelete
+    };
+    setSqlFiles(updatedFiles);
+    if (activeFile === 'create') {
+      setEditorContent(formattedCreate);
+    } else {
+      setEditorContent(formattedDelete);
+    }
 
-    @Autowired
-    private SqlDatatypeRepository sqlDatatypeRepository;
-
-    public DagSql getDagSql(String requirementId) {
-        Optional<DagSql> existing = dagSqlRepository.findByRequirementId(requirementId);
-        if (existing.isPresent()) {
-            return existing.get();
-        } else {
-            return generateAndSaveDagSql(requirementId);
+    // Call the backend update endpoint
+    fetch(`/api/sql/${requirementId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updatedFiles)
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to update SQL files');
         }
-    }
+        return response.json();
+      })
+      .then(data => {
+        alert('SQL files updated successfully.');
+      })
+      .catch(error => {
+        console.error("Error saving SQL files:", error);
+        alert('Error updating SQL files. Please try again.');
+      });
+  };
 
-    public DagSql generateAndSaveDagSql(String requirementId) {
-        // Retrieve the Jira story information
-        // (Assumes JiraStoryIntake has getTargetSchema() and getTargetTableName() methods)
-        var jiraStory = jiraStoryIntakeRepository.findById(requirementId)
-                .orElseThrow(() -> new RuntimeException("JiraStoryIntake not found for requirementId: " + requirementId));
-
-        String targetSchema = jiraStory.getTargetSchema();
-        String targetTableName = jiraStory.getTargetTableName();
-        String tableIdentifier = targetSchema + "." + targetTableName;
-
-        // Retrieve Hive table record using the combined table identifier.
-        // (Assumes HiveTableRepository.findByTableName returns a List; we use the first if available)
-        List<HiveTable> hiveTableList = hiveTableRepository.findByTableName(tableIdentifier);
-        HiveTable hiveTable = Optional.ofNullable(hiveTableList)
-                .filter(list -> !list.isEmpty())
-                .map(list -> list.get(0))
-                .orElseThrow(() -> new RuntimeException("HiveTable record not found for table: " + tableIdentifier));
-
-        // Retrieve the type conversion mapping from the sqlDatatype collection.
-        SqlDatatype sqlDatatype = sqlDatatypeRepository.findById("defaultMapping")
-                .orElseGet(this::getDefaultSqlDatatype);
-        Map<String, String> mapping = sqlDatatype.getMappings();
-
-        // Parse fileSetAttr to generate the columns definition
-        String fileSetAttr = hiveTable.getFileSetAttr();
-        String columnDefinitions = generateColumnDefinitions(fileSetAttr, mapping);
-
-        // Build the SQL strings
-        String createSql = "CREATE TABLE " + tableIdentifier + "(\n" + columnDefinitions + "\n);";
-        String deleteSql = "DROP TABLE " + tableIdentifier;
-
-        // Create and save the DagSql record
-        DagSql dagSql = new DagSql();
-        dagSql.setRequirementId(requirementId);
-        dagSql.setCreateSqlContent(createSql);
-        dagSql.setDeleteSqlContent(deleteSql);
-        dagSql.setCreatedAt(LocalDateTime.now());
-        dagSql.setUpdatedAt(LocalDateTime.now());
-
-        return dagSqlRepository.save(dagSql);
-    }
-
-    /**
-     * Parses the fileSetAttr string into proper column definitions.
-     * Expected fileSetAttr format example:
-     * "encr_uik|string|#best_ecn|decimal(15,0)|#uik_comb_age_cd|string|..."
-     */
-    private String generateColumnDefinitions(String fileSetAttr, Map<String, String> mapping) {
-        String[] tokens = fileSetAttr.split("\\|");
-        List<String> tokenList = new ArrayList<>();
-        for (String token : tokens) {
-            if (token != null && !token.trim().isEmpty()) {
-                tokenList.add(token.trim());
-            }
-        }
-
-        if (tokenList.size() % 2 != 0) {
-            throw new RuntimeException("Invalid fileSetAttr format; expected even number of tokens");
-        }
-
-        StringBuilder columnsBuilder = new StringBuilder();
-        for (int i = 0; i < tokenList.size(); i += 2) {
-            String columnName = tokenList.get(i);
-            // Remove the '#' prefix if it exists (for subsequent columns)
-            if (columnName.startsWith("#")) {
-                columnName = columnName.substring(1);
-            }
-            String hiveType = tokenList.get(i + 1).toUpperCase();
-
-            // If the type has parameters (e.g., DECIMAL(15,0)), extract the base type
-            String baseType = hiveType;
-            if (hiveType.contains("(")) {
-                baseType = hiveType.substring(0, hiveType.indexOf("("));
-            }
-
-            // Convert the Hive type to BigQuery type using the mapping; default to STRING if not found.
-            String bigQueryType = mapping.getOrDefault(baseType, "STRING");
-
-            columnsBuilder.append("  ").append(columnName).append(" ").append(bigQueryType);
-            if (i < tokenList.size() - 2) {
-                columnsBuilder.append(",\n");
-            }
-        }
-        return columnsBuilder.toString();
-    }
-
-    public DagSql updateDagSql(String requirementId, String createSqlContent, String deleteSqlContent) {
-        DagSql dagSql = dagSqlRepository.findByRequirementId(requirementId)
-                .orElseThrow(() -> new RuntimeException("DagSql record not found for requirementId: " + requirementId));
-        dagSql.setCreateSqlContent(createSqlContent);
-        dagSql.setDeleteSqlContent(deleteSqlContent);
-        dagSql.setUpdatedAt(LocalDateTime.now());
-        return dagSqlRepository.save(dagSql);
-    }
-
-    /**
-     * Provides a fallback mapping if no mapping document is found.
-     */
-    private SqlDatatype getDefaultSqlDatatype() {
-        Map<String, String> defaultMapping = new HashMap<>();
-        defaultMapping.put("STRING", "STRING");
-        defaultMapping.put("CHAR", "STRING");
-        defaultMapping.put("VARCHAR", "STRING");
-        defaultMapping.put("INT", "INT64");
-        defaultMapping.put("INTEGER", "INT64");
-        defaultMapping.put("BIGINT", "INT64");
-        defaultMapping.put("SMALLINT", "INT64");
-        defaultMapping.put("TINYINT", "INT64");
-        defaultMapping.put("BOOLEAN", "BOOL");
-        defaultMapping.put("FLOAT", "FLOAT64");
-        defaultMapping.put("DOUBLE", "FLOAT64");
-        defaultMapping.put("DECIMAL", "NUMERIC");
-        defaultMapping.put("DATE", "DATE");
-        defaultMapping.put("TIMESTAMP", "TIMESTAMP");
-        defaultMapping.put("BINARY", "BYTES");
-
-        SqlDatatype sqlDatatype = new SqlDatatype();
-        sqlDatatype.setId("defaultMapping");
-        sqlDatatype.setMappings(defaultMapping);
-        return sqlDatatype;
-    }
-}
-```
-
----
-
-#### 1.4 Controller – DagSqlController.java  
-*Location: `com/wellsfargo/utcap/controller/DagSqlController.java`*
-
-```java
-package com.wellsfargo.utcap.controller;
-
-import com.wellsfargo.utcap.model.DagSql;
-import com.wellsfargo.utcap.service.DagSqlService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-@RestController
-@RequestMapping("/api/sql")
-public class DagSqlController {
-
-    @Autowired
-    private DagSqlService dagSqlService;
-
-    @GetMapping("/{requirementId}")
-    public ResponseEntity<DagSql> getDagSql(@PathVariable String requirementId) {
-        try {
-            DagSql dagSql = dagSqlService.getDagSql(requirementId);
-            return ResponseEntity.ok(dagSql);
-        } catch (Exception e) {
-            // Log exception details as needed
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    @PostMapping("/{requirementId}")
-    public ResponseEntity<DagSql> updateDagSql(@PathVariable String requirementId, @RequestBody DagSql updatedSql) {
-        try {
-            DagSql dagSql = dagSqlService.updateDagSql(requirementId, 
-                    updatedSql.getCreateSqlContent(), 
-                    updatedSql.getDeleteSqlContent());
-            return ResponseEntity.ok(dagSql);
-        } catch (Exception e) {
-            // Log exception details as needed
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-}
-```
-
----
-
-### 2. sqlDatatype Collection Files
-
-This collection holds your Hive‑to‑BigQuery type mappings.
-
-#### 2.1 Model – SqlDatatype.java  
-*Location: `com/wellsfargo/utcap/model/SqlDatatype.java`*
-
-```java
-package com.wellsfargo.utcap.model;
-
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-import java.util.Map;
-
-@Document(collection = "sqlDatatype")
-public class SqlDatatype {
-
-    @Id
-    private String id;  // For example, "defaultMapping"
-    private Map<String, String> mappings;
-
-    public SqlDatatype() {
-    }
-
-    public SqlDatatype(String id, Map<String, String> mappings) {
-        this.id = id;
-        this.mappings = mappings;
-    }
-
-    // Getters and Setters
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public Map<String, String> getMappings() {
-        return mappings;
-    }
-
-    public void setMappings(Map<String, String> mappings) {
-        this.mappings = mappings;
-    }
-}
-```
-
----
-
-#### 2.2 Repository – SqlDatatypeRepository.java  
-*Location: `com/wellsfargo/utcap/repository/SqlDatatypeRepository.java`*
-
-```java
-package com.wellsfargo.utcap.repository;
-
-import com.wellsfargo.utcap.model.SqlDatatype;
-import org.springframework.data.mongodb.repository.MongoRepository;
-import java.util.Optional;
-
-public interface SqlDatatypeRepository extends MongoRepository<SqlDatatype, String> {
-    Optional<SqlDatatype> findById(String id);
-}
-```
-
----
-
-### Testing the Endpoints
-
-Using Postman you can test your endpoints as follows:
-
-- **GET Endpoint:**  
-  - **URL:**  
-    `http://localhost:8080/api/sql/BZLS-4501`  
-  - **Method:**  
-    GET  
-  - This will return the generated DagSql record with both the create and drop SQL strings.
-
-- **POST Endpoint:**  
-  - **URL:**  
-    `http://localhost:8080/api/sql/BZLS-4501`  
-  - **Method:**  
-    POST  
-  - **Headers:**  
-    `Content-Type: application/json`  
-  - **Body (raw JSON):**  
-    ```json
-    {
-      "createSqlContent": "CREATE TABLE consumer_bmg_sanitized.acct_pma_rel_hist_cdb (\n  encr_uik STRING,\n  best_ecn NUMERIC\n);",
-      "deleteSqlContent": "DROP TABLE consumer_bmg_sanitized.acct_pma_rel_hist_cdb"
-    }
-    ```
-  - This call updates the SQL file contents in the DagSql record.
-
----
-
-With this complete backend setup, you have:
-
-- A mechanism to generate SQL files dynamically based on data from JiraStoryIntake and HiveTable.
-- Parsing of the fileSetAttr string to extract column names and Hive types.
-- Conversion of Hive types to BigQuery types driven by a MongoDB‑stored mapping.
-- API endpoints to fetch and update the generated SQL files.
-
-Let me know if you need further adjustments or details!
-
-
-
-
-
-
-{
-  "_id": "defaultMapping",
-  "mappings": {
-    "STRING": "STRING",
-    "CHAR": "STRING",
-    "VARCHAR": "STRING",
-    "INT": "INT64",
-    "INTEGER": "INT64",
-    "BIGINT": "INT64",
-    "SMALLINT": "INT64",
-    "TINYINT": "INT64",
-    "BOOLEAN": "BOOL",
-    "FLOAT": "FLOAT64",
-    "DOUBLE": "FLOAT64",
-    "DECIMAL": "NUMERIC",
-    "DATE": "DATE",
-    "TIMESTAMP": "TIMESTAMP",
-    "BINARY": "BYTES"
+  if (loading) {
+    return <div>Loading SQL editor...</div>;
   }
+
+  return (
+    <div className="sql-editor-page">
+      <div className="toolbar">
+        <select value={activeFile} onChange={handleFileChange}>
+          <option value="create">Create SQL</option>
+          <option value="delete">Delete SQL</option>
+        </select>
+        <button onClick={handleFormat}>Format</button>
+        <button onClick={handleSave}>Save</button>
+      </div>
+      <AceEditor
+        mode="sql"
+        theme="github"
+        name="sql-editor"
+        value={editorContent}
+        onChange={handleEditorChange}
+        width="100%"
+        height="500px"
+        setOptions={{
+          enableBasicAutocompletion: true,
+          enableLiveAutocompletion: true,
+        }}
+      />
+    </div>
+  );
 }
+
+export default SqlEditorPage;
+```
+
+---
+
+### 2. CSS File (SqlEditorPage.css)
+
+Below is a basic CSS setup for the page. You can further adjust styles to fit your project’s design guidelines.
+
+```css
+.sql-editor-page {
+  margin: 20px;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.toolbar select {
+  margin-right: 10px;
+  padding: 5px;
+  font-size: 14px;
+}
+
+.toolbar button {
+  margin-right: 10px;
+  padding: 5px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background-color: #f5f5f5;
+}
+
+.toolbar button:hover {
+  background-color: #e0e0e0;
+}
+```
+
+---
+
+### How It Works
+
+1. **Initialization:**  
+   When the component mounts, it fetches the two SQL files from the backend using the requirement id. Once fetched, each file is auto-formatted and then stored in state.
+
+2. **Dropdown Navigation:**  
+   The dropdown lets the user select which SQL file to view/edit (Create SQL or Delete SQL). When a selection changes, the editor content is updated accordingly.
+
+3. **Formatting:**  
+   Clicking the **Format** button runs the current editor content through `sqlFormatter.format` and updates both the editor content and the state.
+
+4. **Saving:**  
+   On clicking **Save**, both SQL file contents are re-formatted and sent to the backend via a POST request to the update endpoint.
+
+This setup provides a clean and simple SQL editor using react-ace, with essential features like auto-format on load, formatting on demand, and saving formatted SQL back to the backend. Feel free to extend or refine this base as your project requirements evolve.
