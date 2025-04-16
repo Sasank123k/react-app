@@ -1,16 +1,14 @@
-Below is an example implementation for your SQL editor page using React. In this example, we use:
+Below is an updated version of the React component that follows your company’s guidelines. In this version, we:
 
-- **react-ace** and **ace-builds** to render the code editor.  
-- **sql-formatter** to format the SQL content.
-- A dropdown to select between the two SQL files (“Create SQL” and “Delete SQL”).
-- A **Format** button that formats the active editor content.
-- A **Save** button that formats both SQL file contents and calls the update endpoint.
+- Import a constant called **MICROSERVICE_URL** (which should contain your backend URL plus the API path).  
+- Import a helper **generateSearHeaders** that produces the required headers for API calls.  
+- Use these in every fetch call (GET and POST).
 
-You can adjust the endpoint URLs and requirement id as needed. The code is split into a JSX file (for the component) and a CSS file (for styling).
+You can adjust the import paths as needed based on your project structure.
 
 ---
 
-### 1. SQL Editor Page Component (SqlEditorPage.jsx)
+### SqlEditorPage.jsx
 
 ```jsx
 import React, { useEffect, useState } from 'react';
@@ -18,40 +16,45 @@ import AceEditor from 'react-ace';
 import sqlFormatter from 'sql-formatter';
 import 'ace-builds/src-noconflict/mode-sql';
 import 'ace-builds/src-noconflict/theme-github';
-import './SqlEditorPage.css'; // Ensure this file is in the same folder or adjust the path accordingly.
+import './SqlEditorPage.css';
+
+// Import company-specific constants and helpers
+import { MICROSERVICE_URL, generateSearHeaders } from 'config'; // Update this path as per your project structure
 
 function SqlEditorPage() {
-  // For demonstration we hardcode the requirement id; in production, this might come from props, route params, etc.
+  // For demonstration we hardcode the requirement id.
   const requirementId = "BZLS-4501";
 
-  // State to hold the two SQL files
+  // State for storing both SQL file contents.
   const [sqlFiles, setSqlFiles] = useState({
     createSqlContent: '',
     deleteSqlContent: ''
   });
 
-  // State for the currently active file and its content
-  const [activeFile, setActiveFile] = useState('create'); // possible values: 'create' or 'delete'
+  // State for the active file in the editor. Possible values: "create" or "delete"
+  const [activeFile, setActiveFile] = useState('create');
   const [editorContent, setEditorContent] = useState('');
-
   const [loading, setLoading] = useState(true);
 
-  // Fetch SQL file from backend on component mount
+  // Fetch SQL files from the backend on component mount.
   useEffect(() => {
-    fetch(`/api/sql/${requirementId}`)
+    const url = `${MICROSERVICE_URL}/api/sql/${requirementId}`;
+    fetch(url, {
+      method: 'GET',
+      headers: generateSearHeaders()
+    })
       .then(response => response.json())
       .then(data => {
-        // Auto-format the SQL files initially using sqlFormatter
+        // Auto-format the SQL files using sql-formatter on initial load.
         const formattedCreate = sqlFormatter.format(data.createSqlContent);
         const formattedDelete = sqlFormatter.format(data.deleteSqlContent);
 
-        // Save formatted files to state
         const files = {
           createSqlContent: formattedCreate,
           deleteSqlContent: formattedDelete
         };
+
         setSqlFiles(files);
-        // Set the active editor content (default to Create SQL)
         setEditorContent(formattedCreate);
         setLoading(false);
       })
@@ -61,7 +64,7 @@ function SqlEditorPage() {
       });
   }, [requirementId]);
 
-  // Handle change in the dropdown selection
+  // Handle drop-down file selection change.
   const handleFileChange = (event) => {
     const selected = event.target.value;
     setActiveFile(selected);
@@ -72,54 +75,49 @@ function SqlEditorPage() {
     }
   };
 
-  // Handle editor content change
+  // Handle editor content changes.
   const handleEditorChange = (newValue) => {
     setEditorContent(newValue);
-    // Update the correct SQL file in state
-    setSqlFiles(prev => {
-      if (activeFile === 'create') {
-        return { ...prev, createSqlContent: newValue };
-      } else {
-        return { ...prev, deleteSqlContent: newValue };
-      }
+    setSqlFiles(prevState => {
+      return activeFile === 'create'
+        ? { ...prevState, createSqlContent: newValue }
+        : { ...prevState, deleteSqlContent: newValue };
     });
   };
 
-  // Format the active SQL file using sql-formatter
+  // Format the current editor content using sql-formatter.
   const handleFormat = () => {
-    const formatted = sqlFormatter.format(editorContent);
-    setEditorContent(formatted);
-    setSqlFiles(prev => {
-      if (activeFile === 'create') {
-        return { ...prev, createSqlContent: formatted };
-      } else {
-        return { ...prev, deleteSqlContent: formatted };
-      }
+    const formattedContent = sqlFormatter.format(editorContent);
+    setEditorContent(formattedContent);
+    setSqlFiles(prevState => {
+      return activeFile === 'create'
+        ? { ...prevState, createSqlContent: formattedContent }
+        : { ...prevState, deleteSqlContent: formattedContent };
     });
   };
 
-  // Save button click handler – format both files and call the update endpoint
+  // Save the SQL files after formatting both and calling the update endpoint.
   const handleSave = () => {
-    // Format both files before saving
+    // Format both SQL contents before saving.
     const formattedCreate = sqlFormatter.format(sqlFiles.createSqlContent);
     const formattedDelete = sqlFormatter.format(sqlFiles.deleteSqlContent);
-
-    // Update state with the formatted values
     const updatedFiles = {
       createSqlContent: formattedCreate,
       deleteSqlContent: formattedDelete
     };
-    setSqlFiles(updatedFiles);
+
+    // Update the active editor.
     if (activeFile === 'create') {
       setEditorContent(formattedCreate);
     } else {
       setEditorContent(formattedDelete);
     }
 
-    // Call the backend update endpoint
-    fetch(`/api/sql/${requirementId}`, {
+    const url = `${MICROSERVICE_URL}/api/sql/${requirementId}`;
+    fetch(url, {
       method: 'POST',
       headers: {
+        ...generateSearHeaders(),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(updatedFiles)
@@ -175,9 +173,7 @@ export default SqlEditorPage;
 
 ---
 
-### 2. CSS File (SqlEditorPage.css)
-
-Below is a basic CSS setup for the page. You can further adjust styles to fit your project’s design guidelines.
+### SqlEditorPage.css
 
 ```css
 .sql-editor-page {
@@ -214,18 +210,21 @@ Below is a basic CSS setup for the page. You can further adjust styles to fit yo
 
 ---
 
-### How It Works
+### Guidelines Followed
 
-1. **Initialization:**  
-   When the component mounts, it fetches the two SQL files from the backend using the requirement id. Once fetched, each file is auto-formatted and then stored in state.
+1. **Backend URL Usage:**  
+   The code uses the imported **MICROSERVICE_URL** constant to construct API endpoint URLs.
 
-2. **Dropdown Navigation:**  
-   The dropdown lets the user select which SQL file to view/edit (Create SQL or Delete SQL). When a selection changes, the editor content is updated accordingly.
+2. **Header Generation:**  
+   Both GET and POST calls include the headers from **generateSearHeaders**, ensuring that the common header requirements are met.
 
-3. **Formatting:**  
-   Clicking the **Format** button runs the current editor content through `sqlFormatter.format` and updates both the editor content and the state.
+3. **Content-Type Header:**  
+   For POST requests, a `Content-Type: application/json` header is added along with the generated headers.
 
-4. **Saving:**  
-   On clicking **Save**, both SQL file contents are re-formatted and sent to the backend via a POST request to the update endpoint.
+4. **Consistent Fetch Structure:**  
+   The code follows a consistent pattern for asynchronous data fetching and error handling.
 
-This setup provides a clean and simple SQL editor using react-ace, with essential features like auto-format on load, formatting on demand, and saving formatted SQL back to the backend. Feel free to extend or refine this base as your project requirements evolve.
+5. **Formatting Before Updates:**  
+   The code formats the SQL content before saving, both in the current editor and across both files.
+
+You can now adjust the import paths and other small details as per your company's configuration and code style guidelines. Let me know if you need additional refinements or further details!
