@@ -1,8 +1,6 @@
-Below is the updated DagSqlServiceTest.java reflecting your service changes (using sourceSchema/sourceTableName for the Hive lookup and targetSchema + applicationName + tableName for the BigQuery name).
-
-// File: src/test/java/com/wellsfargo/utcap/service/DagSqlServiceTest.java
 package com.wellsfargo.utcap.service;
 
+import com.wellsfargo.utcap.exception.ResourceNotFoundException;
 import com.wellsfargo.utcap.model.DagSql;
 import com.wellsfargo.utcap.model.HiveTable;
 import com.wellsfargo.utcap.model.JiraStoryIntake;
@@ -11,173 +9,152 @@ import com.wellsfargo.utcap.repository.DagSqlRepository;
 import com.wellsfargo.utcap.repository.HiveTableRepository;
 import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
 import com.wellsfargo.utcap.repository.SqlDatatypeRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+@Service
+public class DagSqlService {
 
-@ExtendWith(MockitoExtension.class)
-public class DagSqlServiceTest {
+    private static final String DEFAULT_MAPPING_ID = "defaultMapping";
+    private static final String DEFAULT_TYPE       = "STRING";
+    private static final String INTEGER_TYPE       = "INTEGER";
+    private static final int    PAIR_SIZE          = 2;
 
-    @Mock
+    @Autowired
     private DagSqlRepository dagSqlRepository;
 
-    @Mock
+    @Autowired
     private JiraStoryIntakeRepository jiraStoryIntakeRepository;
 
-    @Mock
+    @Autowired
     private HiveTableRepository hiveTableRepository;
 
-    @Mock
+    @Autowired
     private SqlDatatypeRepository sqlDatatypeRepository;
 
-    @InjectMocks
-    private DagSqlService dagSqlService;
-
-    private final String requirementId = "req123";
-
-    @Test
-    void testGetDagSql_existingRecord() {
-        DagSql existing = new DagSql();
-        existing.setRequirementId(requirementId);
-
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.of(existing));
-
-        DagSql result = dagSqlService.getDagSql(requirementId);
-
-        assertSame(existing, result);
-        verify(dagSqlRepository, times(1)).findByRequirementId(requirementId);
-        verifyNoMoreInteractions(dagSqlRepository);
+    public DagSql getDagSql(String requirementId) {
+        return dagSqlRepository
+            .findByRequirementId(requirementId)
+            .orElseGet(() -> generateAndSaveDagSql(requirementId));
     }
 
-    @Test
-    void testGetDagSql_generateNewRecord() {
-        // no existing record
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.empty());
+    public DagSql generateAndSaveDagSql(String requirementId) {
+        JiraStoryIntake jiraStory = jiraStoryIntakeRepository
+            .findById(requirementId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "JiraStoryIntake not found for requirementId: " + requirementId));
 
-        // JiraStoryIntake now uses sourceSchema/sourceTableName + targetSchema/tableName/applicationName
-        JiraStoryIntake jiraStory = new JiraStoryIntake();
-        jiraStory.setSourceSchema("srcSchema");
-        jiraStory.setSourceTableName("srcTable");
-        jiraStory.setTargetSchema("tgtSchema");
-        jiraStory.setTableName("Tbl");
-        jiraStory.setApplicationName("App");
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(Optional.of(jiraStory));
+        String sourceSchema    = jiraStory.getSourceSchema();
+        String sourceTableName = jiraStory.getSourceTableName();
+        String tableIdentifier = sourceSchema + "." + sourceTableName;
 
-        // Hive lookup uses "srcSchema.srcTable"
-        HiveTable hiveTable = new HiveTable();
-        hiveTable.setFileSetAttr("col1|string|#col2|decimal(10,2)");
-        when(hiveTableRepository.findByTableName("srcSchema.srcTable"))
-            .thenReturn(Collections.singletonList(hiveTable));
+        String targetSchema    = jiraStory.getTargetSchema();
+        String appName         = jiraStory.getApplicationName();
+        String targetTableName = jiraStory.getTargetTableName();
+        String sqlDbTableName  = targetSchema + "." + appName + targetTableName;
 
-        // type mapping
-        Map<String,String> mapping = Map.of(
-          "STRING","STRING",
-          "DECIMAL","NUMERIC"
-        );
-        SqlDatatype sqlDatatype = new SqlDatatype("defaultMapping", mapping);
-        when(sqlDatatypeRepository.findById("defaultMapping"))
-            .thenReturn(Optional.of(sqlDatatype));
+        List<HiveTable> hiveTableList = hiveTableRepository.findByTableName(tableIdentifier);
+        HiveTable hiveTable = Optional.ofNullable(hiveTableList)
+            .filter(list -> !list.isEmpty())
+            .map(list -> list.get(0))
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "HiveTable not found for table: " + tableIdentifier));
 
-        // capture the saved entity
-        when(dagSqlRepository.save(any(DagSql.class)))
-            .thenAnswer(invocation -> invocation.getArgument(0));
+        SqlDatatype sqlDatatype = sqlDatatypeRepository
+            .findById(DEFAULT_MAPPING_ID)
+            .orElseGet(this::getDefaultSqlDatatype);
+        Map<String, String> mapping = sqlDatatype.getMappings();
 
-        DagSql generated = dagSqlService.getDagSql(requirementId);
+        String columnDefinitions = generateColumnDefinitions(hiveTable.getFileSetAttr(), mapping);
 
-        // verify requirementId carried over
-        assertEquals(requirementId, generated.getRequirementId());
-        // BigQuery table name = "tgtSchema.AppTbl"
-        assertTrue(generated.getCreateSqlContent()
-                     .contains("CREATE TABLE tgtSchema.AppTbl"));
-        assertTrue(generated.getDeleteSqlContent()
-                     .contains("DROP TABLE tgtSchema.AppTbl"));
+        String createSql = "CREATE TABLE " + sqlDbTableName + "(\n"
+            + columnDefinitions + "\n);";
+        String deleteSql = "DROP TABLE " + sqlDbTableName;
 
-        verify(dagSqlRepository).save(generated);
+        DagSql dagSql = new DagSql();
+        dagSql.setRequirementId(requirementId);
+        dagSql.setCreateSqlContent(createSql);
+        dagSql.setDeleteSqlContent(deleteSql);
+        dagSql.setCreatedAt(LocalDateTime.now());
+        dagSql.setUpdatedAt(LocalDateTime.now());
+
+        return dagSqlRepository.save(dagSql);
     }
 
-    @Test
-    void testGenerateAndSaveDagSql_invalidFileSetAttr() {
-        // Jira exists
-        JiraStoryIntake jiraStory = new JiraStoryIntake();
-        jiraStory.setSourceSchema("srcSchema");
-        jiraStory.setSourceTableName("srcTable");
-        jiraStory.setTargetSchema("tgtSchema");
-        jiraStory.setTableName("Tbl");
-        jiraStory.setApplicationName("App");
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(Optional.of(jiraStory));
+    private String generateColumnDefinitions(String fileSetAttr, Map<String, String> mapping) {
+        String[] tokens = fileSetAttr.split("\\|");
+        List<String> clean = new ArrayList<>();
+        for (String t : tokens) {
+            if (t != null && !t.trim().isEmpty()) {
+                clean.add(t.trim());
+            }
+        }
+        if (clean.size() % PAIR_SIZE != 0) {
+            throw new IllegalArgumentException(
+                "Invalid fileSetAttr format; expected pairs of name|type");
+        }
 
-        // odd tokens in fileSetAttr → error
-        HiveTable hiveTable = new HiveTable();
-        hiveTable.setFileSetAttr("col1|string|#col2");
-        when(hiveTableRepository.findByTableName("srcSchema.srcTable"))
-            .thenReturn(Collections.singletonList(hiveTable));
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < clean.size(); i += PAIR_SIZE) {
+            String colToken = clean.get(i);
+            String colName = colToken.startsWith("#")
+                ? colToken.substring(1)
+                : colToken;
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () ->
-            dagSqlService.generateAndSaveDagSql(requirementId)
-        );
-        assertTrue(ex.getMessage().contains("Invalid fileSetAttr format"));
+            String hiveType = clean.get(i + 1).toUpperCase(Locale.ROOT);
+            String baseType = hiveType.contains("(")
+                ? hiveType.substring(0, hiveType.indexOf('('))
+                : hiveType;
+
+            String bqType = mapping.getOrDefault(baseType, DEFAULT_TYPE);
+
+            builder.append("  ").append(colName).append(" ").append(bqType);
+            if (i < clean.size() - PAIR_SIZE) {
+                builder.append(",\n");
+            }
+        }
+        return builder.toString();
     }
 
-    @Test
-    void testGenerateAndSaveDagSql_missingJiraStory() {
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(Optional.empty());
+    public DagSql updateDagSql(String requirementId,
+                               String createSqlContent,
+                               String deleteSqlContent) {
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () ->
-            dagSqlService.generateAndSaveDagSql(requirementId)
-        );
-        assertTrue(ex.getMessage().contains("JiraStoryIntake not found"));
+        DagSql existing = dagSqlRepository
+            .findByRequirementId(requirementId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "DagSql record not found for requirementId: " + requirementId));
+
+        existing.setCreateSqlContent(createSqlContent);
+        existing.setDeleteSqlContent(deleteSqlContent);
+        existing.setUpdatedAt(LocalDateTime.now());
+        return dagSqlRepository.save(existing);
     }
 
-    @Test
-    void testUpdateDagSql_success() {
-        DagSql existing = new DagSql();
-        existing.setRequirementId(requirementId);
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.of(existing));
+    private SqlDatatype getDefaultSqlDatatype() {
+        Map<String, String> defaults = new HashMap<>();
+        defaults.put("STRING",   DEFAULT_TYPE);
+        defaults.put("CHAR",     DEFAULT_TYPE);
+        defaults.put("VARCHAR",  DEFAULT_TYPE);
+        defaults.put("INT",      INTEGER_TYPE);
+        defaults.put("INTEGER",  INTEGER_TYPE);
+        defaults.put("BIGINT",   INTEGER_TYPE);
+        defaults.put("SMALLINT", INTEGER_TYPE);
+        defaults.put("TINYINT",  INTEGER_TYPE);
+        defaults.put("BOOLEAN",  "BOOLEAN");
+        defaults.put("FLOAT",    "FLOAT");
+        defaults.put("DOUBLE",   "FLOAT");
+        defaults.put("DECIMAL",  "NUMERIC");
+        defaults.put("DATE",     "DATE");
+        defaults.put("TIMESTAMP","TIMESTAMP");
+        defaults.put("BINARY",   "BYTES");
 
-        when(dagSqlRepository.save(existing))
-            .thenReturn(existing);
-
-        DagSql result = dagSqlService.updateDagSql(requirementId, "newCreate", "newDelete");
-
-        assertEquals("newCreate", result.getCreateSqlContent());
-        assertEquals("newDelete", result.getDeleteSqlContent());
-        verify(dagSqlRepository).save(existing);
-    }
-
-    @Test
-    void testUpdateDagSql_missingRecord() {
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.empty());
-
-        RuntimeException ex = assertThrows(RuntimeException.class, () ->
-            dagSqlService.updateDagSql(requirementId, "c", "d")
-        );
-        assertTrue(ex.getMessage().contains("DagSql record not found"));
+        SqlDatatype dt = new SqlDatatype();
+        dt.setId(DEFAULT_MAPPING_ID);
+        dt.setMappings(defaults);
+        return dt;
     }
 }
-
-What’s changed
-
-We now stub and verify calls to jiraStoryIntakeRepository.findById(...) with the new getters/setters (sourceSchema, sourceTableName, targetSchema, tableName, applicationName).
-
-The Hive lookup is asserted against "srcSchema.srcTable".
-
-The generated BigQuery table name is now "tgtSchema.AppTbl".
-
-
-Let me know if any other adjustments are needed!
-
