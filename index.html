@@ -1,169 +1,164 @@
-// File: src/test/java/com/wellsfargo/utcap/service/DagSqlServiceTest.java
-package com.wellsfargo.utcap.service;
+// File: src/test/java/com/wellsfargo/utcap/controller/DagSqlControllerTest.java
+package com.wellsfargo.utcap.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wellsfargo.utcap.exception.ResourceNotFoundException;
 import com.wellsfargo.utcap.model.DagSql;
-import com.wellsfargo.utcap.model.HiveTable;
-import com.wellsfargo.utcap.model.JiraStoryIntake;
-import com.wellsfargo.utcap.model.SqlDatatype;
-import com.wellsfargo.utcap.repository.DagSqlRepository;
-import com.wellsfargo.utcap.repository.HiveTableRepository;
-import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
-import com.wellsfargo.utcap.repository.SqlDatatypeRepository;
+import com.wellsfargo.utcap.service.DagSqlService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.*;
+import java.time.LocalDateTime;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
-public class DagSqlServiceTest {
+public class DagSqlControllerTest {
+
+    private MockMvc mockMvc;
 
     @Mock
-    private DagSqlRepository dagSqlRepository;
-
-    @Mock
-    private JiraStoryIntakeRepository jiraStoryIntakeRepository;
-
-    @Mock
-    private HiveTableRepository hiveTableRepository;
-
-    @Mock
-    private SqlDatatypeRepository sqlDatatypeRepository;
-
-    @InjectMocks
     private DagSqlService dagSqlService;
 
-    private final String requirementId = "req123";
+    @InjectMocks
+    private DagSqlController dagSqlController;
 
-    @Test
-    void testGetDagSql_existingRecord() throws Exception {
-        DagSql existing = new DagSql();
-        existing.setRequirementId(requirementId);
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.of(existing));
-
-        DagSql result = dagSqlService.getDagSql(requirementId);
-
-        assertSame(existing, result);
-        verify(dagSqlRepository, times(1)).findByRequirementId(requirementId);
-        verifyNoMoreInteractions(dagSqlRepository);
+    @BeforeEach
+    public void setUp() {
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(dagSqlController)
+            .setControllerAdvice() // in case you have global handlers
+            .build();
     }
 
     @Test
-    void testGetDagSql_generateNewRecord() throws Exception {
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.empty());
+    public void testGetDagSqlSuccess() throws Exception {
+        String requirementId = "req123";
+        DagSql dummy = new DagSql();
+        dummy.setRequirementId(requirementId);
+        dummy.setCreateSqlContent("CREATE TABLE foo");
+        dummy.setDeleteSqlContent("DROP TABLE foo");
+        dummy.setCreatedAt(LocalDateTime.now());
+        dummy.setUpdatedAt(LocalDateTime.now());
 
-        JiraStoryIntake jiraStory = new JiraStoryIntake();
-        jiraStory.setSourceSchema("srcSchema");
-        jiraStory.setSourceTableName("srcTable");
-        jiraStory.setTargetSchema("tgtSchema");
-        jiraStory.setApplicationName("App");
-        jiraStory.setTargetTableName("Tbl");
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(Optional.of(jiraStory));
+        when(dagSqlService.getDagSql(requirementId)).thenReturn(dummy);
 
-        HiveTable hiveTable = new HiveTable();
-        hiveTable.setFileSetAttr("col1|string|#col2|decimal(10,2)");
-        when(hiveTableRepository.findByTableName("srcSchema.srcTable"))
-            .thenReturn(Collections.singletonList(hiveTable));
-
-        Map<String, String> mapping = Map.of("STRING", "STRING", "DECIMAL", "NUMERIC");
-        when(sqlDatatypeRepository.findById("defaultMapping"))
-            .thenReturn(Optional.of(new SqlDatatype("defaultMapping", mapping)));
-
-        when(dagSqlRepository.save(any(DagSql.class)))
-            .thenAnswer(invocation -> invocation.getArgument(0));
-
-        DagSql generated = dagSqlService.getDagSql(requirementId);
-
-        assertEquals(requirementId, generated.getRequirementId());
-        assertTrue(generated.getCreateSqlContent()
-            .contains("CREATE TABLE tgtSchema.AppTbl"));
-        assertTrue(generated.getDeleteSqlContent()
-            .contains("DROP TABLE tgtSchema.AppTbl"));
-
-        verify(dagSqlRepository).save(generated);
+        mockMvc.perform(get("/api/sql/{id}", requirementId))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.requirementId").value(requirementId))
+               .andExpect(jsonPath("$.createSqlContent").value("CREATE TABLE foo"))
+               .andExpect(jsonPath("$.deleteSqlContent").value("DROP TABLE foo"));
     }
 
     @Test
-    void testGetDagSql_missingJiraStory() {
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.empty());
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(Optional.empty());
+    public void testGetDagSqlNotFound() throws Exception {
+        String requirementId = "notFound";
+        when(dagSqlService.getDagSql(requirementId))
+            .thenThrow(new ResourceNotFoundException("missing"));
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () ->
-            dagSqlService.getDagSql(requirementId)
-        );
-        assertTrue(ex.getCause() instanceof ResourceNotFoundException);
+        mockMvc.perform(get("/api/sql/{id}", requirementId))
+               .andExpect(status().isNotFound());
     }
 
     @Test
-    void testGenerateAndSaveDagSql_invalidFileSetAttr() {
-        JiraStoryIntake jiraStory = new JiraStoryIntake();
-        jiraStory.setSourceSchema("srcSchema");
-        jiraStory.setSourceTableName("srcTable");
-        jiraStory.setTargetSchema("tgtSchema");
-        jiraStory.setApplicationName("App");
-        jiraStory.setTargetTableName("Tbl");
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(Optional.of(jiraStory));
+    public void testGetDagSqlWrappedNotFound() throws Exception {
+        String requirementId = "wrapped";
+        // simulate the RuntimeException wrapping ResourceNotFoundException
+        when(dagSqlService.getDagSql(requirementId))
+            .thenThrow(new RuntimeException(new ResourceNotFoundException("wrapped")));
 
-        HiveTable hiveTable = new HiveTable();
-        hiveTable.setFileSetAttr("col1|string|#col2"); // odd tokens
-        when(hiveTableRepository.findByTableName("srcSchema.srcTable"))
-            .thenReturn(Collections.singletonList(hiveTable));
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-            dagSqlService.generateAndSaveDagSql(requirementId)
-        );
-        assertTrue(ex.getMessage().contains("Invalid fileSetAttr format"));
+        mockMvc.perform(get("/api/sql/{id}", requirementId))
+               .andExpect(status().isNotFound());
     }
 
     @Test
-    void testGenerateAndSaveDagSql_missingJiraStory() {
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(Optional.empty());
+    public void testGetDagSqlError() throws Exception {
+        String requirementId = "errorId";
+        when(dagSqlService.getDagSql(requirementId))
+            .thenThrow(new RuntimeException("service failure"));
 
-        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () ->
-            dagSqlService.generateAndSaveDagSql(requirementId)
-        );
-        assertTrue(ex.getMessage().contains("JiraStoryIntake not found"));
+        mockMvc.perform(get("/api/sql/{id}", requirementId))
+               .andExpect(status().isInternalServerError());
     }
 
     @Test
-    void testUpdateDagSql_success() throws Exception {
-        DagSql existing = new DagSql();
-        existing.setRequirementId(requirementId);
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.of(existing));
-        when(dagSqlRepository.save(existing))
-            .thenReturn(existing);
+    public void testUpdateDagSqlSuccess() throws Exception {
+        String requirementId = "req123";
+        DagSql input = new DagSql();
+        input.setCreateSqlContent("CREATE A");
+        input.setDeleteSqlContent("DROP A");
 
-        DagSql result = dagSqlService.updateDagSql(requirementId, "newCreate", "newDelete");
+        DagSql updated = new DagSql();
+        updated.setRequirementId(requirementId);
+        updated.setCreateSqlContent("CREATE B");
+        updated.setDeleteSqlContent("DROP B");
+        updated.setCreatedAt(LocalDateTime.now());
+        updated.setUpdatedAt(LocalDateTime.now());
 
-        assertEquals("newCreate", result.getCreateSqlContent());
-        assertEquals("newDelete", result.getDeleteSqlContent());
-        verify(dagSqlRepository).save(existing);
+        when(dagSqlService.updateDagSql(
+                eq(requirementId),
+                anyString(),
+                anyString()))
+            .thenReturn(updated);
+
+        String json = objectMapper.writeValueAsString(input);
+
+        mockMvc.perform(post("/api/sql/{id}", requirementId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.requirementId").value(requirementId))
+               .andExpect(jsonPath("$.createSqlContent").value("CREATE B"))
+               .andExpect(jsonPath("$.deleteSqlContent").value("DROP B"));
     }
 
     @Test
-    void testUpdateDagSql_missingRecord() {
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(Optional.empty());
+    public void testUpdateDagSqlNotFound() throws Exception {
+        String requirementId = "notFound";
+        DagSql input = new DagSql();
+        input.setCreateSqlContent("CREATE A");
+        input.setDeleteSqlContent("DROP A");
+        String json = objectMapper.writeValueAsString(input);
 
-        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () ->
-            dagSqlService.updateDagSql(requirementId, "c", "d")
-        );
-        assertTrue(ex.getMessage().contains("DagSql not found"));
+        when(dagSqlService.updateDagSql(
+                eq(requirementId),
+                anyString(),
+                anyString()))
+            .thenThrow(new ResourceNotFoundException("missing"));
+
+        mockMvc.perform(post("/api/sql/{id}", requirementId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+               .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void testUpdateDagSqlError() throws Exception {
+        String requirementId = "errorId";
+        DagSql input = new DagSql();
+        input.setCreateSqlContent("CREATE A");
+        input.setDeleteSqlContent("DROP A");
+        String json = objectMapper.writeValueAsString(input);
+
+        when(dagSqlService.updateDagSql(anyString(), anyString(), anyString()))
+            .thenThrow(new RuntimeException("update failed"));
+
+        mockMvc.perform(post("/api/sql/{id}", requirementId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+               .andExpect(status().isInternalServerError());
     }
 }
