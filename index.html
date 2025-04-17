@@ -1,100 +1,3 @@
-Here are the updated backend files with the requested mapping change (using `INTEGER` instead of `INT64`), the new column‑vs‑types parsing logic, and Sonar issues addressed (magic numbers, generic exceptions, mutable map exposure, logging, etc.).
-
----
-
-## 1. `ResourceNotFoundException.java`
-
-A dedicated exception class for missing records (replaces all those generic `RuntimeException`s).
-
-```java
-package com.wellsfargo.utcap.exception;
-
-public class ResourceNotFoundException extends RuntimeException {
-    public ResourceNotFoundException(String message) {
-        super(message);
-    }
-}
-```
-
----
-
-## 2. `SqlDatatype.java`  
-Defensive copying and unmodifiable getters to avoid exposing internal state.
-
-```java
-package com.wellsfargo.utcap.model;
-
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-
-@Document(collection = "sqlDatatype")
-public class SqlDatatype {
-
-    @Id
-    private String id;
-    private Map<String, String> mappings = new HashMap<>();
-
-    public SqlDatatype() { }
-
-    public SqlDatatype(String id, Map<String, String> mappings) {
-        this.id = id;
-        setMappings(mappings);
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    /**
-     * Returns an unmodifiable view to prevent external mutation.
-     */
-    public Map<String, String> getMappings() {
-        return Collections.unmodifiableMap(mappings);
-    }
-
-    /**
-     * Defensive copy to avoid storing an external map reference.
-     */
-    public void setMappings(Map<String, String> mappings) {
-        this.mappings = mappings == null
-            ? new HashMap<>()
-            : new HashMap<>(mappings);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof SqlDatatype)) return false;
-        SqlDatatype that = (SqlDatatype) o;
-        return Objects.equals(id, that.id) &&
-               Objects.equals(mappings, that.mappings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, mappings);
-    }
-}
-```
-
----
-
-## 3. `DagSqlService.java`  
-- Extracts column names from `HiveTable.getColumnName()` (CSV)  
-- Extracts types from `HiveTable.getFileSetAttr()` (pipe‑delimited pairs)  
-- Uses named constants instead of magic numbers/strings  
-- Throws `ResourceNotFoundException` for missing records  
-
-```java
 package com.wellsfargo.utcap.service;
 
 import com.wellsfargo.utcap.exception.ResourceNotFoundException;
@@ -115,230 +18,170 @@ import java.util.*;
 @Service
 public class DagSqlService {
 
-    private static final int    TOKEN_STEP         = 2;
     private static final String DEFAULT_MAPPING_ID = "defaultMapping";
-    private static final String CREATE_TEMPLATE    = "CREATE TABLE %s(\n%s\n);";
-    private static final String DROP_TEMPLATE      = "DROP TABLE %s";
+    private static final String DEFAULT_TYPE       = "STRING";
+    private static final String INTEGER_TYPE       = "INTEGER";
+    private static final int    PAIR_SIZE          = 2;
 
     @Autowired
-    private DagSqlRepository dagSqlRepository;
+    private DagSqlRepository            dagSqlRepository;
 
     @Autowired
-    private JiraStoryIntakeRepository jiraStoryIntakeRepository;
+    private JiraStoryIntakeRepository   jiraStoryIntakeRepository;
 
     @Autowired
-    private HiveTableRepository hiveTableRepository;
+    private HiveTableRepository         hiveTableRepository;
 
     @Autowired
-    private SqlDatatypeRepository sqlDatatypeRepository;
+    private SqlDatatypeRepository       sqlDatatypeRepository;
 
-    public DagSql getDagSql(String requirementId) {
-        return dagSqlRepository
-            .findByRequirementId(requirementId)
-            .orElseGet(() -> generateAndSaveDagSql(requirementId));
+    /**
+     * Fetches an existing DagSql or generates & saves a new one.
+     */
+    public DagSql getDagSql(String requirementId) throws ResourceNotFoundException {
+        Optional<DagSql> existing = dagSqlRepository.findByRequirementId(requirementId);
+        return existing.orElseGet(() -> {
+            try {
+                return generateAndSaveDagSql(requirementId);
+            } catch (ResourceNotFoundException e) {
+                // wrap checked into unchecked so this lambda compiles
+                throw new RuntimeException(e);
+            }
+        });
     }
 
-    public DagSql generateAndSaveDagSql(String requirementId) {
+    /**
+     * Generates the two SQL files and persists a new DagSql.
+     */
+    public DagSql generateAndSaveDagSql(String requirementId) throws ResourceNotFoundException {
         JiraStoryIntake jiraStory = jiraStoryIntakeRepository
             .findById(requirementId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "JiraStoryIntake not found for requirementId: " + requirementId));
 
-        String schema = jiraStory.getTargetSchema();
-        String table  = jiraStory.getTargetTableName();
-        String identifier = schema + "." + table;
+        // source metadata
+        String sourceSchema    = jiraStory.getSourceSchema();
+        String sourceTableName = jiraStory.getSourceTableName();
+        String tableIdentifier = sourceSchema + "." + sourceTableName;
 
-        List<HiveTable> hiveTables = hiveTableRepository.findByTableName(identifier);
-        HiveTable hiveTable = Optional.ofNullable(hiveTables)
-            .filter(list -> !list.isEmpty())
-            .map(list -> list.get(0))
+        // target name construction
+        String targetSchema    = jiraStory.getTargetSchema();
+        String appName         = jiraStory.getApplicationName();
+        String targetTableName = jiraStory.getTargetTableName();
+        String sqlDbTableName  = targetSchema + "." + appName + targetTableName;
+
+        // fetch HiveTable record
+        List<HiveTable> hiveList = hiveTableRepository.findByTableName(tableIdentifier);
+        HiveTable hive = Optional.ofNullable(hiveList)
+            .filter(l -> !l.isEmpty())
+            .map(l -> l.get(0))
             .orElseThrow(() -> new ResourceNotFoundException(
-                "HiveTable not found for: " + identifier));
+                "HiveTable not found for table: " + tableIdentifier));
 
+        // fetch type mapping
         SqlDatatype sqlDatatype = sqlDatatypeRepository
             .findById(DEFAULT_MAPPING_ID)
             .orElseGet(this::getDefaultSqlDatatype);
-        Map<String, String> mapping = sqlDatatype.getMappings();
+        Map<String,String> mapping = sqlDatatype.getMappings();
 
-        String columns = generateColumnDefinitions(
-            hiveTable.getColumnName(),
-            hiveTable.getFileSetAttr(),
-            mapping);
+        // build column definitions
+        String cols = generateColumnDefinitions(hive.getFileSetAttr(), mapping);
 
-        String createSql = String.format(CREATE_TEMPLATE, identifier, columns);
-        String deleteSql = String.format(DROP_TEMPLATE, identifier);
+        // build SQL
+        String createSql = "CREATE TABLE " + sqlDbTableName + "(\n" + cols + "\n);";
+        String deleteSql = "DROP TABLE "    + sqlDbTableName;
 
+        // persist & return
         DagSql record = new DagSql();
         record.setRequirementId(requirementId);
         record.setCreateSqlContent(createSql);
         record.setDeleteSqlContent(deleteSql);
         record.setCreatedAt(LocalDateTime.now());
         record.setUpdatedAt(LocalDateTime.now());
-
         return dagSqlRepository.save(record);
     }
 
-    private String generateColumnDefinitions(
-        String columnCsv,
-        String fileSetAttr,
-        Map<String, String> mapping
-    ) {
-        String[] columns = columnCsv.split(",");
-        String[] tokens  = fileSetAttr.split("\\|");
-
-        List<String> cleaned = new ArrayList<>();
-        for (String token : tokens) {
-            if (token != null && !token.trim().isEmpty()) {
-                cleaned.add(token.trim());
+    /**
+     * Parses fileSetAttr into “name TYPE” lines.
+     */
+    private String generateColumnDefinitions(String fileSetAttr,
+                                             Map<String,String> mapping) {
+        String[] tokens = fileSetAttr.split("\\|");
+        List<String> clean = new ArrayList<>();
+        for (String t : tokens) {
+            if (t != null && !t.trim().isEmpty()) {
+                clean.add(t.trim());
             }
         }
-
-        if (cleaned.size() % TOKEN_STEP != 0) {
+        if (clean.size() % PAIR_SIZE != 0) {
             throw new IllegalArgumentException(
-                "Invalid fileSetAttr format; even number of tokens expected");
+                "Invalid fileSetAttr format; expected pairs of name|type");
         }
 
-        // extract every second token as the Hive type
-        List<String> types = new ArrayList<>();
-        for (int i = 1; i < cleaned.size(); i += TOKEN_STEP) {
-            types.add(cleaned.get(i).toUpperCase(Locale.ROOT));
-        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < clean.size(); i += PAIR_SIZE) {
+            String rawName = clean.get(i);
+            String colName = rawName.startsWith("#")
+                ? rawName.substring(1)
+                : rawName;
 
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < columns.length; i++) {
-            String colName = columns[i].trim();
-            String hiveType = i < types.size() ? types.get(i) : "";
+            String hiveType = clean.get(i+1).toUpperCase(Locale.ROOT);
             String baseType = hiveType.contains("(")
                 ? hiveType.substring(0, hiveType.indexOf('('))
                 : hiveType;
-            String bqType = mapping.getOrDefault(baseType, "STRING");
 
-            builder
-                .append("  ")
-                .append(colName)
-                .append(" ")
-                .append(bqType);
+            String bqType = mapping.getOrDefault(baseType, DEFAULT_TYPE);
+            sb.append("  ").append(colName).append(" ").append(bqType);
 
-            if (i < columns.length - 1) {
-                builder.append(',').append('\n');
+            if (i < clean.size() - PAIR_SIZE) {
+                sb.append(",\n");
             }
         }
-        return builder.toString();
+        return sb.toString();
     }
 
-    public DagSql updateDagSql(
-        String requirementId,
-        String createSql,
-        String deleteSql
-    ) {
+    /**
+     * Updates existing DagSql contents.
+     */
+    public DagSql updateDagSql(String requirementId,
+                               String createSqlContent,
+                               String deleteSqlContent)
+            throws ResourceNotFoundException {
         DagSql existing = dagSqlRepository
             .findByRequirementId(requirementId)
             .orElseThrow(() -> new ResourceNotFoundException(
-                "DagSql record not found for requirementId: " + requirementId));
+                "DagSql not found for requirementId: " + requirementId));
 
-        existing.setCreateSqlContent(createSql);
-        existing.setDeleteSqlContent(deleteSql);
+        existing.setCreateSqlContent(createSqlContent);
+        existing.setDeleteSqlContent(deleteSqlContent);
         existing.setUpdatedAt(LocalDateTime.now());
-
         return dagSqlRepository.save(existing);
     }
 
+    /**
+     * Fallback in‐code mapping if Mongo document is missing.
+     */
     private SqlDatatype getDefaultSqlDatatype() {
-        Map<String, String> def = new HashMap<>();
-        def.put("STRING",  "STRING");
-        def.put("CHAR",    "STRING");
-        def.put("VARCHAR", "STRING");
-        def.put("INT",     "INTEGER");
-        def.put("INTEGER", "INTEGER");
-        def.put("BIGINT",  "INTEGER");
-        def.put("SMALLINT","INTEGER");
-        def.put("TINYINT", "INTEGER");
-        def.put("BOOLEAN", "BOOLEAN");
-        def.put("FLOAT",   "FLOAT");
-        def.put("DOUBLE",  "FLOAT");
-        def.put("DECIMAL", "NUMERIC");
-        def.put("DATE",    "DATE");
-        def.put("TIMESTAMP","TIMESTAMP");
-        def.put("BINARY",  "BYTES");
+        Map<String,String> defaults = new HashMap<>();
+        defaults.put("STRING",   DEFAULT_TYPE);
+        defaults.put("CHAR",     DEFAULT_TYPE);
+        defaults.put("VARCHAR",  DEFAULT_TYPE);
+        defaults.put("INT",      INTEGER_TYPE);
+        defaults.put("INTEGER",  INTEGER_TYPE);
+        defaults.put("BIGINT",   INTEGER_TYPE);
+        defaults.put("SMALLINT", INTEGER_TYPE);
+        defaults.put("TINYINT",  INTEGER_TYPE);
+        defaults.put("BOOLEAN",  "BOOLEAN");
+        defaults.put("FLOAT",    "FLOAT");
+        defaults.put("DOUBLE",   "FLOAT");
+        defaults.put("DECIMAL",  "NUMERIC");
+        defaults.put("DATE",     "DATE");
+        defaults.put("TIMESTAMP","TIMESTAMP");
+        defaults.put("BINARY",   "BYTES");
 
-        return new SqlDatatype(DEFAULT_MAPPING_ID, def);
+        SqlDatatype dt = new SqlDatatype();
+        dt.setId(DEFAULT_MAPPING_ID);
+        dt.setMappings(defaults);
+        return dt;
     }
 }
-```
-
----
-
-## 4. `DagSqlController.java`  
-Logs all errors, distinguishes **404** vs **500**, and removes unused imports/inline comments.
-
-```java
-package com.wellsfargo.utcap.controller;
-
-import com.wellsfargo.utcap.exception.ResourceNotFoundException;
-import com.wellsfargo.utcap.model.DagSql;
-import com.wellsfargo.utcap.service.DagSqlService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-@RestController
-@RequestMapping("/api/sql")
-public class DagSqlController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(DagSqlController.class);
-
-    @Autowired
-    private DagSqlService dagSqlService;
-
-    @GetMapping("/{requirementId}")
-    public ResponseEntity<DagSql> getDagSql(@PathVariable String requirementId) {
-        try {
-            DagSql sql = dagSqlService.getDagSql(requirementId);
-            return ResponseEntity.ok(sql);
-        } catch (ResourceNotFoundException e) {
-            LOGGER.error("Not found: {}", requirementId, e);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        } catch (Exception e) {
-            LOGGER.error("Error fetching DagSql for {}", requirementId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    @PostMapping("/{requirementId}")
-    public ResponseEntity<DagSql> updateDagSql(
-        @PathVariable String requirementId,
-        @RequestBody DagSql updatedSql
-    ) {
-        try {
-            DagSql saved = dagSqlService.updateDagSql(
-                requirementId,
-                updatedSql.getCreateSqlContent(),
-                updatedSql.getDeleteSqlContent()
-            );
-            return ResponseEntity.ok(saved);
-        } catch (ResourceNotFoundException e) {
-            LOGGER.error("Not found on update: {}", requirementId, e);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        } catch (Exception e) {
-            LOGGER.error("Error updating DagSql for {}", requirementId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-}
-```
-
----
-
-With these changes you now have:
-
-- **Dedicated exception** for 404 scenarios.  
-- **Defensive collections** in `SqlDatatype`.  
-- **No magic numbers/strings** littered in code (all pulled into constants).  
-- **Proper logging** in the controller catches.  
-- **Accurate column‑vs‑type pairing** (using both `columnName` and `fileSetAttr`).  
-- **INTEGER** used throughout instead of `INT64`.  
-
-That should clear the Sonar flags and align the code with your updated parsing and mapping requirements. Let me know if any further tweaks are needed!
