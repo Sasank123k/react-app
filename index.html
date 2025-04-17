@@ -1,230 +1,289 @@
-Below is an updated version of the React component that follows your company’s guidelines. In this version, we:
+Here are the two full JUnit 5 + Mockito test classes.
 
-- Import a constant called **MICROSERVICE_URL** (which should contain your backend URL plus the API path).  
-- Import a helper **generateSearHeaders** that produces the required headers for API calls.  
-- Use these in every fetch call (GET and POST).
-
-You can adjust the import paths as needed based on your project structure.
 
 ---
 
-### SqlEditorPage.jsx
+// File: src/test/java/com/wellsfargo/utcap/controller/DagSqlControllerTest.java
+package com.wellsfargo.utcap.controller;
 
-```jsx
-import React, { useEffect, useState } from 'react';
-import AceEditor from 'react-ace';
-import sqlFormatter from 'sql-formatter';
-import 'ace-builds/src-noconflict/mode-sql';
-import 'ace-builds/src-noconflict/theme-github';
-import './SqlEditorPage.css';
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wellsfargo.utcap.model.DagSql;
+import com.wellsfargo.utcap.service.DagSqlService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-// Import company-specific constants and helpers
-import { MICROSERVICE_URL, generateSearHeaders } from 'config'; // Update this path as per your project structure
+import java.time.LocalDateTime;
 
-function SqlEditorPage() {
-  // For demonstration we hardcode the requirement id.
-  const requirementId = "BZLS-4501";
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-  // State for storing both SQL file contents.
-  const [sqlFiles, setSqlFiles] = useState({
-    createSqlContent: '',
-    deleteSqlContent: ''
-  });
+@ExtendWith(MockitoExtension.class)
+public class DagSqlControllerTest {
 
-  // State for the active file in the editor. Possible values: "create" or "delete"
-  const [activeFile, setActiveFile] = useState('create');
-  const [editorContent, setEditorContent] = useState('');
-  const [loading, setLoading] = useState(true);
+    private MockMvc mockMvc;
 
-  // Fetch SQL files from the backend on component mount.
-  useEffect(() => {
-    const url = `${MICROSERVICE_URL}/api/sql/${requirementId}`;
-    fetch(url, {
-      method: 'GET',
-      headers: generateSearHeaders()
-    })
-      .then(response => response.json())
-      .then(data => {
-        // Auto-format the SQL files using sql-formatter on initial load.
-        const formattedCreate = sqlFormatter.format(data.createSqlContent);
-        const formattedDelete = sqlFormatter.format(data.deleteSqlContent);
+    @Mock
+    private DagSqlService dagSqlService;
 
-        const files = {
-          createSqlContent: formattedCreate,
-          deleteSqlContent: formattedDelete
-        };
+    @InjectMocks
+    private DagSqlController dagSqlController;
 
-        setSqlFiles(files);
-        setEditorContent(formattedCreate);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error("Error fetching SQL files:", error);
-        setLoading(false);
-      });
-  }, [requirementId]);
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-  // Handle drop-down file selection change.
-  const handleFileChange = (event) => {
-    const selected = event.target.value;
-    setActiveFile(selected);
-    if (selected === 'create') {
-      setEditorContent(sqlFiles.createSqlContent);
-    } else {
-      setEditorContent(sqlFiles.deleteSqlContent);
-    }
-  };
-
-  // Handle editor content changes.
-  const handleEditorChange = (newValue) => {
-    setEditorContent(newValue);
-    setSqlFiles(prevState => {
-      return activeFile === 'create'
-        ? { ...prevState, createSqlContent: newValue }
-        : { ...prevState, deleteSqlContent: newValue };
-    });
-  };
-
-  // Format the current editor content using sql-formatter.
-  const handleFormat = () => {
-    const formattedContent = sqlFormatter.format(editorContent);
-    setEditorContent(formattedContent);
-    setSqlFiles(prevState => {
-      return activeFile === 'create'
-        ? { ...prevState, createSqlContent: formattedContent }
-        : { ...prevState, deleteSqlContent: formattedContent };
-    });
-  };
-
-  // Save the SQL files after formatting both and calling the update endpoint.
-  const handleSave = () => {
-    // Format both SQL contents before saving.
-    const formattedCreate = sqlFormatter.format(sqlFiles.createSqlContent);
-    const formattedDelete = sqlFormatter.format(sqlFiles.deleteSqlContent);
-    const updatedFiles = {
-      createSqlContent: formattedCreate,
-      deleteSqlContent: formattedDelete
-    };
-
-    // Update the active editor.
-    if (activeFile === 'create') {
-      setEditorContent(formattedCreate);
-    } else {
-      setEditorContent(formattedDelete);
+    @BeforeEach
+    public void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(dagSqlController).build();
     }
 
-    const url = `${MICROSERVICE_URL}/api/sql/${requirementId}`;
-    fetch(url, {
-      method: 'POST',
-      headers: {
-        ...generateSearHeaders(),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(updatedFiles)
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to update SQL files');
-        }
-        return response.json();
-      })
-      .then(data => {
-        alert('SQL files updated successfully.');
-      })
-      .catch(error => {
-        console.error("Error saving SQL files:", error);
-        alert('Error updating SQL files. Please try again.');
-      });
-  };
+    @Test
+    public void testGetDagSqlSuccess() throws Exception {
+        String requirementId = "req123";
+        DagSql dummy = new DagSql();
+        dummy.setRequirementId(requirementId);
+        dummy.setCreateSqlContent("CREATE TABLE foo");
+        dummy.setDeleteSqlContent("DROP TABLE foo");
+        dummy.setCreatedAt(LocalDateTime.now());
+        dummy.setUpdatedAt(LocalDateTime.now());
 
-  if (loading) {
-    return <div>Loading SQL editor...</div>;
-  }
+        when(dagSqlService.getDagSql(requirementId)).thenReturn(dummy);
 
-  return (
-    <div className="sql-editor-page">
-      <div className="toolbar">
-        <select value={activeFile} onChange={handleFileChange}>
-          <option value="create">Create SQL</option>
-          <option value="delete">Delete SQL</option>
-        </select>
-        <button onClick={handleFormat}>Format</button>
-        <button onClick={handleSave}>Save</button>
-      </div>
-      <AceEditor
-        mode="sql"
-        theme="github"
-        name="sql-editor"
-        value={editorContent}
-        onChange={handleEditorChange}
-        width="100%"
-        height="500px"
-        setOptions={{
-          enableBasicAutocompletion: true,
-          enableLiveAutocompletion: true,
-        }}
-      />
-    </div>
-  );
+        mockMvc.perform(get("/api/sql/" + requirementId))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.requirementId").value(requirementId))
+               .andExpect(jsonPath("$.createSqlContent").value("CREATE TABLE foo"))
+               .andExpect(jsonPath("$.deleteSqlContent").value("DROP TABLE foo"));
+    }
+
+    @Test
+    public void testGetDagSqlError() throws Exception {
+        String requirementId = "badId";
+        when(dagSqlService.getDagSql(requirementId))
+            .thenThrow(new RuntimeException("service failure"));
+
+        mockMvc.perform(get("/api/sql/" + requirementId))
+               .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    public void testUpdateDagSqlSuccess() throws Exception {
+        String requirementId = "req123";
+        DagSql input = new DagSql();
+        input.setCreateSqlContent("CREATE A");
+        input.setDeleteSqlContent("DROP A");
+
+        DagSql updated = new DagSql();
+        updated.setRequirementId(requirementId);
+        updated.setCreateSqlContent("CREATE B");
+        updated.setDeleteSqlContent("DROP B");
+        updated.setCreatedAt(LocalDateTime.now());
+        updated.setUpdatedAt(LocalDateTime.now());
+
+        when(dagSqlService.updateDagSql(
+                eq(requirementId),
+                anyString(),
+                anyString()))
+            .thenReturn(updated);
+
+        String json = objectMapper.writeValueAsString(input);
+
+        mockMvc.perform(post("/api/sql/" + requirementId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.requirementId").value(requirementId))
+               .andExpect(jsonPath("$.createSqlContent").value("CREATE B"))
+               .andExpect(jsonPath("$.deleteSqlContent").value("DROP B"));
+    }
+
+    @Test
+    public void testUpdateDagSqlError() throws Exception {
+        String requirementId = "badId";
+        DagSql input = new DagSql();
+        input.setCreateSqlContent("CREATE A");
+        input.setDeleteSqlContent("DROP A");
+        String json = objectMapper.writeValueAsString(input);
+
+        when(dagSqlService.updateDagSql(anyString(), anyString(), anyString()))
+            .thenThrow(new RuntimeException("update failed"));
+
+        mockMvc.perform(post("/api/sql/" + requirementId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+               .andExpect(status().isInternalServerError());
+    }
 }
 
-export default SqlEditorPage;
-```
 
 ---
 
-### SqlEditorPage.css
+// File: src/test/java/com/wellsfargo/utcap/service/DagSqlServiceTest.java
+package com.wellsfargo.utcap.service;
 
-```css
-.sql-editor-page {
-  margin: 20px;
-  padding: 20px;
-  font-family: Arial, sans-serif;
+import com.wellsfargo.utcap.model.DagSql;
+import com.wellsfargo.utcap.model.HiveTable;
+import com.wellsfargo.utcap.model.JiraStoryIntake;
+import com.wellsfargo.utcap.model.SqlDatatype;
+import com.wellsfargo.utcap.repository.DagSqlRepository;
+import com.wellsfargo.utcap.repository.HiveTableRepository;
+import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
+import com.wellsfargo.utcap.repository.SqlDatatypeRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+public class DagSqlServiceTest {
+
+    @Mock
+    private DagSqlRepository dagSqlRepository;
+    @Mock
+    private JiraStoryIntakeRepository jiraStoryIntakeRepository;
+    @Mock
+    private HiveTableRepository hiveTableRepository;
+    @Mock
+    private SqlDatatypeRepository sqlDatatypeRepository;
+
+    @InjectMocks
+    private DagSqlService dagSqlService;
+
+    private final String requirementId = "req123";
+
+    @Test
+    public void testGetDagSql_existingRecord() {
+        DagSql existing = new DagSql();
+        existing.setRequirementId(requirementId);
+
+        when(dagSqlRepository.findByRequirementId(requirementId))
+            .thenReturn(Optional.of(existing));
+
+        DagSql result = dagSqlService.getDagSql(requirementId);
+
+        assertSame(existing, result);
+        verify(dagSqlRepository, times(1)).findByRequirementId(requirementId);
+        verifyNoMoreInteractions(dagSqlRepository);
+    }
+
+    @Test
+    public void testGetDagSql_generateNewRecord() {
+        when(dagSqlRepository.findByRequirementId(requirementId))
+            .thenReturn(Optional.empty());
+
+        JiraStoryIntake jiraStory = new JiraStoryIntake();
+        jiraStory.setTargetSchema("schema");
+        jiraStory.setTargetTableName("table");
+        when(jiraStoryIntakeRepository.findById(requirementId))
+            .thenReturn(Optional.of(jiraStory));
+
+        HiveTable hiveTable = new HiveTable();
+        hiveTable.setFileSetAttr("col1|string|#col2|decimal(10,2)");
+        when(hiveTableRepository.findByTableName("schema.table"))
+            .thenReturn(Collections.singletonList(hiveTable));
+
+        Map<String, String> mapping = new HashMap<>();
+        mapping.put("STRING", "STRING");
+        mapping.put("DECIMAL", "NUMERIC");
+        SqlDatatype sqlDatatype = new SqlDatatype("defaultMapping", mapping);
+        when(sqlDatatypeRepository.findById("defaultMapping"))
+            .thenReturn(Optional.of(sqlDatatype));
+
+        when(dagSqlRepository.save(any(DagSql.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        DagSql generated = dagSqlService.getDagSql(requirementId);
+
+        assertEquals(requirementId, generated.getRequirementId());
+        assertTrue(generated.getCreateSqlContent().contains("CREATE TABLE schema.table"));
+        assertTrue(generated.getDeleteSqlContent().contains("DROP TABLE schema.table"));
+        verify(dagSqlRepository, times(1)).save(generated);
+    }
+
+    @Test
+    public void testGenerateAndSaveDagSql_invalidFileSetAttr() {
+        JiraStoryIntake jiraStory = new JiraStoryIntake();
+        jiraStory.setTargetSchema("schema");
+        jiraStory.setTargetTableName("table");
+        when(jiraStoryIntakeRepository.findById(requirementId))
+            .thenReturn(Optional.of(jiraStory));
+
+        HiveTable hiveTable = new HiveTable();
+        hiveTable.setFileSetAttr("col1|string|#col2"); // odd number of tokens
+        when(hiveTableRepository.findByTableName("schema.table"))
+            .thenReturn(Collections.singletonList(hiveTable));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+            dagSqlService.generateAndSaveDagSql(requirementId)
+        );
+        assertTrue(ex.getMessage().contains("Invalid fileSetAttr format"));
+    }
+
+    @Test
+    public void testGenerateAndSaveDagSql_missingJiraStory() {
+        when(jiraStoryIntakeRepository.findById(requirementId))
+            .thenReturn(Optional.empty());
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+            dagSqlService.generateAndSaveDagSql(requirementId)
+        );
+        assertTrue(ex.getMessage().contains("JiraStoryIntake not found"));
+    }
+
+    @Test
+    public void testUpdateDagSql_success() {
+        DagSql existing = new DagSql();
+        existing.setRequirementId(requirementId);
+        existing.setCreateSqlContent("oldCreate");
+        existing.setDeleteSqlContent("oldDelete");
+        when(dagSqlRepository.findByRequirementId(requirementId))
+            .thenReturn(Optional.of(existing));
+
+        DagSql saved = new DagSql();
+        saved.setRequirementId(requirementId);
+        saved.setCreateSqlContent("newCreate");
+        saved.setDeleteSqlContent("newDelete");
+        when(dagSqlRepository.save(existing))
+            .thenReturn(saved);
+
+        DagSql result = dagSqlService.updateDagSql(requirementId, "newCreate", "newDelete");
+
+        assertEquals("newCreate", result.getCreateSqlContent());
+        assertEquals("newDelete", result.getDeleteSqlContent());
+        verify(dagSqlRepository, times(1)).save(existing);
+    }
+
+    @Test
+    public void testUpdateDagSql_missingRecord() {
+        when(dagSqlRepository.findByRequirementId(requirementId))
+            .thenReturn(Optional.empty());
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+            dagSqlService.updateDagSql(requirementId, "c", "d")
+        );
+        assertTrue(ex.getMessage().contains("DagSql record not found"));
+    }
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
+Both tests follow the plan:
 
-.toolbar select {
-  margin-right: 10px;
-  padding: 5px;
-  font-size: 14px;
-}
+Controller uses MockMvc to simulate HTTP calls and checks status/JSON.
 
-.toolbar button {
-  margin-right: 10px;
-  padding: 5px 10px;
-  font-size: 14px;
-  cursor: pointer;
-  border: 1px solid #ccc;
-  background-color: #f5f5f5;
-}
+Service tests stub repositories, cover success and error paths, use assertThrows and verify interactions.
 
-.toolbar button:hover {
-  background-color: #e0e0e0;
-}
-```
 
----
-
-### Guidelines Followed
-
-1. **Backend URL Usage:**  
-   The code uses the imported **MICROSERVICE_URL** constant to construct API endpoint URLs.
-
-2. **Header Generation:**  
-   Both GET and POST calls include the headers from **generateSearHeaders**, ensuring that the common header requirements are met.
-
-3. **Content-Type Header:**  
-   For POST requests, a `Content-Type: application/json` header is added along with the generated headers.
-
-4. **Consistent Fetch Structure:**  
-   The code follows a consistent pattern for asynchronous data fetching and error handling.
-
-5. **Formatting Before Updates:**  
-   The code formats the SQL content before saving, both in the current editor and across both files.
-
-You can now adjust the import paths and other small details as per your company's configuration and code style guidelines. Let me know if you need additional refinements or further details!
