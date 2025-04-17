@@ -1,130 +1,4 @@
-Here are the two full JUnit 5 + Mockito test classes.
-
-
----
-
-// File: src/test/java/com/wellsfargo/utcap/controller/DagSqlControllerTest.java
-package com.wellsfargo.utcap.controller;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wellsfargo.utcap.model.DagSql;
-import com.wellsfargo.utcap.service.DagSqlService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import java.time.LocalDateTime;
-
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-@ExtendWith(MockitoExtension.class)
-public class DagSqlControllerTest {
-
-    private MockMvc mockMvc;
-
-    @Mock
-    private DagSqlService dagSqlService;
-
-    @InjectMocks
-    private DagSqlController dagSqlController;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @BeforeEach
-    public void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(dagSqlController).build();
-    }
-
-    @Test
-    public void testGetDagSqlSuccess() throws Exception {
-        String requirementId = "req123";
-        DagSql dummy = new DagSql();
-        dummy.setRequirementId(requirementId);
-        dummy.setCreateSqlContent("CREATE TABLE foo");
-        dummy.setDeleteSqlContent("DROP TABLE foo");
-        dummy.setCreatedAt(LocalDateTime.now());
-        dummy.setUpdatedAt(LocalDateTime.now());
-
-        when(dagSqlService.getDagSql(requirementId)).thenReturn(dummy);
-
-        mockMvc.perform(get("/api/sql/" + requirementId))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.requirementId").value(requirementId))
-               .andExpect(jsonPath("$.createSqlContent").value("CREATE TABLE foo"))
-               .andExpect(jsonPath("$.deleteSqlContent").value("DROP TABLE foo"));
-    }
-
-    @Test
-    public void testGetDagSqlError() throws Exception {
-        String requirementId = "badId";
-        when(dagSqlService.getDagSql(requirementId))
-            .thenThrow(new RuntimeException("service failure"));
-
-        mockMvc.perform(get("/api/sql/" + requirementId))
-               .andExpect(status().isInternalServerError());
-    }
-
-    @Test
-    public void testUpdateDagSqlSuccess() throws Exception {
-        String requirementId = "req123";
-        DagSql input = new DagSql();
-        input.setCreateSqlContent("CREATE A");
-        input.setDeleteSqlContent("DROP A");
-
-        DagSql updated = new DagSql();
-        updated.setRequirementId(requirementId);
-        updated.setCreateSqlContent("CREATE B");
-        updated.setDeleteSqlContent("DROP B");
-        updated.setCreatedAt(LocalDateTime.now());
-        updated.setUpdatedAt(LocalDateTime.now());
-
-        when(dagSqlService.updateDagSql(
-                eq(requirementId),
-                anyString(),
-                anyString()))
-            .thenReturn(updated);
-
-        String json = objectMapper.writeValueAsString(input);
-
-        mockMvc.perform(post("/api/sql/" + requirementId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.requirementId").value(requirementId))
-               .andExpect(jsonPath("$.createSqlContent").value("CREATE B"))
-               .andExpect(jsonPath("$.deleteSqlContent").value("DROP B"));
-    }
-
-    @Test
-    public void testUpdateDagSqlError() throws Exception {
-        String requirementId = "badId";
-        DagSql input = new DagSql();
-        input.setCreateSqlContent("CREATE A");
-        input.setDeleteSqlContent("DROP A");
-        String json = objectMapper.writeValueAsString(input);
-
-        when(dagSqlService.updateDagSql(anyString(), anyString(), anyString()))
-            .thenThrow(new RuntimeException("update failed"));
-
-        mockMvc.perform(post("/api/sql/" + requirementId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json))
-               .andExpect(status().isInternalServerError());
-    }
-}
-
-
----
+Below is the updated DagSqlServiceTest.java reflecting your service changes (using sourceSchema/sourceTableName for the Hive lookup and targetSchema + applicationName + tableName for the BigQuery name).
 
 // File: src/test/java/com/wellsfargo/utcap/service/DagSqlServiceTest.java
 package com.wellsfargo.utcap.service;
@@ -154,10 +28,13 @@ public class DagSqlServiceTest {
 
     @Mock
     private DagSqlRepository dagSqlRepository;
+
     @Mock
     private JiraStoryIntakeRepository jiraStoryIntakeRepository;
+
     @Mock
     private HiveTableRepository hiveTableRepository;
+
     @Mock
     private SqlDatatypeRepository sqlDatatypeRepository;
 
@@ -167,7 +44,7 @@ public class DagSqlServiceTest {
     private final String requirementId = "req123";
 
     @Test
-    public void testGetDagSql_existingRecord() {
+    void testGetDagSql_existingRecord() {
         DagSql existing = new DagSql();
         existing.setRequirementId(requirementId);
 
@@ -182,50 +59,69 @@ public class DagSqlServiceTest {
     }
 
     @Test
-    public void testGetDagSql_generateNewRecord() {
+    void testGetDagSql_generateNewRecord() {
+        // no existing record
         when(dagSqlRepository.findByRequirementId(requirementId))
             .thenReturn(Optional.empty());
 
+        // JiraStoryIntake now uses sourceSchema/sourceTableName + targetSchema/tableName/applicationName
         JiraStoryIntake jiraStory = new JiraStoryIntake();
-        jiraStory.setTargetSchema("schema");
-        jiraStory.setTargetTableName("table");
+        jiraStory.setSourceSchema("srcSchema");
+        jiraStory.setSourceTableName("srcTable");
+        jiraStory.setTargetSchema("tgtSchema");
+        jiraStory.setTableName("Tbl");
+        jiraStory.setApplicationName("App");
         when(jiraStoryIntakeRepository.findById(requirementId))
             .thenReturn(Optional.of(jiraStory));
 
+        // Hive lookup uses "srcSchema.srcTable"
         HiveTable hiveTable = new HiveTable();
         hiveTable.setFileSetAttr("col1|string|#col2|decimal(10,2)");
-        when(hiveTableRepository.findByTableName("schema.table"))
+        when(hiveTableRepository.findByTableName("srcSchema.srcTable"))
             .thenReturn(Collections.singletonList(hiveTable));
 
-        Map<String, String> mapping = new HashMap<>();
-        mapping.put("STRING", "STRING");
-        mapping.put("DECIMAL", "NUMERIC");
+        // type mapping
+        Map<String,String> mapping = Map.of(
+          "STRING","STRING",
+          "DECIMAL","NUMERIC"
+        );
         SqlDatatype sqlDatatype = new SqlDatatype("defaultMapping", mapping);
         when(sqlDatatypeRepository.findById("defaultMapping"))
             .thenReturn(Optional.of(sqlDatatype));
 
+        // capture the saved entity
         when(dagSqlRepository.save(any(DagSql.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
         DagSql generated = dagSqlService.getDagSql(requirementId);
 
+        // verify requirementId carried over
         assertEquals(requirementId, generated.getRequirementId());
-        assertTrue(generated.getCreateSqlContent().contains("CREATE TABLE schema.table"));
-        assertTrue(generated.getDeleteSqlContent().contains("DROP TABLE schema.table"));
-        verify(dagSqlRepository, times(1)).save(generated);
+        // BigQuery table name = "tgtSchema.AppTbl"
+        assertTrue(generated.getCreateSqlContent()
+                     .contains("CREATE TABLE tgtSchema.AppTbl"));
+        assertTrue(generated.getDeleteSqlContent()
+                     .contains("DROP TABLE tgtSchema.AppTbl"));
+
+        verify(dagSqlRepository).save(generated);
     }
 
     @Test
-    public void testGenerateAndSaveDagSql_invalidFileSetAttr() {
+    void testGenerateAndSaveDagSql_invalidFileSetAttr() {
+        // Jira exists
         JiraStoryIntake jiraStory = new JiraStoryIntake();
-        jiraStory.setTargetSchema("schema");
-        jiraStory.setTargetTableName("table");
+        jiraStory.setSourceSchema("srcSchema");
+        jiraStory.setSourceTableName("srcTable");
+        jiraStory.setTargetSchema("tgtSchema");
+        jiraStory.setTableName("Tbl");
+        jiraStory.setApplicationName("App");
         when(jiraStoryIntakeRepository.findById(requirementId))
             .thenReturn(Optional.of(jiraStory));
 
+        // odd tokens in fileSetAttr → error
         HiveTable hiveTable = new HiveTable();
-        hiveTable.setFileSetAttr("col1|string|#col2"); // odd number of tokens
-        when(hiveTableRepository.findByTableName("schema.table"))
+        hiveTable.setFileSetAttr("col1|string|#col2");
+        when(hiveTableRepository.findByTableName("srcSchema.srcTable"))
             .thenReturn(Collections.singletonList(hiveTable));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
@@ -235,7 +131,7 @@ public class DagSqlServiceTest {
     }
 
     @Test
-    public void testGenerateAndSaveDagSql_missingJiraStory() {
+    void testGenerateAndSaveDagSql_missingJiraStory() {
         when(jiraStoryIntakeRepository.findById(requirementId))
             .thenReturn(Optional.empty());
 
@@ -246,30 +142,24 @@ public class DagSqlServiceTest {
     }
 
     @Test
-    public void testUpdateDagSql_success() {
+    void testUpdateDagSql_success() {
         DagSql existing = new DagSql();
         existing.setRequirementId(requirementId);
-        existing.setCreateSqlContent("oldCreate");
-        existing.setDeleteSqlContent("oldDelete");
         when(dagSqlRepository.findByRequirementId(requirementId))
             .thenReturn(Optional.of(existing));
 
-        DagSql saved = new DagSql();
-        saved.setRequirementId(requirementId);
-        saved.setCreateSqlContent("newCreate");
-        saved.setDeleteSqlContent("newDelete");
         when(dagSqlRepository.save(existing))
-            .thenReturn(saved);
+            .thenReturn(existing);
 
         DagSql result = dagSqlService.updateDagSql(requirementId, "newCreate", "newDelete");
 
         assertEquals("newCreate", result.getCreateSqlContent());
         assertEquals("newDelete", result.getDeleteSqlContent());
-        verify(dagSqlRepository, times(1)).save(existing);
+        verify(dagSqlRepository).save(existing);
     }
 
     @Test
-    public void testUpdateDagSql_missingRecord() {
+    void testUpdateDagSql_missingRecord() {
         when(dagSqlRepository.findByRequirementId(requirementId))
             .thenReturn(Optional.empty());
 
@@ -280,10 +170,14 @@ public class DagSqlServiceTest {
     }
 }
 
-Both tests follow the plan:
+What’s changed
 
-Controller uses MockMvc to simulate HTTP calls and checks status/JSON.
+We now stub and verify calls to jiraStoryIntakeRepository.findById(...) with the new getters/setters (sourceSchema, sourceTableName, targetSchema, tableName, applicationName).
 
-Service tests stub repositories, cover success and error paths, use assertThrows and verify interactions.
+The Hive lookup is asserted against "srcSchema.srcTable".
 
+The generated BigQuery table name is now "tgtSchema.AppTbl".
+
+
+Let me know if any other adjustments are needed!
 
