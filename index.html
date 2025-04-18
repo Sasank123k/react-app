@@ -1,173 +1,8 @@
-// File: src/test/java/com/wellsfargo/utcap/service/DagSqlServiceTest.java
-package com.wellsfargo.utcap.service;
-
-import com.wellsfargo.utcap.exception.ResourceNotFoundException;
-import com.wellsfargo.utcap.model.DagSql;
-import com.wellsfargo.utcap.model.HiveTable;
-import com.wellsfargo.utcap.model.JiraStoryIntake;
-import com.wellsfargo.utcap.model.SqlDatatype;
-import com.wellsfargo.utcap.repository.DagSqlRepository;
-import com.wellsfargo.utcap.repository.HiveTableRepository;
-import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
-import com.wellsfargo.utcap.repository.SqlDatatypeRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Collections;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
-public class DagSqlServiceTest {
-
-    @Mock
-    private DagSqlRepository dagSqlRepository;
-
-    @Mock
-    private JiraStoryIntakeRepository jiraStoryIntakeRepository;
-
-    @Mock
-    private HiveTableRepository hiveTableRepository;
-
-    @Mock
-    private SqlDatatypeRepository sqlDatatypeRepository;
-
-    @InjectMocks
-    private DagSqlService dagSqlService;
-
-    private final String requirementId = "req123";
-
-    @Test
-    void testGetDagSql_existingRecord() throws Exception {
-        DagSql existing = new DagSql();
-        existing.setRequirementId(requirementId);
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(java.util.Optional.of(existing));
-
-        DagSql result = dagSqlService.getDagSql(requirementId);
-
-        assertSame(existing, result);
-        verify(dagSqlRepository).findByRequirementId(requirementId);
-        verifyNoMoreInteractions(dagSqlRepository);
-    }
-
-    @Test
-    void testGetDagSql_generateNewRecord() throws Exception {
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(java.util.Optional.empty());
-
-        JiraStoryIntake jira = new JiraStoryIntake();
-        jira.setSourceSchema("src");
-        jira.setSourceTableName("tbl");
-        jira.setTargetSchema("tgt");
-        jira.setApplicationName("App");
-        jira.setTargetTableName("T");
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(java.util.Optional.of(jira));
-
-        HiveTable hive = new HiveTable();
-        hive.setFileSetAttr("c1|string|#c2|decimal(5,2)");
-        when(hiveTableRepository.findByTableName("src.tbl"))
-            .thenReturn(Collections.singletonList(hive));
-
-        Map<String,String> map = Map.of("STRING","STRING","DECIMAL","NUMERIC");
-        when(sqlDatatypeRepository.findById("defaultMapping"))
-            .thenReturn(java.util.Optional.of(new SqlDatatype("defaultMapping", map)));
-
-        when(dagSqlRepository.save(any(DagSql.class)))
-            .thenAnswer(invocation -> invocation.getArgument(0));
-
-        DagSql gen = dagSqlService.getDagSql(requirementId);
-        assertEquals(requirementId, gen.getRequirementId());
-        assertTrue(gen.getCreateSqlContent().contains("CREATE TABLE tgt.AppT"));
-        assertTrue(gen.getDeleteSqlContent().contains("DROP TABLE tgt.AppT"));
-        verify(dagSqlRepository).save(gen);
-    }
-
-    @Test
-    void testGetDagSql_missingJiraStory() {
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(java.util.Optional.empty());
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(java.util.Optional.empty());
-
-        assertThrows(ResourceNotFoundException.class, () ->
-            dagSqlService.getDagSql(requirementId)
-        );
-    }
-
-    @Test
-    void testGenerateAndSaveDagSql_invalidFileSetAttr() {
-        JiraStoryIntake jira = new JiraStoryIntake();
-        jira.setSourceSchema("src");
-        jira.setSourceTableName("tbl");
-        jira.setTargetSchema("tgt");
-        jira.setApplicationName("App");
-        jira.setTargetTableName("T");
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(java.util.Optional.of(jira));
-
-        HiveTable hive = new HiveTable();
-        hive.setFileSetAttr("c1|string|#c2"); // odd tokens
-        when(hiveTableRepository.findByTableName("src.tbl"))
-            .thenReturn(Collections.singletonList(hive));
-
-        assertThrows(IllegalArgumentException.class, () ->
-            dagSqlService.generateAndSaveDagSql(requirementId)
-        );
-    }
-
-    @Test
-    void testGenerateAndSaveDagSql_missingHiveTable() {
-        JiraStoryIntake jira = new JiraStoryIntake();
-        jira.setSourceSchema("src");
-        jira.setSourceTableName("tbl");
-        when(jiraStoryIntakeRepository.findById(requirementId))
-            .thenReturn(java.util.Optional.of(jira));
-        when(hiveTableRepository.findByTableName("src.tbl"))
-            .thenReturn(Collections.emptyList());
-
-        assertThrows(ResourceNotFoundException.class, () ->
-            dagSqlService.generateAndSaveDagSql(requirementId)
-        );
-    }
-
-    @Test
-    void testUpdateDagSql_success() throws Exception {
-        DagSql existing = new DagSql();
-        existing.setRequirementId(requirementId);
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(java.util.Optional.of(existing));
-        when(dagSqlRepository.save(existing)).thenReturn(existing);
-
-        DagSql res = dagSqlService.updateDagSql(requirementId, "c", "d");
-        assertEquals("c", res.getCreateSqlContent());
-        assertEquals("d", res.getDeleteSqlContent());
-        verify(dagSqlRepository).save(existing);
-    }
-
-    @Test
-    void testUpdateDagSql_missingRecord() {
-        when(dagSqlRepository.findByRequirementId(requirementId))
-            .thenReturn(java.util.Optional.empty());
-        assertThrows(ResourceNotFoundException.class, () ->
-            dagSqlService.updateDagSql(requirementId, "c", "d")
-        );
-    }
-}
-
-
 // File: src/test/java/com/wellsfargo/utcap/model/SqlDatatypeTest.java
 package com.wellsfargo.utcap.model;
 
 import org.junit.jupiter.api.Test;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -176,39 +11,97 @@ import static org.junit.jupiter.api.Assertions.*;
 public class SqlDatatypeTest {
 
     @Test
+    void testDefaultConstructorCreatesEmptyMappings() {
+        SqlDatatype dt = new SqlDatatype();
+        assertNotNull(dt.getMappings(), "Mappings should not be null");
+        assertTrue(dt.getMappings().isEmpty(), "Default mappings should be empty");
+    }
+
+    @Test
     void testConstructorDefensiveCopy() {
-        Map<String,String> orig = new HashMap<>();
-        orig.put("X","1");
-        SqlDatatype dt = new SqlDatatype("id1", orig);
-        orig.put("Y","2");
-        assertEquals(1, dt.getMappings().size());
+        Map<String, String> original = new HashMap<>();
+        original.put("A", "1");
+        SqlDatatype dt = new SqlDatatype("id1", original);
+        // Modify original map after construction
+        original.put("B", "2");
+        Map<String, String> mappings = dt.getMappings();
+        assertEquals(1, mappings.size(), "Constructor should make a defensive copy");
+        assertTrue(mappings.containsKey("A"));
+        assertFalse(mappings.containsKey("B"));
+    }
+
+    @Test
+    void testSetMappingsDefensiveCopyAndNullHandling() {
+        SqlDatatype dt = new SqlDatatype();
+        Map<String, String> input = new HashMap<>();
+        input.put("X", "100");
+        dt.setMappings(input);
+        // Modify input map after setting
+        input.put("Y", "200");
+        Map<String, String> mappings = dt.getMappings();
+        assertEquals(1, mappings.size(), "setMappings should make a defensive copy");
+        assertTrue(mappings.containsKey("X"));
+
+        // Now set mappings to null
+        dt.setMappings(null);
+        assertNotNull(dt.getMappings(), "Mappings should not be null after setting null");
+        assertTrue(dt.getMappings().isEmpty(), "Mappings should be empty when set to null");
     }
 
     @Test
     void testGetMappingsUnmodifiable() {
         SqlDatatype dt = new SqlDatatype();
-        assertThrows(UnsupportedOperationException.class, () ->
-            dt.getMappings().put("A","B")
-        );
+        Map<String, String> map = dt.getMappings();
+        assertThrows(UnsupportedOperationException.class, () -> map.put("K", "V"));
     }
 
     @Test
-    void testEqualsAndHashCode() {
-        Map<String,String> m = Map.of("K","V");
-        SqlDatatype a = new SqlDatatype("id", m);
-        SqlDatatype b = new SqlDatatype("id", m);
-        assertEquals(a, b);
-        assertEquals(a.hashCode(), b.hashCode());
+    void testEqualsAndHashCodeForSameData() {
+        Map<String, String> map = Map.of("K1", "V1");
+        SqlDatatype dt1 = new SqlDatatype("id", map);
+        SqlDatatype dt2 = new SqlDatatype("id", map);
+        assertEquals(dt1, dt2, "Objects with same id and mappings should be equal");
+        assertEquals(dt1.hashCode(), dt2.hashCode(), "Hash codes should be equal for equal objects");
+    }
+
+    @Test
+    void testEqualsForDifferentId() {
+        Map<String, String> map = Map.of("K1", "V1");
+        SqlDatatype dt1 = new SqlDatatype("id1", map);
+        SqlDatatype dt2 = new SqlDatatype("id2", map);
+        assertNotEquals(dt1, dt2, "Objects with different ids should not be equal");
+    }
+
+    @Test
+    void testEqualsForDifferentMappings() {
+        SqlDatatype dt1 = new SqlDatatype("id", Map.of("A", "1"));
+        SqlDatatype dt2 = new SqlDatatype("id", Map.of("B", "2"));
+        assertNotEquals(dt1, dt2, "Objects with different mappings should not be equal");
+    }
+
+    @Test
+    void testHashCodeConsistency() {
+        SqlDatatype dt = new SqlDatatype("id", Map.of("A", "1"));
+        int initialHash = dt.hashCode();
+        // Repeated calls should return same hash
+        assertEquals(initialHash, dt.hashCode());
+        assertEquals(initialHash, dt.hashCode());
     }
 }
 
 
-I’ve provided comprehensive JUnit 5 test classes:
+I’ve added comprehensive tests in SqlDatatypeTest.java:
 
-DagSqlServiceTest.java covers all branches, including existing records, generation, missing resources, invalid formats, and updates.
+Default constructor behavior
 
-SqlDatatypeTest.java validates the defensive-copy constructor, unmodifiable mappings, and equality/hashCode.
+Defensive copying in constructor and setter (including null handling)
+
+Unmodifiable map
+
+Equals/hashCode variations (same data, different IDs, different mappings)
+
+Hash code consistency across calls
 
 
-Let me know if you’d like any more scenarios added!
+Let me know if you need any further additions or adjustments!
 
