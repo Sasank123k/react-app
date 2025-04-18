@@ -1,164 +1,281 @@
-// File: src/test/java/com/wellsfargo/utcap/controller/DagSqlControllerTest.java
-package com.wellsfargo.utcap.controller;
+// File: src/main/java/com/wellsfargo/utcap/model/SqlDatatype.java package com.wellsfargo.utcap.model;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wellsfargo.utcap.exception.ResourceNotFoundException;
-import com.wellsfargo.utcap.model.DagSql;
-import com.wellsfargo.utcap.service.DagSqlService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.data.annotation.Id; import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.time.LocalDateTime;
+import java.util.Collections; import java.util.HashMap; import java.util.Map; import java.util.Objects;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+@Document(collection = "sqlDatatype") public class SqlDatatype {
 
-@ExtendWith(MockitoExtension.class)
-public class DagSqlControllerTest {
+@Id
+private String id;
+private Map<String, String> mappings;
 
-    private MockMvc mockMvc;
-
-    @Mock
-    private DagSqlService dagSqlService;
-
-    @InjectMocks
-    private DagSqlController dagSqlController;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @BeforeEach
-    public void setUp() {
-        mockMvc = MockMvcBuilders
-            .standaloneSetup(dagSqlController)
-            .setControllerAdvice() // in case you have global handlers
-            .build();
-    }
-
-    @Test
-    public void testGetDagSqlSuccess() throws Exception {
-        String requirementId = "req123";
-        DagSql dummy = new DagSql();
-        dummy.setRequirementId(requirementId);
-        dummy.setCreateSqlContent("CREATE TABLE foo");
-        dummy.setDeleteSqlContent("DROP TABLE foo");
-        dummy.setCreatedAt(LocalDateTime.now());
-        dummy.setUpdatedAt(LocalDateTime.now());
-
-        when(dagSqlService.getDagSql(requirementId)).thenReturn(dummy);
-
-        mockMvc.perform(get("/api/sql/{id}", requirementId))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.requirementId").value(requirementId))
-               .andExpect(jsonPath("$.createSqlContent").value("CREATE TABLE foo"))
-               .andExpect(jsonPath("$.deleteSqlContent").value("DROP TABLE foo"));
-    }
-
-    @Test
-    public void testGetDagSqlNotFound() throws Exception {
-        String requirementId = "notFound";
-        when(dagSqlService.getDagSql(requirementId))
-            .thenThrow(new ResourceNotFoundException("missing"));
-
-        mockMvc.perform(get("/api/sql/{id}", requirementId))
-               .andExpect(status().isNotFound());
-    }
-
-    @Test
-    public void testGetDagSqlWrappedNotFound() throws Exception {
-        String requirementId = "wrapped";
-        // simulate the RuntimeException wrapping ResourceNotFoundException
-        when(dagSqlService.getDagSql(requirementId))
-            .thenThrow(new RuntimeException(new ResourceNotFoundException("wrapped")));
-
-        mockMvc.perform(get("/api/sql/{id}", requirementId))
-               .andExpect(status().isNotFound());
-    }
-
-    @Test
-    public void testGetDagSqlError() throws Exception {
-        String requirementId = "errorId";
-        when(dagSqlService.getDagSql(requirementId))
-            .thenThrow(new RuntimeException("service failure"));
-
-        mockMvc.perform(get("/api/sql/{id}", requirementId))
-               .andExpect(status().isInternalServerError());
-    }
-
-    @Test
-    public void testUpdateDagSqlSuccess() throws Exception {
-        String requirementId = "req123";
-        DagSql input = new DagSql();
-        input.setCreateSqlContent("CREATE A");
-        input.setDeleteSqlContent("DROP A");
-
-        DagSql updated = new DagSql();
-        updated.setRequirementId(requirementId);
-        updated.setCreateSqlContent("CREATE B");
-        updated.setDeleteSqlContent("DROP B");
-        updated.setCreatedAt(LocalDateTime.now());
-        updated.setUpdatedAt(LocalDateTime.now());
-
-        when(dagSqlService.updateDagSql(
-                eq(requirementId),
-                anyString(),
-                anyString()))
-            .thenReturn(updated);
-
-        String json = objectMapper.writeValueAsString(input);
-
-        mockMvc.perform(post("/api/sql/{id}", requirementId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.requirementId").value(requirementId))
-               .andExpect(jsonPath("$.createSqlContent").value("CREATE B"))
-               .andExpect(jsonPath("$.deleteSqlContent").value("DROP B"));
-    }
-
-    @Test
-    public void testUpdateDagSqlNotFound() throws Exception {
-        String requirementId = "notFound";
-        DagSql input = new DagSql();
-        input.setCreateSqlContent("CREATE A");
-        input.setDeleteSqlContent("DROP A");
-        String json = objectMapper.writeValueAsString(input);
-
-        when(dagSqlService.updateDagSql(
-                eq(requirementId),
-                anyString(),
-                anyString()))
-            .thenThrow(new ResourceNotFoundException("missing"));
-
-        mockMvc.perform(post("/api/sql/{id}", requirementId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json))
-               .andExpect(status().isNotFound());
-    }
-
-    @Test
-    public void testUpdateDagSqlError() throws Exception {
-        String requirementId = "errorId";
-        DagSql input = new DagSql();
-        input.setCreateSqlContent("CREATE A");
-        input.setDeleteSqlContent("DROP A");
-        String json = objectMapper.writeValueAsString(input);
-
-        when(dagSqlService.updateDagSql(anyString(), anyString(), anyString()))
-            .thenThrow(new RuntimeException("update failed"));
-
-        mockMvc.perform(post("/api/sql/{id}", requirementId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json))
-               .andExpect(status().isInternalServerError());
-    }
+public SqlDatatype() {
+    this.mappings = new HashMap<>();
 }
+
+public SqlDatatype(String id, Map<String, String> mappings) {
+    this.id = id;
+    this.mappings = (mappings == null)
+        ? new HashMap<>()
+        : new HashMap<>(mappings);
+}
+
+public String getId() {
+    return id;
+}
+
+public void setId(String id) {
+    this.id = id;
+}
+
+public Map<String, String> getMappings() {
+    return Collections.unmodifiableMap(mappings);
+}
+
+public void setMappings(Map<String, String> mappings) {
+    this.mappings = (mappings == null)
+        ? new HashMap<>()
+        : new HashMap<>(mappings);
+}
+
+@Override
+public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof SqlDatatype)) return false;
+    SqlDatatype that = (SqlDatatype) o;
+    return Objects.equals(id, that.id)
+        && Objects.equals(mappings, that.mappings);
+}
+
+@Override
+public int hashCode() {
+    return Objects.hash(id, mappings);
+}
+
+}
+
+// File: src/main/java/com/wellsfargo/utcap/service/DagSqlService.java package com.wellsfargo.utcap.service;
+
+import com.wellsfargo.utcap.exception.ResourceNotFoundException; import com.wellsfargo.utcap.model.DagSql; import com.wellsfargo.utcap.model.HiveTable; import com.wellsfargo.utcap.model.JiraStoryIntake; import com.wellsfargo.utcap.model.SqlDatatype; import com.wellsfargo.utcap.repository.DagSqlRepository; import com.wellsfargo.utcap.repository.HiveTableRepository; import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository; import com.wellsfargo.utcap.repository.SqlDatatypeRepository; import org.springframework.beans.factory.annotation.Autowired; import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime; import java.util.*;
+
+@Service public class DagSqlService {
+
+private static final String DEFAULT_MAPPING_ID = "defaultMapping";
+private static final String DEFAULT_TYPE       = "STRING";
+private static final String INTEGER_TYPE       = "INTEGER";
+private static final String FLOAT_TYPE         = "FLOAT";
+private static final int    PAIR_SIZE          = 2;
+
+@Autowired
+private DagSqlRepository            dagSqlRepository;
+
+@Autowired
+private JiraStoryIntakeRepository   jiraStoryIntakeRepository;
+
+@Autowired
+private HiveTableRepository         hiveTableRepository;
+
+@Autowired
+private SqlDatatypeRepository       sqlDatatypeRepository;
+
+public DagSql getDagSql(String requirementId) {
+    Optional<DagSql> existing = dagSqlRepository.findByRequirementId(requirementId);
+    if (existing.isPresent()) {
+        return existing.get();
+    }
+    return generateAndSaveDagSql(requirementId);
+}
+
+public DagSql generateAndSaveDagSql(String requirementId) {
+    JiraStoryIntake jiraStory = jiraStoryIntakeRepository
+        .findById(requirementId)
+        .orElseThrow(() -> new ResourceNotFoundException(
+            "JiraStoryIntake not found for requirementId: " + requirementId));
+
+    String sourceSchema    = jiraStory.getSourceSchema();
+    String sourceTableName = jiraStory.getSourceTableName();
+    String tableIdentifier = sourceSchema + "." + sourceTableName;
+
+    String targetSchema    = jiraStory.getTargetSchema();
+    String appName         = jiraStory.getApplicationName();
+    String targetTableName = jiraStory.getTargetTableName();
+    String sqlDbTableName  = targetSchema + "." + appName + targetTableName;
+
+    List<HiveTable> hiveTableList = hiveTableRepository.findByTableName(tableIdentifier);
+    HiveTable hiveTable = Optional.ofNullable(hiveTableList)
+        .filter(list -> !list.isEmpty())
+        .map(list -> list.get(0))
+        .orElseThrow(() -> new ResourceNotFoundException(
+            "HiveTable not found for table: " + tableIdentifier));
+
+    SqlDatatype sqlDatatype = sqlDatatypeRepository
+        .findById(DEFAULT_MAPPING_ID)
+        .orElseGet(this::getDefaultSqlDatatype);
+    Map<String, String> mapping = sqlDatatype.getMappings();
+
+    String columnDefinitions = generateColumnDefinitions(
+        hiveTable.getFileSetAttr(), mapping);
+
+    String createSql = "CREATE TABLE " + sqlDbTableName + "(\n"
+        + columnDefinitions + "\n);";
+    String deleteSql = "DROP TABLE " + sqlDbTableName;
+
+    DagSql dagSql = new DagSql();
+    dagSql.setRequirementId(requirementId);
+    dagSql.setCreateSqlContent(createSql);
+    dagSql.setDeleteSqlContent(deleteSql);
+    dagSql.setCreatedAt(LocalDateTime.now());
+    dagSql.setUpdatedAt(LocalDateTime.now());
+
+    return dagSqlRepository.save(dagSql);
+}
+
+private String generateColumnDefinitions(
+    String fileSetAttr,
+    Map<String, String> mapping
+) {
+    String[] tokens = fileSetAttr.split("\\|");
+    List<String> clean = new ArrayList<>();
+    for (String t : tokens) {
+        if (t != null && !t.trim().isEmpty()) {
+            clean.add(t.trim());
+        }
+    }
+    if (clean.size() % PAIR_SIZE != 0) {
+        throw new IllegalArgumentException(
+            "Invalid fileSetAttr format; expected pairs of name|type");
+    }
+
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < clean.size(); i += PAIR_SIZE) {
+        String rawName = clean.get(i);
+        String colName = rawName.startsWith("#")
+            ? rawName.substring(1)
+            : rawName;
+
+        String hiveType = clean.get(i + 1)
+            .toUpperCase(Locale.ROOT);
+        String baseType = hiveType.contains("(")
+            ? hiveType.substring(0, hiveType.indexOf('('))
+            : hiveType;
+
+        String bqType = mapping.getOrDefault(baseType, DEFAULT_TYPE);
+
+        sb.append("  ").append(colName)
+          .append(" ").append(bqType);
+
+        if (i < clean.size() - PAIR_SIZE) {
+            sb.append(",\n");
+        }
+    }
+    return sb.toString();
+}
+
+public DagSql updateDagSql(
+    String requirementId,
+    String createSqlContent,
+    String deleteSqlContent
+) {
+    DagSql existing = dagSqlRepository
+        .findByRequirementId(requirementId)
+        .orElseThrow(() -> new ResourceNotFoundException(
+            "DagSql record not found for requirementId: " + requirementId));
+
+    existing.setCreateSqlContent(createSqlContent);
+    existing.setDeleteSqlContent(deleteSqlContent);
+    existing.setUpdatedAt(LocalDateTime.now());
+    return dagSqlRepository.save(existing);
+}
+
+private SqlDatatype getDefaultSqlDatatype() {
+    Map<String, String> defaults = new HashMap<>();
+    defaults.put("STRING", DEFAULT_TYPE);
+    defaults.put("CHAR", DEFAULT_TYPE);
+    defaults.put("VARCHAR", DEFAULT_TYPE);
+    defaults.put("INT", INTEGER_TYPE);
+    defaults.put("INTEGER", INTEGER_TYPE);
+    defaults.put("BIGINT", INTEGER_TYPE);
+    defaults.put("SMALLINT", INTEGER_TYPE);
+    defaults.put("TINYINT", INTEGER_TYPE);
+    defaults.put("BOOLEAN", "BOOLEAN");
+    defaults.put("FLOAT", FLOAT_TYPE);
+    defaults.put("DOUBLE", FLOAT_TYPE);
+    defaults.put("DECIMAL", "NUMERIC");
+    defaults.put("DATE", "DATE");
+    defaults.put("TIMESTAMP", "TIMESTAMP");
+    defaults.put("BINARY", "BYTES");
+
+    SqlDatatype dt = new SqlDatatype();
+    dt.setId(DEFAULT_MAPPING_ID);
+    dt.setMappings(defaults);
+    return dt;
+}
+
+}
+
+// File: src/test/java/com/wellsfargo/utcap/model/SqlDatatypeTest.java package com.wellsfargo.utcap.model;
+
+import org.junit.jupiter.api.Test; import java.util.HashMap; import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+public class SqlDatatypeTest {
+
+@Test
+void testConstructorAndGettersDefensiveCopy() {
+    Map<String, String> original = new HashMap<>();
+    original.put("A", "1");
+
+    SqlDatatype dt = new SqlDatatype("id1", original);
+    original.put("B", "2"); // should not affect dt
+
+    Map<String, String> mappings = dt.getMappings();
+    assertEquals(1, mappings.size());
+    assertTrue(mappings.containsKey("A"));
+}
+
+@Test
+void testGetMappingsUnmodifiable() {
+    SqlDatatype dt = new SqlDatatype();
+    Map<String, String> map = dt.getMappings();
+    assertThrows(UnsupportedOperationException.class, () -> map.put("X", "Y"));
+}
+
+@Test
+void testEqualsAndHashCode() {
+    Map<String, String> map1 = Map.of("K", "V");
+    SqlDatatype dt1 = new SqlDatatype("id", map1);
+    SqlDatatype dt2 = new SqlDatatype("id", map1);
+
+    assertEquals(dt1, dt2);
+    assertEquals(dt1.hashCode(), dt2.hashCode());
+}
+
+}
+
+
+
+I’ve addressed the Sonar issues:
+
+SqlDatatype.java:
+
+Removed the call to setMappings in the constructor.
+
+Ensured only one statement per line.
+
+
+DagSqlService.java:
+
+Introduced FLOAT_TYPE constant and replaced duplicated "FLOAT".
+
+Kept only dedicated exceptions (ResourceNotFoundException)—no generic runtime exceptions for missing resources.
+
+Removed any multi-statement lines.
+
+
+
+Also added SqlDatatypeTest.java covering defensive copying, unmodifiable mappings, and equals/hashCode. Let me know if any further tweaks are needed!
+
