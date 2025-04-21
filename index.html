@@ -1,107 +1,491 @@
-// File: src/test/java/com/wellsfargo/utcap/model/SqlDatatypeTest.java
-package com.wellsfargo.utcap.model;
-
-import org.junit.jupiter.api.Test;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-public class SqlDatatypeTest {
-
-    @Test
-    void testDefaultConstructorCreatesEmptyMappings() {
-        SqlDatatype dt = new SqlDatatype();
-        assertNotNull(dt.getMappings(), "Mappings should not be null");
-        assertTrue(dt.getMappings().isEmpty(), "Default mappings should be empty");
+{
+  "document": "JIL Editor v1",
+  "metaData": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Autosys JIL File Metadata",
+    "description": "Common metadata schema for JIL files (union of Ingress and EDL flows).",
+    "type": "object",
+    "properties": {
+      "mainBox": {
+        "$ref": "#/definitions/MainBOX"
+      }
+    },
+    "required": [
+      "mainBox"
+    ],
+    "definitions": {
+      "MainBOX": {
+        "type": "object",
+        "description": "Main BOX job (top-level).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the main box",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "BOX"
+            ],
+            "description": "Job type for the main box",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Timezone",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "properties": {
+            "type": "array",
+            "description": "Nested jobs within the main box (sub-boxes, CMD, FW)",
+            "default": [],
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/SubBOX"
+                },
+                {
+                  "$ref": "#/definitions/CMD"
+                },
+                {
+                  "$ref": "#/definitions/FW"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "owner",
+          "permission",
+          "date_conditions",
+          "description",
+          "alarm_if_fail",
+          "alarm_if_terminated",
+          "timezone",
+          "group",
+          "application",
+          "properties"
+        ]
+      },
+      "SubBOX": {
+        "type": "object",
+        "description": "Sub BOX job (nested box within another box).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the sub-box",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "BOX"
+            ],
+            "description": "Job type for the sub-box",
+            "default": ""
+          },
+          "box_name": {
+            "type": "string",
+            "description": "Name of the parent box (should match main box's insert_job)",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for the sub-box",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "properties": {
+            "type": "array",
+            "description": "Nested jobs within this sub-box",
+            "default": [],
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/SubBOX"
+                },
+                {
+                  "$ref": "#/definitions/CMD"
+                },
+                {
+                  "$ref": "#/definitions/FW"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "box_name",
+          "owner",
+          "permission",
+          "date_conditions",
+          "condition",
+          "description",
+          "alarm_if_fail",
+          "alarm_if_terminated",
+          "group",
+          "application",
+          "properties"
+        ]
+      },
+      "CMD": {
+        "type": "object",
+        "description": "CMD job (command job).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the CMD job",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "CMD"
+            ],
+            "description": "Job type for CMD",
+            "default": ""
+          },
+          "box_name": {
+            "type": "string",
+            "description": "Name of the parent sub-box",
+            "default": ""
+          },
+          "command": {
+            "type": "string",
+            "description": "Command to execute",
+            "default": ""
+          },
+          "machine": {
+            "type": "string",
+            "description": "Machine name",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for the CMD job",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "std_out_file": {
+            "type": "string",
+            "description": "Standard output file",
+            "default": ""
+          },
+          "std_err_file": {
+            "type": "string",
+            "description": "Standard error file",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "profile": {
+            "type": "string",
+            "description": "Profile name",
+            "default": ""
+          },
+          "job_load": {
+            "type": "string",
+            "description": "Job load",
+            "default": ""
+          },
+          "priority": {
+            "type": "string",
+            "description": "Job priority",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Timezone",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "success_codes": {
+            "type": "string",
+            "description": "Success codes",
+            "default": ""
+          },
+          "fail_codes": {
+            "type": "string",
+            "description": "Fail codes",
+            "default": ""
+          }
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "box_name",
+          "command",
+          "machine",
+          "owner",
+          "permission",
+          "date_conditions",
+          "condition",
+          "description",
+          "std_out_file",
+          "std_err_file",
+          "alarm_if_fail",
+          "profile",
+          "job_load",
+          "priority",
+          "alarm_if_terminated",
+          "timezone",
+          "group",
+          "application",
+          "success_codes",
+          "fail_codes"
+        ]
+      },
+      "FW": {
+        "type": "object",
+        "description": "FW job (file watcher job).",
+        "properties": {
+          "insert_job": {
+            "type": "string",
+            "description": "Job name for the FW job",
+            "default": ""
+          },
+          "job_type": {
+            "type": "string",
+            "enum": [
+              "FW"
+            ],
+            "description": "Job type for FW",
+            "default": ""
+          },
+          "box_name": {
+            "type": "string",
+            "description": "Name of the parent box",
+            "default": ""
+          },
+          "machine": {
+            "type": "string",
+            "description": "Machine name",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "description": "Owner of the job",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "description": "Permissions",
+            "default": ""
+          },
+          "date_conditions": {
+            "type": "string",
+            "description": "Date condition flag",
+            "default": ""
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for the FW job",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "description": "Job description",
+            "default": ""
+          },
+          "term_run_time": {
+            "type": "string",
+            "description": "Terminal run time",
+            "default": ""
+          },
+          "max_run_alarm": {
+            "type": "string",
+            "description": "Maximum run alarm time",
+            "default": ""
+          },
+          "alarm_if_fail": {
+            "type": "string",
+            "description": "Alarm if job fails",
+            "default": ""
+          },
+          "profile": {
+            "type": "string",
+            "description": "Profile name",
+            "default": ""
+          },
+          "priority": {
+            "type": "string",
+            "description": "Job priority",
+            "default": ""
+          },
+          "alarm_if_terminated": {
+            "type": "string",
+            "description": "Alarm if job is terminated",
+            "default": ""
+          },
+          "group": {
+            "type": "string",
+            "description": "Group name",
+            "default": ""
+          },
+          "application": {
+            "type": "string",
+            "description": "Application name",
+            "default": ""
+          },
+          "watch_file": {
+            "type": "string",
+            "description": "File to watch",
+            "default": ""
+          },
+          "watch_file_min_size": {
+            "type": "string",
+            "description": "Minimum file size to trigger",
+            "default": ""
+          },
+          "watch_interval": {
+            "type": "string",
+            "description": "Watch interval (in seconds)",
+            "default": ""
+          }
+        },
+        "required": [
+          "insert_job",
+          "job_type",
+          "box_name",
+          "machine",
+          "owner",
+          "permission",
+          "date_conditions",
+          "condition",
+          "description",
+          "term_run_time",
+          "max_run_alarm",
+          "alarm_if_fail",
+          "profile",
+          "priority",
+          "alarm_if_terminated",
+          "group",
+          "application",
+          "watch_file",
+          "watch_file_min_size",
+          "watch_interval"
+        ]
+      }
     }
-
-    @Test
-    void testConstructorDefensiveCopy() {
-        Map<String, String> original = new HashMap<>();
-        original.put("A", "1");
-        SqlDatatype dt = new SqlDatatype("id1", original);
-        // Modify original map after construction
-        original.put("B", "2");
-        Map<String, String> mappings = dt.getMappings();
-        assertEquals(1, mappings.size(), "Constructor should make a defensive copy");
-        assertTrue(mappings.containsKey("A"));
-        assertFalse(mappings.containsKey("B"));
-    }
-
-    @Test
-    void testSetMappingsDefensiveCopyAndNullHandling() {
-        SqlDatatype dt = new SqlDatatype();
-        Map<String, String> input = new HashMap<>();
-        input.put("X", "100");
-        dt.setMappings(input);
-        // Modify input map after setting
-        input.put("Y", "200");
-        Map<String, String> mappings = dt.getMappings();
-        assertEquals(1, mappings.size(), "setMappings should make a defensive copy");
-        assertTrue(mappings.containsKey("X"));
-
-        // Now set mappings to null
-        dt.setMappings(null);
-        assertNotNull(dt.getMappings(), "Mappings should not be null after setting null");
-        assertTrue(dt.getMappings().isEmpty(), "Mappings should be empty when set to null");
-    }
-
-    @Test
-    void testGetMappingsUnmodifiable() {
-        SqlDatatype dt = new SqlDatatype();
-        Map<String, String> map = dt.getMappings();
-        assertThrows(UnsupportedOperationException.class, () -> map.put("K", "V"));
-    }
-
-    @Test
-    void testEqualsAndHashCodeForSameData() {
-        Map<String, String> map = Map.of("K1", "V1");
-        SqlDatatype dt1 = new SqlDatatype("id", map);
-        SqlDatatype dt2 = new SqlDatatype("id", map);
-        assertEquals(dt1, dt2, "Objects with same id and mappings should be equal");
-        assertEquals(dt1.hashCode(), dt2.hashCode(), "Hash codes should be equal for equal objects");
-    }
-
-    @Test
-    void testEqualsForDifferentId() {
-        Map<String, String> map = Map.of("K1", "V1");
-        SqlDatatype dt1 = new SqlDatatype("id1", map);
-        SqlDatatype dt2 = new SqlDatatype("id2", map);
-        assertNotEquals(dt1, dt2, "Objects with different ids should not be equal");
-    }
-
-    @Test
-    void testEqualsForDifferentMappings() {
-        SqlDatatype dt1 = new SqlDatatype("id", Map.of("A", "1"));
-        SqlDatatype dt2 = new SqlDatatype("id", Map.of("B", "2"));
-        assertNotEquals(dt1, dt2, "Objects with different mappings should not be equal");
-    }
-
-    @Test
-    void testHashCodeConsistency() {
-        SqlDatatype dt = new SqlDatatype("id", Map.of("A", "1"));
-        int initialHash = dt.hashCode();
-        // Repeated calls should return same hash
-        assertEquals(initialHash, dt.hashCode());
-        assertEquals(initialHash, dt.hashCode());
-    }
+  }
 }
-
-
-I’ve added comprehensive tests in SqlDatatypeTest.java:
-
-Default constructor behavior
-
-Defensive copying in constructor and setter (including null handling)
-
-Unmodifiable map
-
-Equals/hashCode variations (same data, different IDs, different mappings)
-
-Hash code consistency across calls
-
-
-Let me know if you need any further additions or adjustments!
-
