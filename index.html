@@ -70,12 +70,10 @@ public class JilFileBuilder {
         if (StringUtils.hasText(param.getEdldependenciesCondition())) mainBox.put("condition", param.getEdldependenciesCondition()); // Box condition - Corrected case
         mainBox.put("description", param.getEdldescription()); // Using main EDL description for box - Corrected case
 
-        // Alarm mapping (Simplified: set to '1' if boxFailure exists, else '0')
-        // Assumes getBoxFailure returns the relevant value for this box
-        String boxFailure = param.getBoxFailure();
-        String alarmValue = StringUtils.hasText(boxFailure) ? "1" : "0";
-        mainBox.put("alarm_if_fail", alarmValue);
-        mainBox.put("alarm_if_terminated", alarmValue); // Assuming failure means alarm on both
+        // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
+        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
+        mainBox.put("alarm_if_fail", boxAlarmValue);
+        mainBox.put("alarm_if_terminated", boxAlarmValue);
 
         // Add other BOX specific fields if needed and available in param (e.g., edlBoxJobLoad)
         mainBox.put("job_load", param.getJobLoad()); // Using generic load for now
@@ -100,12 +98,10 @@ public class JilFileBuilder {
         // Using main EDL description for cmd too? Or need getEdlcmdDescription()?
         cmdJob.put("description", param.getEdldescription()); // Corrected case
 
-        // Alarm mapping (Simplified: set to '1' if cmdFailure exists, else '0')
-        // Assumes getCmdFailure returns the relevant value for this cmd
-         String cmdFailure = param.getCmdFailure();
-         String cmdAlarmValue = StringUtils.hasText(cmdFailure) ? "1" : "0";
+        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
+         String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
          cmdJob.put("alarm_if_fail", cmdAlarmValue);
-         cmdJob.put("alarm_if_terminated", cmdAlarmValue); // Assuming failure means alarm on both
+         cmdJob.put("alarm_if_terminated", cmdAlarmValue);
 
 
         cmdJob.put("std_out_file", param.getEdlStdOutFile()); // Need field like getEdlStdOutFile()
@@ -145,11 +141,10 @@ public class JilFileBuilder {
          if (StringUtils.hasText(param.getCdmpdependenciesCondition())) mainBox.put("condition", param.getCdmpdependenciesCondition()); // Box condition - Corrected case
          mainBox.put("description", param.getCdmpdescription()); // Using main CDMP description for box - Corrected case
 
-         // Alarm mapping (Simplified)
-         String boxFailure = param.getBoxFailure();
-         String alarmValue = StringUtils.hasText(boxFailure) ? "1" : "0";
-         mainBox.put("alarm_if_fail", alarmValue);
-         mainBox.put("alarm_if_terminated", alarmValue);
+         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
+         String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
+         mainBox.put("alarm_if_fail", boxAlarmValue);
+         mainBox.put("alarm_if_terminated", boxAlarmValue);
 
          // Add other BOX specific fields if needed (e.g., cdmpBoxJobLoad)
          mainBox.put("job_load", param.getJobLoad()); // Using generic load for now
@@ -174,9 +169,8 @@ public class JilFileBuilder {
          // Using main CDMP description for cmd too? Or need getCdmpcmdDescription()?
          cmdJob.put("description", param.getCdmpdescription()); // Corrected case
 
-         // Alarm mapping (Simplified)
-          String cmdFailure = param.getCmdFailure();
-          String cmdAlarmValue = StringUtils.hasText(cmdFailure) ? "1" : "0";
+         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
+          String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
           cmdJob.put("alarm_if_fail", cmdAlarmValue);
           cmdJob.put("alarm_if_terminated", cmdAlarmValue);
 
@@ -216,9 +210,9 @@ public class JilFileBuilder {
         // No days_of_week, start_times, condition in example for config box
         mainBox.put("description", param.getCfgBoxDescription());
 
-        // Alarm mapping (Simplified)
-        String boxFailure = param.getBoxFailure(); // Using general boxFailure
-        // Example shows 0 for config box alarms, overriding simplified logic
+        // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
+        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
+        // Example JIL shows 0 specifically, overriding the general value if different
         mainBox.put("alarm_if_fail", "0");
         mainBox.put("alarm_if_terminated", "0");
 
@@ -243,9 +237,9 @@ public class JilFileBuilder {
         if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition
         cmdJob.put("description", param.getCfgCmdJobDescription());
 
-        // Alarm mapping (Simplified)
-         String cmdFailure = param.getCmdFailure(); // Using general cmdFailure
-         // Example shows 1 for config cmd alarms, overriding simplified logic
+        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
+         String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
+         // Example JIL shows 1 specifically, overriding the general value if different
          cmdJob.put("alarm_if_fail", "1");
          cmdJob.put("alarm_if_terminated", "1");
 
@@ -287,9 +281,9 @@ public class JilFileBuilder {
 
         mainBox.put("description", param.getBoxJobDescription()); // General box description
 
-        // Alarm mapping (Simplified)
-        String boxFailure = param.getBoxFailure(); // Using general boxFailure
-        // Example shows 0 for ingest box alarms, overriding simplified logic
+        // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
+        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
+        // Example JIL shows 0 specifically, overriding the general value if different
         mainBox.put("alarm_if_fail", "0");
         mainBox.put("alarm_if_terminated", "0");
 
@@ -314,9 +308,9 @@ public class JilFileBuilder {
         if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob1.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition for CMD1
         cmdJob1.put("description", param.getPrmCmdJobDescription());
 
-        // Alarm mapping (Simplified)
-         String cmdFailure1 = param.getCmdFailure(); // Using general cmdFailure
-         // Example shows 1 for prm cmd alarms, overriding simplified logic
+        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
+         String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
+         // Example JIL shows 1 specifically, overriding the general value if different
          cmdJob1.put("alarm_if_fail", "1");
          cmdJob1.put("alarm_if_terminated", "1");
 
@@ -351,9 +345,9 @@ public class JilFileBuilder {
 
         cmdJob2.put("description", param.getIngCmdJobDescription());
 
-        // Alarm mapping (Simplified)
-         String cmdFailure2 = param.getCmdFailure(); // Using general cmdFailure
-         // Example shows 1 for ing cmd alarms, overriding simplified logic
+        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
+         String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
+         // Example JIL shows 1 specifically, overriding the general value if different
          cmdJob2.put("alarm_if_fail", "1");
          cmdJob2.put("alarm_if_terminated", "1");
 
