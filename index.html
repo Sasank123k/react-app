@@ -1,198 +1,435 @@
-{
-  "document": "JIL Editor v2.1 - All Fields Required",
-  "metaData": {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Autosys JIL File Metadata (All Defined Fields Required)",
-    "description": "Common metadata schema for JIL files. All defined fields within each job type are marked as required.",
-    "type": "object",
-    "properties": {
-      "mainBox": {
-        "$ref": "#/definitions/MainBOX"
-      }
-    },
-    "required": [
-      "mainBox"
-    ],
-    "definitions": {
-      "MainBOX": {
-        "type": "object",
-        "description": "Main BOX job (top-level).",
-        "properties": {
-          "insert_job": { "type": "string", "description": "Job name for the main box", "default": "" },
-          "job_type": { "type": "string", "enum": ["BOX"], "description": "Job type fixed to BOX", "default": "BOX" },
-          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
-          "permission": { "type": "string", "description": "Permissions (e.g., me,mx,ge,gx,we,wx)", "default": "" },
-          "date_conditions": { "type": "string", "description": "Date condition flag (e.g., 0 or 1)", "default": "" },
-          "days_of_week": { "type": "string", "description": "Days of the week (e.g., all, mo-fr)", "default": "" },
-          "start_times": { "type": "string", "description": "Start times (e.g., \"13:00\")", "default": "" },
-          "start_mins": { "type": "string", "description": "Start minutes (alternative to start_times)", "default": "" },
-          "run_window": { "type": "string", "description": "Run window (e.g., \"00:00-05:00\")", "default": "" },
-          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
-          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
-          "condition": { "type": "string", "description": "Job condition for starting (e.g., s(job_A)=SUCCESS)", "default": "" },
-          "description": { "type": "string", "description": "Job description", "default": "" },
-          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails (e.g., 0 or 1)", "default": "" },
-          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated (e.g., 0 or 1)", "default": "" },
-          "timezone": { "type": "string", "description": "Timezone (e.g., US/Central)", "default": "" },
-          "group": { "type": "string", "description": "Group name", "default": "" },
-          "application": { "type": "string", "description": "Application name", "default": "" },
-          "job_load": { "type": "string", "description": "Job load value", "default": "" },
-          "properties": {
-            "type": "array",
-            "description": "Nested jobs within the main box (sub-boxes, CMD, FW)",
-            "default": [],
-            "items": {
-              "oneOf": [
-                { "$ref": "#/definitions/SubBOX" },
-                { "$ref": "#/definitions/CMD" },
-                { "$ref": "#/definitions/FW" }
-              ]
-            }
-          }
-        },
-        "required": [ // All defined properties are required
-          "insert_job", "job_type", "owner", "permission", "date_conditions",
-          "days_of_week", "start_times", "start_mins", "run_window", "run_calendar",
-          "exclude_calendar", "condition", "description", "alarm_if_fail",
-          "alarm_if_terminated", "timezone", "group", "application", "job_load",
-          "properties"
-        ]
-      },
-      "SubBOX": {
-        "type": "object",
-        "description": "Sub BOX job (nested box within another box).",
-        "properties": {
-          "insert_job": { "type": "string", "description": "Job name for the sub-box", "default": "" },
-          "job_type": { "type": "string", "enum": ["BOX"], "description": "Job type fixed to BOX", "default": "BOX" },
-          "box_name": { "type": "string", "description": "Name of the parent box", "default": "" },
-          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
-          "permission": { "type": "string", "description": "Permissions", "default": "" },
-          "date_conditions": { "type": "string", "description": "Date condition flag", "default": "" },
-          "days_of_week": { "type": "string", "description": "Days of the week", "default": "" },
-          "start_times": { "type": "string", "description": "Start times", "default": "" },
-          "start_mins": { "type": "string", "description": "Start minutes", "default": "" },
-          "run_window": { "type": "string", "description": "Run window", "default": "" },
-          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
-          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
-          "condition": { "type": "string", "description": "Condition for the sub-box", "default": "" },
-          "description": { "type": "string", "description": "Job description", "default": "" },
-          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails", "default": "" },
-          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated", "default": "" },
-          "timezone": { "type": "string", "description": "Timezone", "default": "" },
-          "group": { "type": "string", "description": "Group name", "default": "" },
-          "application": { "type": "string", "description": "Application name", "default": "" },
-          "job_load": { "type": "string", "description": "Job load value", "default": "" },
-          "properties": {
-            "type": "array",
-            "description": "Nested jobs within this sub-box",
-            "default": [],
-            "items": {
-              "oneOf": [
-                { "$ref": "#/definitions/SubBOX" },
-                { "$ref": "#/definitions/CMD" },
-                { "$ref": "#/definitions/FW" }
-              ]
-            }
-          }
-        },
-        "required": [ // All defined properties are required
-          "insert_job", "job_type", "box_name", "owner", "permission", "date_conditions",
-          "days_of_week", "start_times", "start_mins", "run_window", "run_calendar",
-          "exclude_calendar", "condition", "description", "alarm_if_fail",
-          "alarm_if_terminated", "timezone", "group", "application", "job_load",
-          "properties"
-        ]
-      },
-      "CMD": {
-        "type": "object",
-        "description": "CMD job (command job).",
-        "properties": {
-          "insert_job": { "type": "string", "description": "Job name for the CMD job", "default": "" },
-          "job_type": { "type": "string", "enum": ["CMD"], "description": "Job type fixed to CMD", "default": "CMD" },
-          "box_name": { "type": "string", "description": "Name of the parent box", "default": "" },
-          "command": { "type": "string", "description": "Command to execute", "default": "" },
-          "machine": { "type": "string", "description": "Machine name where job runs", "default": "" },
-          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
-          "permission": { "type": "string", "description": "Permissions", "default": "" },
-          "date_conditions": { "type": "string", "description": "Date condition flag", "default": "" },
-          "days_of_week": { "type": "string", "description": "Days of the week", "default": "" },
-          "start_times": { "type": "string", "description": "Start times", "default": "" },
-          "start_mins": { "type": "string", "description": "Start minutes", "default": "" },
-          "run_window": { "type": "string", "description": "Run window", "default": "" },
-          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
-          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
-          "condition": { "type": "string", "description": "Condition for the CMD job", "default": "" },
-          "description": { "type": "string", "description": "Job description", "default": "" },
-          "std_out_file": { "type": "string", "description": "Standard output file path", "default": "" },
-          "std_err_file": { "type": "string", "description": "Standard error file path", "default": "" },
-          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails", "default": "" },
-          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated", "default": "" },
-          "max_run_alarm": { "type": "string", "description": "Maximum run alarm time (minutes)", "default": "" },
-          "term_run_time": { "type": "string", "description": "Terminate run time (minutes)", "default": "" },
-          "profile": { "type": "string", "description": "Profile script path to source", "default": "" },
-          "job_load": { "type": "string", "description": "Job load value", "default": "" },
-          "priority": { "type": "string", "description": "Job priority", "default": "" },
-          "resources": { "type": "string", "description": "Resources required", "default": "" },
-          "timezone": { "type": "string", "description": "Timezone", "default": "" },
-          "group": { "type": "string", "description": "Group name", "default": "" },
-          "application": { "type": "string", "description": "Application name", "default": "" },
-          "success_codes": { "type": "string", "description": "Success codes (e.g., 0)", "default": "" },
-          "fail_codes": { "type": "string", "description": "Fail codes (e.g., !-9999)", "default": "" }
-        },
-        "required": [ // All defined properties are required
-          "insert_job", "job_type", "box_name", "command", "machine", "owner", "permission",
-          "date_conditions", "days_of_week", "start_times", "start_mins", "run_window",
-          "run_calendar", "exclude_calendar", "condition", "description", "std_out_file",
-          "std_err_file", "alarm_if_fail", "alarm_if_terminated", "max_run_alarm",
-          "term_run_time", "profile", "job_load", "priority", "resources", "timezone",
-          "group", "application", "success_codes", "fail_codes"
-        ]
-      },
-      "FW": {
-        "type": "object",
-        "description": "FW job (file watcher job).",
-        "properties": {
-          "insert_job": { "type": "string", "description": "Job name for the FW job", "default": "" },
-          "job_type": { "type": "string", "enum": ["FW"], "description": "Job type fixed to FW", "default": "FW" },
-          "box_name": { "type": "string", "description": "Name of the parent box", "default": "" },
-          "machine": { "type": "string", "description": "Machine name where watcher runs", "default": "" },
-          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
-          "permission": { "type": "string", "description": "Permissions", "default": "" },
-          "date_conditions": { "type": "string", "description": "Date condition flag", "default": "" },
-          "days_of_week": { "type": "string", "description": "Days of the week", "default": "" },
-          "start_times": { "type": "string", "description": "Start times", "default": "" },
-          "start_mins": { "type": "string", "description": "Start minutes", "default": "" },
-          "run_window": { "type": "string", "description": "Run window", "default": "" },
-          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
-          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
-          "condition": { "type": "string", "description": "Condition for the FW job", "default": "" },
-          "description": { "type": "string", "description": "Job description", "default": "" },
-          "watch_file": { "type": "string", "description": "File path to watch", "default": "" },
-          "watch_file_min_size": { "type": "string", "description": "Minimum file size to trigger", "default": "" },
-          "watch_interval": { "type": "string", "description": "Watch interval (seconds)", "default": "" },
-          "std_out_file": { "type": "string", "description": "Standard output file path", "default": "" },
-          "std_err_file": { "type": "string", "description": "Standard error file path", "default": "" },
-          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails", "default": "" },
-          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated", "default": "" },
-          "max_run_alarm": { "type": "string", "description": "Maximum run alarm time (minutes)", "default": "" },
-          "term_run_time": { "type": "string", "description": "Terminate run time (minutes)", "default": "" },
-          "profile": { "type": "string", "description": "Profile script path to source", "default": "" },
-          "job_load": { "type": "string", "description": "Job load value", "default": "" },
-          "priority": { "type": "string", "description": "Job priority", "default": "" },
-          "resources": { "type": "string", "description": "Resources required", "default": "" },
-          "timezone": { "type": "string", "description": "Timezone", "default": "" },
-          "group": { "type": "string", "description": "Group name", "default": "" },
-          "application": { "type": "string", "description": "Application name", "default": "" }
-        },
-        "required": [ // All defined properties are required
-           "insert_job", "job_type", "box_name", "machine", "owner", "permission",
-           "date_conditions", "days_of_week", "start_times", "start_mins", "run_window",
-           "run_calendar", "exclude_calendar", "condition", "description", "watch_file",
-           "watch_file_min_size", "watch_interval", "std_out_file", "std_err_file",
-           "alarm_if_fail", "alarm_if_terminated", "max_run_alarm", "term_run_time",
-           "profile", "job_load", "priority", "resources", "timezone", "group", "application"
-        ]
-      }
+package com.wellsfargo.utcap.service;
+
+import com.wellsfargo.utcap.exception.AutosysParamNotFoundException;
+import com.wellsfargo.utcap.exception.JiraStoryNotFoundException;
+import com.wellsfargo.utcap.model.AutosysParam;
+import com.wellsfargo.utcap.model.JiraStoryIntake;
+import com.wellsfargo.utcap.repository.AutosysParamRepository;
+import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils; // Using Spring's StringUtils for checking null/empty
+
+import java.util.*;
+
+@Component
+public class JilFileBuilder {
+
+    @Autowired
+    private JiraStoryIntakeRepository jiraRepo;
+
+    @Autowired
+    private AutosysParamRepository autosysParamRepo;
+
+    // --- Main Build Method ---
+
+    public List<Map<String, Object>> buildJilFiles(String requirementId) {
+        // Fetch Jira story using requirementId
+        List<JiraStoryIntake> jiraList = jiraRepo.findByJiraStoryIntakeId(requirementId);
+        if (jiraList == null || jiraList.isEmpty()) {
+            throw new JiraStoryNotFoundException("Jira story not found for requirementId: " + requirementId);
+        }
+        JiraStoryIntake jira = jiraList.get(0);
+
+        // Fetch Autosys parameters for this requirement
+        // Assuming AutosysParam object now contains ALL necessary fields with appropriate getters
+        AutosysParam param = autosysParamRepo.findById(requirementId)
+                .orElseThrow(() -> new AutosysParamNotFoundException("Autosys parameters not found for requirementId: " + requirementId));
+
+        // Determine flow type ("GCP" for INGRESS, else EDL)
+        String targetType = jira.getTargetType();
+        boolean isIngress = "GCP".equalsIgnoreCase(targetType);
+
+        List<Map<String, Object>> jilFiles = new ArrayList<>();
+
+        if (isIngress) {
+            jilFiles.add(buildIngressFile1(param)); // EDL Source file
+            jilFiles.add(buildIngressFile2(param)); // CDMP Target file
+        } else { // EDL Flow
+            jilFiles.add(buildEdlFile1(param));     // Config file (MainBOX -> 1 CMD)
+            jilFiles.add(buildEdlFile2(param));     // Ingestion file (MainBOX -> 2 CMDs)
+        }
+        return jilFiles;
     }
-  }
+
+    // --- Specific Builder Methods (No common helpers as requested) ---
+
+    /**
+     * Builds the first INGRESS JIL file (Source Extract).
+     * Assumes param object has all necessary edl_* prefixed fields.
+     */
+    private Map<String, Object> buildIngressFile1(AutosysParam param) {
+        Map<String, Object> mainBox = new LinkedHashMap<>();
+        mainBox.put("insert_job", param.getEdlBoxJobName());
+        mainBox.put("job_type", "BOX");
+        mainBox.put("owner", param.getEdlOwner());
+        mainBox.put("permission", param.getPermission()); // Using general permission field
+        mainBox.put("date_conditions", param.getEdlDateCondition());
+        if (StringUtils.hasText(param.getEdlDaysOfWeek())) mainBox.put("days_of_week", param.getEdlDaysOfWeek());
+        if (StringUtils.hasText(param.getEdlStartTime())) mainBox.put("start_times", param.getEdlStartTime());
+        if (StringUtils.hasText(param.getEdlDependenciesCondition())) mainBox.put("condition", param.getEdlDependenciesCondition()); // Box condition
+        mainBox.put("description", param.getEdlDescription()); // Using main EDL description for box
+
+        // Alarm mapping (assuming 'e'/'t' maps to '1', adjust if needed)
+        // Needs fields like param.getEdlBoxFailure()
+        String boxFailure = param.getBoxFailure(); // Assuming a field like this exists for edl box
+        if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
+            mainBox.put("alarm_if_fail", "1");
+            mainBox.put("alarm_if_terminated", "1"); // Assuming e/t means alarm on both
+        } else {
+             mainBox.put("alarm_if_fail", "0"); // Default if not specified
+             mainBox.put("alarm_if_terminated", "0");
+        }
+        // Add other BOX specific fields if needed and available in param (e.g., edlBoxJobLoad)
+        mainBox.put("job_load", param.getJobLoad()); // Using generic load for now
+
+        // Common fields
+        mainBox.put("timezone", param.getTimeZone());
+        mainBox.put("group", param.getGroup());
+        mainBox.put("application", param.getApplication()); // Or a specific edlApplication?
+
+
+        // Build CMD Job
+        Map<String, Object> cmdJob = new LinkedHashMap<>();
+        cmdJob.put("insert_job", param.getEdlCmdJobName());
+        cmdJob.put("job_type", "CMD");
+        cmdJob.put("box_name", param.getEdlBoxJobName());
+         // Assuming command is now directly in AutosysParam or constructed differently
+         // cmdJob.put("command", "ksh ${SRC_SCRIPTS_DIR_PATH}/utcap/utcap-gcp-marketing-pipelines/dci_launcher.sh ..."); // Example command structure
+        cmdJob.put("command", param.getEdlCommand()); // Need field like getEdlCommand()
+        cmdJob.put("machine", param.getEdlMachineName());
+        cmdJob.put("owner", param.getEdlOwner());
+        cmdJob.put("permission", param.getPermission()); // Using general permission field
+        cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
+        if (StringUtils.hasText(param.getEdlDependenciesCondition())) cmdJob.put("condition", param.getEdlDependenciesCondition()); // CMD condition (might be same as box?)
+        cmdJob.put("description", param.getEdlDescription()); // Using main EDL description for cmd too? Or need getEdlCmdDescription()?
+
+        // Alarm mapping (assuming 'e'/'t' maps to '1', adjust if needed)
+        // Needs fields like param.getEdlCmdFailure()
+         String cmdFailure = param.getCmdFailure(); // Assuming a field like this exists for edl cmd
+         if ("e".equalsIgnoreCase(cmdFailure) || "t".equalsIgnoreCase(cmdFailure)) {
+             cmdJob.put("alarm_if_fail", "1");
+             cmdJob.put("alarm_if_terminated", "1");
+         } else {
+              cmdJob.put("alarm_if_fail", "0");
+              cmdJob.put("alarm_if_terminated", "0");
+         }
+
+        cmdJob.put("std_out_file", param.getEdlStdOutFile()); // Need field like getEdlStdOutFile()
+        cmdJob.put("std_err_file", param.getEdlStdErrFile()); // Need field like getEdlStdErrFile()
+        cmdJob.put("profile", param.getEdlProfilePath());
+        cmdJob.put("job_load", param.getJobLoad()); // Using generic load
+        cmdJob.put("priority", param.getPriority()); // Using generic priority
+        cmdJob.put("timezone", param.getTimeZone());
+        cmdJob.put("group", param.getGroup());
+        cmdJob.put("application", param.getApplication()); // Or a specific edlApplication?
+        cmdJob.put("success_codes", param.getEdlSuccessCodes()); // Need field like getEdlSuccessCodes()
+        cmdJob.put("fail_codes", param.getEdlFailCodes()); // Need field like getEdlFailCodes()
+        // Add other CMD fields if needed (max_run_alarm, term_run_time, resources, etc.)
+
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob);
+        mainBox.put("properties", properties);
+
+        Map<String, Object> jsonData = new LinkedHashMap<>();
+        jsonData.put("mainbox", mainBox);
+        return createFileObject("Source Extract JIL", jsonData);
+    }
+
+    /**
+     * Builds the second INGRESS JIL file (CDMP Driver).
+     * Assumes param object has all necessary cdmp_* prefixed fields.
+     */
+    private Map<String, Object> buildIngressFile2(AutosysParam param) {
+         Map<String, Object> mainBox = new LinkedHashMap<>();
+         mainBox.put("insert_job", param.getCdmpBoxJobName());
+         mainBox.put("job_type", "BOX");
+         mainBox.put("owner", param.getCdmpOwner());
+         mainBox.put("permission", param.getPermission()); // Using general permission field
+         mainBox.put("date_conditions", param.getCdmpDateCondition()); // Note: Example param is "0"
+         if (StringUtils.hasText(param.getCdmpDaysOfWeek())) mainBox.put("days_of_week", param.getCdmpDaysOfWeek());
+         if (StringUtils.hasText(param.getCdmpStartTime())) mainBox.put("start_times", param.getCdmpStartTime());
+         if (StringUtils.hasText(param.getCdmpDependenciesCondition())) mainBox.put("condition", param.getCdmpDependenciesCondition()); // Box condition
+         mainBox.put("description", param.getCdmpDescription()); // Using main CDMP description for box
+
+         // Alarm mapping
+         // Needs fields like param.getCdmpBoxFailure()
+         String boxFailure = param.getBoxFailure(); // Assuming a field like this exists for cdmp box
+         if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
+             mainBox.put("alarm_if_fail", "1");
+             mainBox.put("alarm_if_terminated", "1");
+         } else {
+              mainBox.put("alarm_if_fail", "0");
+              mainBox.put("alarm_if_terminated", "0");
+         }
+         // Add other BOX specific fields if needed (e.g., cdmpBoxJobLoad)
+         mainBox.put("job_load", param.getJobLoad()); // Using generic load for now
+
+         // Common fields
+         mainBox.put("timezone", param.getTimeZone());
+         mainBox.put("group", param.getGroup());
+         mainBox.put("application", param.getApplication()); // Or a specific cdmpApplication?
+
+
+         // Build CMD Job
+         Map<String, Object> cmdJob = new LinkedHashMap<>();
+         cmdJob.put("insert_job", param.getCdmpCmdJobName());
+         cmdJob.put("job_type", "CMD");
+         cmdJob.put("box_name", param.getCdmpBoxJobName());
+         // Assuming command is now directly in AutosysParam or constructed differently
+         // cmdJob.put("command", "ksh ${SRC_SCRIPTS_DIR_PATH}/cdmp_driver_launcher.ksh"); // Example command structure
+         cmdJob.put("command", param.getCdmpCommand()); // Need field like getCdmpCommand()
+         cmdJob.put("machine", param.getCdmpMachineName());
+         cmdJob.put("owner", param.getCdmpOwner());
+         cmdJob.put("permission", param.getPermission()); // Using general permission field
+         cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
+         if (StringUtils.hasText(param.getCdmpDependenciesCondition())) cmdJob.put("condition", param.getCdmpDependenciesCondition()); // CMD condition (might be same as box?)
+         cmdJob.put("description", param.getCdmpDescription()); // Using main CDMP description for cmd too? Or need getCdmpCmdDescription()?
+
+         // Alarm mapping
+         // Needs fields like param.getCdmpCmdFailure()
+          String cmdFailure = param.getCmdFailure(); // Assuming a field like this exists for cdmp cmd
+          if ("e".equalsIgnoreCase(cmdFailure) || "t".equalsIgnoreCase(cmdFailure)) {
+              cmdJob.put("alarm_if_fail", "1");
+              cmdJob.put("alarm_if_terminated", "1");
+          } else {
+               cmdJob.put("alarm_if_fail", "0");
+               cmdJob.put("alarm_if_terminated", "0");
+          }
+
+         cmdJob.put("std_out_file", param.getCdmpStdOutFile()); // Need field like getCdmpStdOutFile()
+         cmdJob.put("std_err_file", param.getCdmpStdErrFile()); // Need field like getCdmpStdErrFile()
+         cmdJob.put("profile", param.getCdmpProfilePath());
+         cmdJob.put("job_load", param.getJobLoad()); // Using generic load
+         cmdJob.put("priority", param.getPriority()); // Using generic priority
+         cmdJob.put("timezone", param.getTimeZone());
+         cmdJob.put("group", param.getGroup());
+         cmdJob.put("application", param.getApplication()); // Or a specific cdmpApplication?
+         cmdJob.put("success_codes", param.getCdmpSuccessCodes()); // Need field like getCdmpSuccessCodes()
+         cmdJob.put("fail_codes", param.getCdmpFailCodes()); // Need field like getCdmpFailCodes()
+         // Add other CMD fields if needed
+
+         List<Map<String, Object>> properties = new ArrayList<>();
+         properties.add(cmdJob);
+         mainBox.put("properties", properties);
+
+         Map<String, Object> jsonData = new LinkedHashMap<>();
+         jsonData.put("mainbox", mainBox);
+         return createFileObject("CDMP Driver Script", jsonData);
+    }
+
+
+    /**
+     * Builds the first EDL JIL file (Configuration).
+     * Uses cfg_* prefixed fields and some general fields from param.
+     */
+    private Map<String, Object> buildEdlFile1(AutosysParam param) {
+        Map<String, Object> mainBox = new LinkedHashMap<>();
+        mainBox.put("insert_job", param.getCfgBoxJobName());
+        mainBox.put("job_type", "BOX");
+        mainBox.put("owner", param.getOwner()); // General owner
+        mainBox.put("permission", param.getPermission()); // General permission
+        mainBox.put("date_conditions", "0"); // Example shows 0 for config box
+        // No days_of_week, start_times, condition in example for config box
+        mainBox.put("description", param.getCfgBoxDescription());
+
+        // Alarm mapping
+        String boxFailure = param.getBoxFailure(); // Using general boxFailure
+        if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
+            mainBox.put("alarm_if_fail", "1");
+            mainBox.put("alarm_if_terminated", "1");
+        } else {
+             // Example shows 0 for config box alarms
+             mainBox.put("alarm_if_fail", "0");
+             mainBox.put("alarm_if_terminated", "0");
+        }
+        // No job_load in example for config box
+
+        // Common fields
+        mainBox.put("timezone", param.getTimeZone());
+        mainBox.put("group", param.getGroup());
+        mainBox.put("application", param.getApplication());
+
+
+        // Build CMD Job
+        Map<String, Object> cmdJob = new LinkedHashMap<>();
+        cmdJob.put("insert_job", param.getCfgCmdJobName());
+        cmdJob.put("job_type", "CMD");
+        cmdJob.put("box_name", param.getCfgBoxJobName());
+        cmdJob.put("command", param.getCfgCmdJobCommand());
+        cmdJob.put("machine", param.getCfgCmdJobMachine());
+        cmdJob.put("owner", param.getOwner()); // General owner
+        cmdJob.put("permission", param.getPermission()); // General permission
+        cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
+        if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition
+        cmdJob.put("description", param.getCfgCmdJobDescription());
+
+        // Alarm mapping
+         String cmdFailure = param.getCmdFailure(); // Using general cmdFailure
+         if ("e".equalsIgnoreCase(cmdFailure) || "t".equalsIgnoreCase(cmdFailure)) {
+             cmdJob.put("alarm_if_fail", "1");
+             cmdJob.put("alarm_if_terminated", "1");
+         } else {
+              // Example shows 1 for config cmd alarms
+              cmdJob.put("alarm_if_fail", "1");
+              cmdJob.put("alarm_if_terminated", "1");
+         }
+
+        cmdJob.put("std_out_file", param.getStdOutFile()); // Using general stdOutFile
+        cmdJob.put("std_err_file", param.getStdErrFile()); // Using general stdErrFile
+        cmdJob.put("profile", param.getProfilePath()); // Using general profilePath
+        cmdJob.put("job_load", param.getJobLoad()); // Using generic load (example 30)
+        cmdJob.put("priority", param.getPriority()); // Using generic priority (example 290)
+        cmdJob.put("timezone", param.getTimeZone());
+        cmdJob.put("group", param.getGroup());
+        cmdJob.put("application", param.getApplication());
+        cmdJob.put("success_codes", param.getCfgSuccessCodes()); // Need field like getCfgSuccessCodes() default "0"
+        cmdJob.put("fail_codes", param.getCfgFailCodes()); // Need field like getCfgFailCodes() default "!-9999"
+         // Add other CMD fields if needed
+
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob);
+        mainBox.put("properties", properties);
+
+        Map<String, Object> jsonData = new LinkedHashMap<>();
+        jsonData.put("mainbox", mainBox);
+        return createFileObject("EDL_Config_JIL", jsonData); // Example name
+    }
+
+    /**
+     * Builds the second EDL JIL file (Ingestion).
+     * Uses general box fields and prm_*, ing_* fields from param.
+     * Contains MainBOX -> CMD1 (Set Parms) -> CMD2 (Ingest)
+     */
+    private Map<String, Object> buildEdlFile2(AutosysParam param) {
+        Map<String, Object> mainBox = new LinkedHashMap<>();
+        mainBox.put("insert_job", param.getBoxJobName()); // General box name
+        mainBox.put("job_type", "BOX");
+        mainBox.put("owner", param.getOwner()); // General owner
+        mainBox.put("permission", param.getPermission()); // General permission
+        mainBox.put("date_conditions", param.getDateCondition()); // General dateCondition (example "1")
+        if (StringUtils.hasText(param.getDaysOfWeek())) mainBox.put("days_of_week", param.getDaysOfWeek()); // General (example "all")
+        if (StringUtils.hasText(param.getStartTime())) mainBox.put("start_times", param.getStartTime()); // General (example "00:00")
+        // No box condition in example
+
+        mainBox.put("description", param.getBoxJobDescription()); // General box description
+
+        // Alarm mapping
+        String boxFailure = param.getBoxFailure(); // Using general boxFailure
+        if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
+            mainBox.put("alarm_if_fail", "1");
+            mainBox.put("alarm_if_terminated", "1");
+        } else {
+             // Example shows 0 for ingest box alarms
+             mainBox.put("alarm_if_fail", "0");
+             mainBox.put("alarm_if_terminated", "0");
+        }
+        // No job_load in example for ingest box
+
+        // Common fields
+        mainBox.put("timezone", param.getTimeZone());
+        mainBox.put("group", param.getGroup());
+        mainBox.put("application", param.getApplication());
+
+
+        // Build CMD Job 1 (Set Parms)
+        Map<String, Object> cmdJob1 = new LinkedHashMap<>();
+        cmdJob1.put("insert_job", param.getPrmCmdJobName());
+        cmdJob1.put("job_type", "CMD");
+        cmdJob1.put("box_name", param.getBoxJobName()); // Belongs to general box
+        cmdJob1.put("command", param.getPrmCmdJobCommand());
+        cmdJob1.put("machine", param.getPrmCmdJobMachine());
+        cmdJob1.put("owner", param.getOwner()); // General owner
+        cmdJob1.put("permission", param.getPermission()); // General permission
+        cmdJob1.put("date_conditions", "0"); // Hardcoded as requested for CMD
+        if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob1.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition for CMD1
+        cmdJob1.put("description", param.getPrmCmdJobDescription());
+
+        // Alarm mapping
+         String cmdFailure1 = param.getCmdFailure(); // Using general cmdFailure
+         if ("e".equalsIgnoreCase(cmdFailure1) || "t".equalsIgnoreCase(cmdFailure1)) {
+             cmdJob1.put("alarm_if_fail", "1");
+             cmdJob1.put("alarm_if_terminated", "1");
+         } else {
+              // Example shows 1 for prm cmd alarms
+              cmdJob1.put("alarm_if_fail", "1");
+              cmdJob1.put("alarm_if_terminated", "1");
+         }
+
+        // Example uses specific format for std files here - assuming general ones for now
+        cmdJob1.put("std_out_file", param.getStdOutFile()); // Or need prmStdOutFile?
+        cmdJob1.put("std_err_file", param.getStdErrFile()); // Or need prmStdErrFile?
+        cmdJob1.put("profile", param.getProfilePath()); // Using general profilePath
+        cmdJob1.put("job_load", param.getJobLoad()); // Using generic load (example 30)
+        cmdJob1.put("priority", param.getPriority()); // Using generic priority (example 290)
+        cmdJob1.put("timezone", param.getTimeZone());
+        cmdJob1.put("group", param.getGroup());
+        cmdJob1.put("application", param.getApplication());
+        cmdJob1.put("success_codes", param.getPrmSuccessCodes()); // Need field like getPrmSuccessCodes() default "0"
+        cmdJob1.put("fail_codes", param.getPrmFailCodes()); // Need field like getPrmFailCodes() default "!-9999"
+
+
+        // Build CMD Job 2 (Ingest)
+        Map<String, Object> cmdJob2 = new LinkedHashMap<>();
+        cmdJob2.put("insert_job", param.getIngCmdJobName());
+        cmdJob2.put("job_type", "CMD");
+        cmdJob2.put("box_name", param.getBoxJobName()); // Belongs to general box
+        cmdJob2.put("command", param.getIngCmdJobCommand());
+        cmdJob2.put("machine", param.getIngCmdJobMachine());
+        cmdJob2.put("owner", param.getOwner()); // General owner
+        cmdJob2.put("permission", param.getPermission()); // General permission
+        cmdJob2.put("date_conditions", "0"); // Hardcoded as requested for CMD
+
+        // Construct condition for CMD2: General condition + Success of CMD1
+        String cmd1SuccessCondition = "s(" + param.getPrmCmdJobName() + ") = SUCCESS";
+        String baseCondition = param.getDependenciesCondition();
+        String finalCondition = StringUtils.hasText(baseCondition) ? baseCondition + " & " + cmd1SuccessCondition : cmd1SuccessCondition;
+        cmdJob2.put("condition", finalCondition);
+
+        cmdJob2.put("description", param.getIngCmdJobDescription());
+
+        // Alarm mapping
+         String cmdFailure2 = param.getCmdFailure(); // Using general cmdFailure
+         if ("e".equalsIgnoreCase(cmdFailure2) || "t".equalsIgnoreCase(cmdFailure2)) {
+             cmdJob2.put("alarm_if_fail", "1");
+             cmdJob2.put("alarm_if_terminated", "1");
+         } else {
+              // Example shows 1 for ing cmd alarms
+              cmdJob2.put("alarm_if_fail", "1");
+              cmdJob2.put("alarm_if_terminated", "1");
+         }
+
+        // Example uses specific format for std files here - assuming general ones for now
+        cmdJob2.put("std_out_file", param.getStdOutFile()); // Or need ingStdOutFile?
+        cmdJob2.put("std_err_file", param.getStdErrFile()); // Or need ingStdErrFile?
+        cmdJob2.put("profile", param.getProfilePath()); // Using general profilePath
+        cmdJob2.put("job_load", param.getJobLoad()); // Using generic load (example missing, assume generic)
+        cmdJob2.put("priority", param.getPriority()); // Using generic priority (example 210, using generic for now)
+        cmdJob2.put("timezone", param.getTimeZone());
+        cmdJob2.put("group", param.getGroup());
+        cmdJob2.put("application", param.getApplication());
+        cmdJob2.put("success_codes", param.getIngSuccessCodes()); // Need field like getIngSuccessCodes() default "0"
+        cmdJob2.put("fail_codes", param.getIngFailCodes()); // Need field like getIngFailCodes() default "!-9999"
+
+
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob1);
+        properties.add(cmdJob2); // Add second cmd job
+        mainBox.put("properties", properties);
+
+        Map<String, Object> jsonData = new LinkedHashMap<>();
+        jsonData.put("mainbox", mainBox);
+        return createFileObject("EDL_Ingestion_JIL", jsonData); // Example name
+    }
+
+
+    // --- Helper Method to Create Final File Object ---
+
+    private Map<String, Object> createFileObject(String defaultFileName, Map<String, Object> jsonData) {
+        Map<String, Object> fileObject = new LinkedHashMap<>();
+        fileObject.put("fileName", defaultFileName);
+        fileObject.put("jsonData", jsonData);
+        fileObject.put("content", ""); // Keep empty, frontend handles final JIL text conversion
+        return fileObject;
+    }
 }
