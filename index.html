@@ -1,9 +1,9 @@
 {
-  "document": "JIL Editor v1",
+  "document": "JIL Editor v2.1 - All Fields Required",
   "metaData": {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Autosys JIL File Metadata",
-    "description": "Common metadata schema for JIL files (union of Ingress and EDL flows).",
+    "title": "Autosys JIL File Metadata (All Defined Fields Required)",
+    "description": "Common metadata schema for JIL files. All defined fields within each job type are marked as required.",
     "type": "object",
     "properties": {
       "mainBox": {
@@ -18,95 +18,43 @@
         "type": "object",
         "description": "Main BOX job (top-level).",
         "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the main box",
-            "default": ""
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "BOX"
-            ],
-            "description": "Job type for the main box",
-            "default": ""
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": ""
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": ""
-          },
-          "date_conditions": {
-            "type": "string",
-            "description": "Date condition flag",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": ""
-          },
-          "alarm_if_fail": {
-            "type": "string",
-            "description": "Alarm if job fails",
-            "default": ""
-          },
-          "alarm_if_terminated": {
-            "type": "string",
-            "description": "Alarm if job is terminated",
-            "default": ""
-          },
-          "timezone": {
-            "type": "string",
-            "description": "Timezone",
-            "default": ""
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": ""
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": ""
-          },
+          "insert_job": { "type": "string", "description": "Job name for the main box", "default": "" },
+          "job_type": { "type": "string", "enum": ["BOX"], "description": "Job type fixed to BOX", "default": "BOX" },
+          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
+          "permission": { "type": "string", "description": "Permissions (e.g., me,mx,ge,gx,we,wx)", "default": "" },
+          "date_conditions": { "type": "string", "description": "Date condition flag (e.g., 0 or 1)", "default": "" },
+          "days_of_week": { "type": "string", "description": "Days of the week (e.g., all, mo-fr)", "default": "" },
+          "start_times": { "type": "string", "description": "Start times (e.g., \"13:00\")", "default": "" },
+          "start_mins": { "type": "string", "description": "Start minutes (alternative to start_times)", "default": "" },
+          "run_window": { "type": "string", "description": "Run window (e.g., \"00:00-05:00\")", "default": "" },
+          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
+          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
+          "condition": { "type": "string", "description": "Job condition for starting (e.g., s(job_A)=SUCCESS)", "default": "" },
+          "description": { "type": "string", "description": "Job description", "default": "" },
+          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails (e.g., 0 or 1)", "default": "" },
+          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated (e.g., 0 or 1)", "default": "" },
+          "timezone": { "type": "string", "description": "Timezone (e.g., US/Central)", "default": "" },
+          "group": { "type": "string", "description": "Group name", "default": "" },
+          "application": { "type": "string", "description": "Application name", "default": "" },
+          "job_load": { "type": "string", "description": "Job load value", "default": "" },
           "properties": {
             "type": "array",
             "description": "Nested jobs within the main box (sub-boxes, CMD, FW)",
             "default": [],
             "items": {
               "oneOf": [
-                {
-                  "$ref": "#/definitions/SubBOX"
-                },
-                {
-                  "$ref": "#/definitions/CMD"
-                },
-                {
-                  "$ref": "#/definitions/FW"
-                }
+                { "$ref": "#/definitions/SubBOX" },
+                { "$ref": "#/definitions/CMD" },
+                { "$ref": "#/definitions/FW" }
               ]
             }
           }
         },
-        "required": [
-          "insert_job",
-          "job_type",
-          "owner",
-          "permission",
-          "date_conditions",
-          "description",
-          "alarm_if_fail",
-          "alarm_if_terminated",
-          "timezone",
-          "group",
-          "application",
+        "required": [ // All defined properties are required
+          "insert_job", "job_type", "owner", "permission", "date_conditions",
+          "days_of_week", "start_times", "start_mins", "run_window", "run_calendar",
+          "exclude_calendar", "condition", "description", "alarm_if_fail",
+          "alarm_if_terminated", "timezone", "group", "application", "job_load",
           "properties"
         ]
       },
@@ -114,101 +62,44 @@
         "type": "object",
         "description": "Sub BOX job (nested box within another box).",
         "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the sub-box",
-            "default": ""
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "BOX"
-            ],
-            "description": "Job type for the sub-box",
-            "default": ""
-          },
-          "box_name": {
-            "type": "string",
-            "description": "Name of the parent box (should match main box's insert_job)",
-            "default": ""
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": ""
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": ""
-          },
-          "date_conditions": {
-            "type": "string",
-            "description": "Date condition flag",
-            "default": ""
-          },
-          "condition": {
-            "type": "string",
-            "description": "Condition for the sub-box",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": ""
-          },
-          "alarm_if_fail": {
-            "type": "string",
-            "description": "Alarm if job fails",
-            "default": ""
-          },
-          "alarm_if_terminated": {
-            "type": "string",
-            "description": "Alarm if job is terminated",
-            "default": ""
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": ""
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": ""
-          },
+          "insert_job": { "type": "string", "description": "Job name for the sub-box", "default": "" },
+          "job_type": { "type": "string", "enum": ["BOX"], "description": "Job type fixed to BOX", "default": "BOX" },
+          "box_name": { "type": "string", "description": "Name of the parent box", "default": "" },
+          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
+          "permission": { "type": "string", "description": "Permissions", "default": "" },
+          "date_conditions": { "type": "string", "description": "Date condition flag", "default": "" },
+          "days_of_week": { "type": "string", "description": "Days of the week", "default": "" },
+          "start_times": { "type": "string", "description": "Start times", "default": "" },
+          "start_mins": { "type": "string", "description": "Start minutes", "default": "" },
+          "run_window": { "type": "string", "description": "Run window", "default": "" },
+          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
+          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
+          "condition": { "type": "string", "description": "Condition for the sub-box", "default": "" },
+          "description": { "type": "string", "description": "Job description", "default": "" },
+          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails", "default": "" },
+          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated", "default": "" },
+          "timezone": { "type": "string", "description": "Timezone", "default": "" },
+          "group": { "type": "string", "description": "Group name", "default": "" },
+          "application": { "type": "string", "description": "Application name", "default": "" },
+          "job_load": { "type": "string", "description": "Job load value", "default": "" },
           "properties": {
             "type": "array",
             "description": "Nested jobs within this sub-box",
             "default": [],
             "items": {
               "oneOf": [
-                {
-                  "$ref": "#/definitions/SubBOX"
-                },
-                {
-                  "$ref": "#/definitions/CMD"
-                },
-                {
-                  "$ref": "#/definitions/FW"
-                }
+                { "$ref": "#/definitions/SubBOX" },
+                { "$ref": "#/definitions/CMD" },
+                { "$ref": "#/definitions/FW" }
               ]
             }
           }
         },
-        "required": [
-          "insert_job",
-          "job_type",
-          "box_name",
-          "owner",
-          "permission",
-          "date_conditions",
-          "condition",
-          "description",
-          "alarm_if_fail",
-          "alarm_if_terminated",
-          "group",
-          "application",
+        "required": [ // All defined properties are required
+          "insert_job", "job_type", "box_name", "owner", "permission", "date_conditions",
+          "days_of_week", "start_times", "start_mins", "run_window", "run_calendar",
+          "exclude_calendar", "condition", "description", "alarm_if_fail",
+          "alarm_if_terminated", "timezone", "group", "application", "job_load",
           "properties"
         ]
       },
@@ -216,274 +107,90 @@
         "type": "object",
         "description": "CMD job (command job).",
         "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the CMD job",
-            "default": ""
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "CMD"
-            ],
-            "description": "Job type for CMD",
-            "default": ""
-          },
-          "box_name": {
-            "type": "string",
-            "description": "Name of the parent sub-box",
-            "default": ""
-          },
-          "command": {
-            "type": "string",
-            "description": "Command to execute",
-            "default": ""
-          },
-          "machine": {
-            "type": "string",
-            "description": "Machine name",
-            "default": ""
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": ""
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": ""
-          },
-          "date_conditions": {
-            "type": "string",
-            "description": "Date condition flag",
-            "default": ""
-          },
-          "condition": {
-            "type": "string",
-            "description": "Condition for the CMD job",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": ""
-          },
-          "std_out_file": {
-            "type": "string",
-            "description": "Standard output file",
-            "default": ""
-          },
-          "std_err_file": {
-            "type": "string",
-            "description": "Standard error file",
-            "default": ""
-          },
-          "alarm_if_fail": {
-            "type": "string",
-            "description": "Alarm if job fails",
-            "default": ""
-          },
-          "profile": {
-            "type": "string",
-            "description": "Profile name",
-            "default": ""
-          },
-          "job_load": {
-            "type": "string",
-            "description": "Job load",
-            "default": ""
-          },
-          "priority": {
-            "type": "string",
-            "description": "Job priority",
-            "default": ""
-          },
-          "alarm_if_terminated": {
-            "type": "string",
-            "description": "Alarm if job is terminated",
-            "default": ""
-          },
-          "timezone": {
-            "type": "string",
-            "description": "Timezone",
-            "default": ""
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": ""
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": ""
-          },
-          "success_codes": {
-            "type": "string",
-            "description": "Success codes",
-            "default": ""
-          },
-          "fail_codes": {
-            "type": "string",
-            "description": "Fail codes",
-            "default": ""
-          }
+          "insert_job": { "type": "string", "description": "Job name for the CMD job", "default": "" },
+          "job_type": { "type": "string", "enum": ["CMD"], "description": "Job type fixed to CMD", "default": "CMD" },
+          "box_name": { "type": "string", "description": "Name of the parent box", "default": "" },
+          "command": { "type": "string", "description": "Command to execute", "default": "" },
+          "machine": { "type": "string", "description": "Machine name where job runs", "default": "" },
+          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
+          "permission": { "type": "string", "description": "Permissions", "default": "" },
+          "date_conditions": { "type": "string", "description": "Date condition flag", "default": "" },
+          "days_of_week": { "type": "string", "description": "Days of the week", "default": "" },
+          "start_times": { "type": "string", "description": "Start times", "default": "" },
+          "start_mins": { "type": "string", "description": "Start minutes", "default": "" },
+          "run_window": { "type": "string", "description": "Run window", "default": "" },
+          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
+          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
+          "condition": { "type": "string", "description": "Condition for the CMD job", "default": "" },
+          "description": { "type": "string", "description": "Job description", "default": "" },
+          "std_out_file": { "type": "string", "description": "Standard output file path", "default": "" },
+          "std_err_file": { "type": "string", "description": "Standard error file path", "default": "" },
+          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails", "default": "" },
+          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated", "default": "" },
+          "max_run_alarm": { "type": "string", "description": "Maximum run alarm time (minutes)", "default": "" },
+          "term_run_time": { "type": "string", "description": "Terminate run time (minutes)", "default": "" },
+          "profile": { "type": "string", "description": "Profile script path to source", "default": "" },
+          "job_load": { "type": "string", "description": "Job load value", "default": "" },
+          "priority": { "type": "string", "description": "Job priority", "default": "" },
+          "resources": { "type": "string", "description": "Resources required", "default": "" },
+          "timezone": { "type": "string", "description": "Timezone", "default": "" },
+          "group": { "type": "string", "description": "Group name", "default": "" },
+          "application": { "type": "string", "description": "Application name", "default": "" },
+          "success_codes": { "type": "string", "description": "Success codes (e.g., 0)", "default": "" },
+          "fail_codes": { "type": "string", "description": "Fail codes (e.g., !-9999)", "default": "" }
         },
-        "required": [
-          "insert_job",
-          "job_type",
-          "box_name",
-          "command",
-          "machine",
-          "owner",
-          "permission",
-          "date_conditions",
-          "condition",
-          "description",
-          "std_out_file",
-          "std_err_file",
-          "alarm_if_fail",
-          "profile",
-          "job_load",
-          "priority",
-          "alarm_if_terminated",
-          "timezone",
-          "group",
-          "application",
-          "success_codes",
-          "fail_codes"
+        "required": [ // All defined properties are required
+          "insert_job", "job_type", "box_name", "command", "machine", "owner", "permission",
+          "date_conditions", "days_of_week", "start_times", "start_mins", "run_window",
+          "run_calendar", "exclude_calendar", "condition", "description", "std_out_file",
+          "std_err_file", "alarm_if_fail", "alarm_if_terminated", "max_run_alarm",
+          "term_run_time", "profile", "job_load", "priority", "resources", "timezone",
+          "group", "application", "success_codes", "fail_codes"
         ]
       },
       "FW": {
         "type": "object",
         "description": "FW job (file watcher job).",
         "properties": {
-          "insert_job": {
-            "type": "string",
-            "description": "Job name for the FW job",
-            "default": ""
-          },
-          "job_type": {
-            "type": "string",
-            "enum": [
-              "FW"
-            ],
-            "description": "Job type for FW",
-            "default": ""
-          },
-          "box_name": {
-            "type": "string",
-            "description": "Name of the parent box",
-            "default": ""
-          },
-          "machine": {
-            "type": "string",
-            "description": "Machine name",
-            "default": ""
-          },
-          "owner": {
-            "type": "string",
-            "description": "Owner of the job",
-            "default": ""
-          },
-          "permission": {
-            "type": "string",
-            "description": "Permissions",
-            "default": ""
-          },
-          "date_conditions": {
-            "type": "string",
-            "description": "Date condition flag",
-            "default": ""
-          },
-          "condition": {
-            "type": "string",
-            "description": "Condition for the FW job",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "description": "Job description",
-            "default": ""
-          },
-          "term_run_time": {
-            "type": "string",
-            "description": "Terminal run time",
-            "default": ""
-          },
-          "max_run_alarm": {
-            "type": "string",
-            "description": "Maximum run alarm time",
-            "default": ""
-          },
-          "alarm_if_fail": {
-            "type": "string",
-            "description": "Alarm if job fails",
-            "default": ""
-          },
-          "profile": {
-            "type": "string",
-            "description": "Profile name",
-            "default": ""
-          },
-          "priority": {
-            "type": "string",
-            "description": "Job priority",
-            "default": ""
-          },
-          "alarm_if_terminated": {
-            "type": "string",
-            "description": "Alarm if job is terminated",
-            "default": ""
-          },
-          "group": {
-            "type": "string",
-            "description": "Group name",
-            "default": ""
-          },
-          "application": {
-            "type": "string",
-            "description": "Application name",
-            "default": ""
-          },
-          "watch_file": {
-            "type": "string",
-            "description": "File to watch",
-            "default": ""
-          },
-          "watch_file_min_size": {
-            "type": "string",
-            "description": "Minimum file size to trigger",
-            "default": ""
-          },
-          "watch_interval": {
-            "type": "string",
-            "description": "Watch interval (in seconds)",
-            "default": ""
-          }
+          "insert_job": { "type": "string", "description": "Job name for the FW job", "default": "" },
+          "job_type": { "type": "string", "enum": ["FW"], "description": "Job type fixed to FW", "default": "FW" },
+          "box_name": { "type": "string", "description": "Name of the parent box", "default": "" },
+          "machine": { "type": "string", "description": "Machine name where watcher runs", "default": "" },
+          "owner": { "type": "string", "description": "Owner of the job", "default": "" },
+          "permission": { "type": "string", "description": "Permissions", "default": "" },
+          "date_conditions": { "type": "string", "description": "Date condition flag", "default": "" },
+          "days_of_week": { "type": "string", "description": "Days of the week", "default": "" },
+          "start_times": { "type": "string", "description": "Start times", "default": "" },
+          "start_mins": { "type": "string", "description": "Start minutes", "default": "" },
+          "run_window": { "type": "string", "description": "Run window", "default": "" },
+          "run_calendar": { "type": "string", "description": "Run calendar name", "default": "" },
+          "exclude_calendar": { "type": "string", "description": "Exclude calendar name", "default": "" },
+          "condition": { "type": "string", "description": "Condition for the FW job", "default": "" },
+          "description": { "type": "string", "description": "Job description", "default": "" },
+          "watch_file": { "type": "string", "description": "File path to watch", "default": "" },
+          "watch_file_min_size": { "type": "string", "description": "Minimum file size to trigger", "default": "" },
+          "watch_interval": { "type": "string", "description": "Watch interval (seconds)", "default": "" },
+          "std_out_file": { "type": "string", "description": "Standard output file path", "default": "" },
+          "std_err_file": { "type": "string", "description": "Standard error file path", "default": "" },
+          "alarm_if_fail": { "type": "string", "description": "Alarm if job fails", "default": "" },
+          "alarm_if_terminated": { "type": "string", "description": "Alarm if job is terminated", "default": "" },
+          "max_run_alarm": { "type": "string", "description": "Maximum run alarm time (minutes)", "default": "" },
+          "term_run_time": { "type": "string", "description": "Terminate run time (minutes)", "default": "" },
+          "profile": { "type": "string", "description": "Profile script path to source", "default": "" },
+          "job_load": { "type": "string", "description": "Job load value", "default": "" },
+          "priority": { "type": "string", "description": "Job priority", "default": "" },
+          "resources": { "type": "string", "description": "Resources required", "default": "" },
+          "timezone": { "type": "string", "description": "Timezone", "default": "" },
+          "group": { "type": "string", "description": "Group name", "default": "" },
+          "application": { "type": "string", "description": "Application name", "default": "" }
         },
-        "required": [
-          "insert_job",
-          "job_type",
-          "box_name",
-          "machine",
-          "owner",
-          "permission",
-          "date_conditions",
-          "condition",
-          "description",
-          "term_run_time",
-          "max_run_alarm",
-          "alarm_if_fail",
-          "profile",
-          "priority",
-          "alarm_if_terminated",
-          "group",
-          "application",
-          "watch_file",
-          "watch_file_min_size",
-          "watch_interval"
+        "required": [ // All defined properties are required
+           "insert_job", "job_type", "box_name", "machine", "owner", "permission",
+           "date_conditions", "days_of_week", "start_times", "start_mins", "run_window",
+           "run_calendar", "exclude_calendar", "condition", "description", "watch_file",
+           "watch_file_min_size", "watch_interval", "std_out_file", "std_err_file",
+           "alarm_if_fail", "alarm_if_terminated", "max_run_alarm", "term_run_time",
+           "profile", "job_load", "priority", "resources", "timezone", "group", "application"
         ]
       }
     }
