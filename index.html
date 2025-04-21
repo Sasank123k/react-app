@@ -8,7 +8,7 @@ import com.wellsfargo.utcap.repository.AutosysParamRepository;
 import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils; // Using Spring's StringUtils for checking null/empty
+import org.springframework.util.StringUtils; // Using Spring's StringUtils for checking null/empty/blank
 
 import java.util.*;
 
@@ -56,30 +56,27 @@ public class JilFileBuilder {
 
     /**
      * Builds the first INGRESS JIL file (Source Extract).
-     * Assumes param object has all necessary edl_* prefixed fields.
+     * Assumes param object has all necessary edl* prefixed fields with correct casing (e.g., getEdlboxJobName).
      */
     private Map<String, Object> buildIngressFile1(AutosysParam param) {
         Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put("insert_job", param.getEdlBoxJobName());
+        mainBox.put("insert_job", param.getEdlboxJobName()); // Corrected case
         mainBox.put("job_type", "BOX");
-        mainBox.put("owner", param.getEdlOwner());
+        mainBox.put("owner", param.getEdlowner()); // Corrected case
         mainBox.put("permission", param.getPermission()); // Using general permission field
-        mainBox.put("date_conditions", param.getEdlDateCondition());
-        if (StringUtils.hasText(param.getEdlDaysOfWeek())) mainBox.put("days_of_week", param.getEdlDaysOfWeek());
-        if (StringUtils.hasText(param.getEdlStartTime())) mainBox.put("start_times", param.getEdlStartTime());
-        if (StringUtils.hasText(param.getEdlDependenciesCondition())) mainBox.put("condition", param.getEdlDependenciesCondition()); // Box condition
-        mainBox.put("description", param.getEdlDescription()); // Using main EDL description for box
+        mainBox.put("date_conditions", param.getEdldateCondition()); // Corrected case
+        if (StringUtils.hasText(param.getEdldaysOfWeek())) mainBox.put("days_of_week", param.getEdldaysOfWeek()); // Corrected case
+        if (StringUtils.hasText(param.getEdlstartTime())) mainBox.put("start_times", param.getEdlstartTime()); // Corrected case
+        if (StringUtils.hasText(param.getEdldependenciesCondition())) mainBox.put("condition", param.getEdldependenciesCondition()); // Box condition - Corrected case
+        mainBox.put("description", param.getEdldescription()); // Using main EDL description for box - Corrected case
 
-        // Alarm mapping (assuming 'e'/'t' maps to '1', adjust if needed)
-        // Needs fields like param.getEdlBoxFailure()
-        String boxFailure = param.getBoxFailure(); // Assuming a field like this exists for edl box
-        if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
-            mainBox.put("alarm_if_fail", "1");
-            mainBox.put("alarm_if_terminated", "1"); // Assuming e/t means alarm on both
-        } else {
-             mainBox.put("alarm_if_fail", "0"); // Default if not specified
-             mainBox.put("alarm_if_terminated", "0");
-        }
+        // Alarm mapping (Simplified: set to '1' if boxFailure exists, else '0')
+        // Assumes getBoxFailure returns the relevant value for this box
+        String boxFailure = param.getBoxFailure();
+        String alarmValue = StringUtils.hasText(boxFailure) ? "1" : "0";
+        mainBox.put("alarm_if_fail", alarmValue);
+        mainBox.put("alarm_if_terminated", alarmValue); // Assuming failure means alarm on both
+
         // Add other BOX specific fields if needed and available in param (e.g., edlBoxJobLoad)
         mainBox.put("job_load", param.getJobLoad()); // Using generic load for now
 
@@ -91,33 +88,29 @@ public class JilFileBuilder {
 
         // Build CMD Job
         Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put("insert_job", param.getEdlCmdJobName());
+        cmdJob.put("insert_job", param.getEdlcmdJobName()); // Corrected case
         cmdJob.put("job_type", "CMD");
-        cmdJob.put("box_name", param.getEdlBoxJobName());
-         // Assuming command is now directly in AutosysParam or constructed differently
-         // cmdJob.put("command", "ksh ${SRC_SCRIPTS_DIR_PATH}/utcap/utcap-gcp-marketing-pipelines/dci_launcher.sh ..."); // Example command structure
+        cmdJob.put("box_name", param.getEdlboxJobName()); // Corrected case
         cmdJob.put("command", param.getEdlCommand()); // Need field like getEdlCommand()
-        cmdJob.put("machine", param.getEdlMachineName());
-        cmdJob.put("owner", param.getEdlOwner());
+        cmdJob.put("machine", param.getEdlmachineName()); // Corrected case
+        cmdJob.put("owner", param.getEdlowner()); // Corrected case
         cmdJob.put("permission", param.getPermission()); // Using general permission field
         cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
-        if (StringUtils.hasText(param.getEdlDependenciesCondition())) cmdJob.put("condition", param.getEdlDependenciesCondition()); // CMD condition (might be same as box?)
-        cmdJob.put("description", param.getEdlDescription()); // Using main EDL description for cmd too? Or need getEdlCmdDescription()?
+        if (StringUtils.hasText(param.getEdldependenciesCondition())) cmdJob.put("condition", param.getEdldependenciesCondition()); // CMD condition - Corrected case
+        // Using main EDL description for cmd too? Or need getEdlcmdDescription()?
+        cmdJob.put("description", param.getEdldescription()); // Corrected case
 
-        // Alarm mapping (assuming 'e'/'t' maps to '1', adjust if needed)
-        // Needs fields like param.getEdlCmdFailure()
-         String cmdFailure = param.getCmdFailure(); // Assuming a field like this exists for edl cmd
-         if ("e".equalsIgnoreCase(cmdFailure) || "t".equalsIgnoreCase(cmdFailure)) {
-             cmdJob.put("alarm_if_fail", "1");
-             cmdJob.put("alarm_if_terminated", "1");
-         } else {
-              cmdJob.put("alarm_if_fail", "0");
-              cmdJob.put("alarm_if_terminated", "0");
-         }
+        // Alarm mapping (Simplified: set to '1' if cmdFailure exists, else '0')
+        // Assumes getCmdFailure returns the relevant value for this cmd
+         String cmdFailure = param.getCmdFailure();
+         String cmdAlarmValue = StringUtils.hasText(cmdFailure) ? "1" : "0";
+         cmdJob.put("alarm_if_fail", cmdAlarmValue);
+         cmdJob.put("alarm_if_terminated", cmdAlarmValue); // Assuming failure means alarm on both
+
 
         cmdJob.put("std_out_file", param.getEdlStdOutFile()); // Need field like getEdlStdOutFile()
         cmdJob.put("std_err_file", param.getEdlStdErrFile()); // Need field like getEdlStdErrFile()
-        cmdJob.put("profile", param.getEdlProfilePath());
+        cmdJob.put("profile", param.getEdlprofilePath()); // Corrected case
         cmdJob.put("job_load", param.getJobLoad()); // Using generic load
         cmdJob.put("priority", param.getPriority()); // Using generic priority
         cmdJob.put("timezone", param.getTimeZone());
@@ -138,30 +131,26 @@ public class JilFileBuilder {
 
     /**
      * Builds the second INGRESS JIL file (CDMP Driver).
-     * Assumes param object has all necessary cdmp_* prefixed fields.
+     * Assumes param object has all necessary cdmp* prefixed fields with correct casing (e.g., getCdmpboxJobName).
      */
     private Map<String, Object> buildIngressFile2(AutosysParam param) {
          Map<String, Object> mainBox = new LinkedHashMap<>();
-         mainBox.put("insert_job", param.getCdmpBoxJobName());
+         mainBox.put("insert_job", param.getCdmpboxJobName()); // Corrected case
          mainBox.put("job_type", "BOX");
-         mainBox.put("owner", param.getCdmpOwner());
+         mainBox.put("owner", param.getCdmpowner()); // Corrected case
          mainBox.put("permission", param.getPermission()); // Using general permission field
-         mainBox.put("date_conditions", param.getCdmpDateCondition()); // Note: Example param is "0"
-         if (StringUtils.hasText(param.getCdmpDaysOfWeek())) mainBox.put("days_of_week", param.getCdmpDaysOfWeek());
-         if (StringUtils.hasText(param.getCdmpStartTime())) mainBox.put("start_times", param.getCdmpStartTime());
-         if (StringUtils.hasText(param.getCdmpDependenciesCondition())) mainBox.put("condition", param.getCdmpDependenciesCondition()); // Box condition
-         mainBox.put("description", param.getCdmpDescription()); // Using main CDMP description for box
+         mainBox.put("date_conditions", param.getCdmpdateCondition()); // Corrected case
+         if (StringUtils.hasText(param.getCdmpdaysOfWeek())) mainBox.put("days_of_week", param.getCdmpdaysOfWeek()); // Corrected case
+         if (StringUtils.hasText(param.getCdmpstartTime())) mainBox.put("start_times", param.getCdmpstartTime()); // Corrected case
+         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) mainBox.put("condition", param.getCdmpdependenciesCondition()); // Box condition - Corrected case
+         mainBox.put("description", param.getCdmpdescription()); // Using main CDMP description for box - Corrected case
 
-         // Alarm mapping
-         // Needs fields like param.getCdmpBoxFailure()
-         String boxFailure = param.getBoxFailure(); // Assuming a field like this exists for cdmp box
-         if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
-             mainBox.put("alarm_if_fail", "1");
-             mainBox.put("alarm_if_terminated", "1");
-         } else {
-              mainBox.put("alarm_if_fail", "0");
-              mainBox.put("alarm_if_terminated", "0");
-         }
+         // Alarm mapping (Simplified)
+         String boxFailure = param.getBoxFailure();
+         String alarmValue = StringUtils.hasText(boxFailure) ? "1" : "0";
+         mainBox.put("alarm_if_fail", alarmValue);
+         mainBox.put("alarm_if_terminated", alarmValue);
+
          // Add other BOX specific fields if needed (e.g., cdmpBoxJobLoad)
          mainBox.put("job_load", param.getJobLoad()); // Using generic load for now
 
@@ -173,33 +162,27 @@ public class JilFileBuilder {
 
          // Build CMD Job
          Map<String, Object> cmdJob = new LinkedHashMap<>();
-         cmdJob.put("insert_job", param.getCdmpCmdJobName());
+         cmdJob.put("insert_job", param.getCdmpcmdJobName()); // Corrected case
          cmdJob.put("job_type", "CMD");
-         cmdJob.put("box_name", param.getCdmpBoxJobName());
-         // Assuming command is now directly in AutosysParam or constructed differently
-         // cmdJob.put("command", "ksh ${SRC_SCRIPTS_DIR_PATH}/cdmp_driver_launcher.ksh"); // Example command structure
+         cmdJob.put("box_name", param.getCdmpboxJobName()); // Corrected case
          cmdJob.put("command", param.getCdmpCommand()); // Need field like getCdmpCommand()
-         cmdJob.put("machine", param.getCdmpMachineName());
-         cmdJob.put("owner", param.getCdmpOwner());
+         cmdJob.put("machine", param.getCdmpmachineName()); // Corrected case
+         cmdJob.put("owner", param.getCdmpowner()); // Corrected case
          cmdJob.put("permission", param.getPermission()); // Using general permission field
          cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
-         if (StringUtils.hasText(param.getCdmpDependenciesCondition())) cmdJob.put("condition", param.getCdmpDependenciesCondition()); // CMD condition (might be same as box?)
-         cmdJob.put("description", param.getCdmpDescription()); // Using main CDMP description for cmd too? Or need getCdmpCmdDescription()?
+         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) cmdJob.put("condition", param.getCdmpdependenciesCondition()); // CMD condition - Corrected case
+         // Using main CDMP description for cmd too? Or need getCdmpcmdDescription()?
+         cmdJob.put("description", param.getCdmpdescription()); // Corrected case
 
-         // Alarm mapping
-         // Needs fields like param.getCdmpCmdFailure()
-          String cmdFailure = param.getCmdFailure(); // Assuming a field like this exists for cdmp cmd
-          if ("e".equalsIgnoreCase(cmdFailure) || "t".equalsIgnoreCase(cmdFailure)) {
-              cmdJob.put("alarm_if_fail", "1");
-              cmdJob.put("alarm_if_terminated", "1");
-          } else {
-               cmdJob.put("alarm_if_fail", "0");
-               cmdJob.put("alarm_if_terminated", "0");
-          }
+         // Alarm mapping (Simplified)
+          String cmdFailure = param.getCmdFailure();
+          String cmdAlarmValue = StringUtils.hasText(cmdFailure) ? "1" : "0";
+          cmdJob.put("alarm_if_fail", cmdAlarmValue);
+          cmdJob.put("alarm_if_terminated", cmdAlarmValue);
 
          cmdJob.put("std_out_file", param.getCdmpStdOutFile()); // Need field like getCdmpStdOutFile()
          cmdJob.put("std_err_file", param.getCdmpStdErrFile()); // Need field like getCdmpStdErrFile()
-         cmdJob.put("profile", param.getCdmpProfilePath());
+         cmdJob.put("profile", param.getCdmpprofilePath()); // Corrected case
          cmdJob.put("job_load", param.getJobLoad()); // Using generic load
          cmdJob.put("priority", param.getPriority()); // Using generic priority
          cmdJob.put("timezone", param.getTimeZone());
@@ -233,16 +216,12 @@ public class JilFileBuilder {
         // No days_of_week, start_times, condition in example for config box
         mainBox.put("description", param.getCfgBoxDescription());
 
-        // Alarm mapping
+        // Alarm mapping (Simplified)
         String boxFailure = param.getBoxFailure(); // Using general boxFailure
-        if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
-            mainBox.put("alarm_if_fail", "1");
-            mainBox.put("alarm_if_terminated", "1");
-        } else {
-             // Example shows 0 for config box alarms
-             mainBox.put("alarm_if_fail", "0");
-             mainBox.put("alarm_if_terminated", "0");
-        }
+        // Example shows 0 for config box alarms, overriding simplified logic
+        mainBox.put("alarm_if_fail", "0");
+        mainBox.put("alarm_if_terminated", "0");
+
         // No job_load in example for config box
 
         // Common fields
@@ -264,16 +243,11 @@ public class JilFileBuilder {
         if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition
         cmdJob.put("description", param.getCfgCmdJobDescription());
 
-        // Alarm mapping
+        // Alarm mapping (Simplified)
          String cmdFailure = param.getCmdFailure(); // Using general cmdFailure
-         if ("e".equalsIgnoreCase(cmdFailure) || "t".equalsIgnoreCase(cmdFailure)) {
-             cmdJob.put("alarm_if_fail", "1");
-             cmdJob.put("alarm_if_terminated", "1");
-         } else {
-              // Example shows 1 for config cmd alarms
-              cmdJob.put("alarm_if_fail", "1");
-              cmdJob.put("alarm_if_terminated", "1");
-         }
+         // Example shows 1 for config cmd alarms, overriding simplified logic
+         cmdJob.put("alarm_if_fail", "1");
+         cmdJob.put("alarm_if_terminated", "1");
 
         cmdJob.put("std_out_file", param.getStdOutFile()); // Using general stdOutFile
         cmdJob.put("std_err_file", param.getStdErrFile()); // Using general stdErrFile
@@ -283,8 +257,7 @@ public class JilFileBuilder {
         cmdJob.put("timezone", param.getTimeZone());
         cmdJob.put("group", param.getGroup());
         cmdJob.put("application", param.getApplication());
-        cmdJob.put("success_codes", param.getCfgSuccessCodes()); // Need field like getCfgSuccessCodes() default "0"
-        cmdJob.put("fail_codes", param.getCfgFailCodes()); // Need field like getCfgFailCodes() default "!-9999"
+        // No success/fail codes in EDL flow
          // Add other CMD fields if needed
 
         List<Map<String, Object>> properties = new ArrayList<>();
@@ -314,16 +287,12 @@ public class JilFileBuilder {
 
         mainBox.put("description", param.getBoxJobDescription()); // General box description
 
-        // Alarm mapping
+        // Alarm mapping (Simplified)
         String boxFailure = param.getBoxFailure(); // Using general boxFailure
-        if ("e".equalsIgnoreCase(boxFailure) || "t".equalsIgnoreCase(boxFailure)) {
-            mainBox.put("alarm_if_fail", "1");
-            mainBox.put("alarm_if_terminated", "1");
-        } else {
-             // Example shows 0 for ingest box alarms
-             mainBox.put("alarm_if_fail", "0");
-             mainBox.put("alarm_if_terminated", "0");
-        }
+        // Example shows 0 for ingest box alarms, overriding simplified logic
+        mainBox.put("alarm_if_fail", "0");
+        mainBox.put("alarm_if_terminated", "0");
+
         // No job_load in example for ingest box
 
         // Common fields
@@ -345,16 +314,11 @@ public class JilFileBuilder {
         if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob1.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition for CMD1
         cmdJob1.put("description", param.getPrmCmdJobDescription());
 
-        // Alarm mapping
+        // Alarm mapping (Simplified)
          String cmdFailure1 = param.getCmdFailure(); // Using general cmdFailure
-         if ("e".equalsIgnoreCase(cmdFailure1) || "t".equalsIgnoreCase(cmdFailure1)) {
-             cmdJob1.put("alarm_if_fail", "1");
-             cmdJob1.put("alarm_if_terminated", "1");
-         } else {
-              // Example shows 1 for prm cmd alarms
-              cmdJob1.put("alarm_if_fail", "1");
-              cmdJob1.put("alarm_if_terminated", "1");
-         }
+         // Example shows 1 for prm cmd alarms, overriding simplified logic
+         cmdJob1.put("alarm_if_fail", "1");
+         cmdJob1.put("alarm_if_terminated", "1");
 
         // Example uses specific format for std files here - assuming general ones for now
         cmdJob1.put("std_out_file", param.getStdOutFile()); // Or need prmStdOutFile?
@@ -365,8 +329,7 @@ public class JilFileBuilder {
         cmdJob1.put("timezone", param.getTimeZone());
         cmdJob1.put("group", param.getGroup());
         cmdJob1.put("application", param.getApplication());
-        cmdJob1.put("success_codes", param.getPrmSuccessCodes()); // Need field like getPrmSuccessCodes() default "0"
-        cmdJob1.put("fail_codes", param.getPrmFailCodes()); // Need field like getPrmFailCodes() default "!-9999"
+        // No success/fail codes in EDL flow
 
 
         // Build CMD Job 2 (Ingest)
@@ -388,16 +351,11 @@ public class JilFileBuilder {
 
         cmdJob2.put("description", param.getIngCmdJobDescription());
 
-        // Alarm mapping
+        // Alarm mapping (Simplified)
          String cmdFailure2 = param.getCmdFailure(); // Using general cmdFailure
-         if ("e".equalsIgnoreCase(cmdFailure2) || "t".equalsIgnoreCase(cmdFailure2)) {
-             cmdJob2.put("alarm_if_fail", "1");
-             cmdJob2.put("alarm_if_terminated", "1");
-         } else {
-              // Example shows 1 for ing cmd alarms
-              cmdJob2.put("alarm_if_fail", "1");
-              cmdJob2.put("alarm_if_terminated", "1");
-         }
+         // Example shows 1 for ing cmd alarms, overriding simplified logic
+         cmdJob2.put("alarm_if_fail", "1");
+         cmdJob2.put("alarm_if_terminated", "1");
 
         // Example uses specific format for std files here - assuming general ones for now
         cmdJob2.put("std_out_file", param.getStdOutFile()); // Or need ingStdOutFile?
@@ -408,8 +366,7 @@ public class JilFileBuilder {
         cmdJob2.put("timezone", param.getTimeZone());
         cmdJob2.put("group", param.getGroup());
         cmdJob2.put("application", param.getApplication());
-        cmdJob2.put("success_codes", param.getIngSuccessCodes()); // Need field like getIngSuccessCodes() default "0"
-        cmdJob2.put("fail_codes", param.getIngFailCodes()); // Need field like getIngFailCodes() default "!-9999"
+        // No success/fail codes in EDL flow
 
 
         List<Map<String, Object>> properties = new ArrayList<>();
