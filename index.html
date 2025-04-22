@@ -8,7 +8,7 @@ import com.wellsfargo.utcap.repository.AutosysParamRepository;
 import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils; // Using Spring's StringUtils for checking null/empty/blank
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 
@@ -95,7 +95,8 @@ public class JilFileBuilder {
         cmdJob.put("insert_job", param.getEdlcmdJobName());
         cmdJob.put("job_type", "CMD");
         cmdJob.put("box_name", param.getEdlboxJobName());
-        cmdJob.put("command", param.getEdlcommand()); // Corrected case: getEdlcommand
+        // Commented out command as requested
+        // cmdJob.put("command", param.getEdlcommand()); // Corrected case: getEdlcommand
         cmdJob.put("machine", param.getEdlmachineName());
         cmdJob.put("owner", param.getEdlowner());
         cmdJob.put("permission", param.getPermission()); // Using general permission field
@@ -175,7 +176,8 @@ public class JilFileBuilder {
          cmdJob.put("insert_job", param.getCdmpcmdJobName());
          cmdJob.put("job_type", "CMD");
          cmdJob.put("box_name", param.getCdmpboxJobName());
-         cmdJob.put("command", param.getCdmpcommand()); // Corrected case: getCdmpcommand
+         // Commented out command as requested
+         // cmdJob.put("command", param.getCdmpcommand()); // Corrected case: getCdmpcommand
          cmdJob.put("machine", param.getCdmpmachineName());
          cmdJob.put("owner", param.getCdmpowner());
          cmdJob.put("permission", param.getPermission()); // Using general permission field
@@ -231,7 +233,6 @@ public class JilFileBuilder {
 
         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
         // Example JIL shows 0 specifically, overriding the general value if different
-        // String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Not needed due to override below
         mainBox.put("alarm_if_fail", "0");
         mainBox.put("alarm_if_terminated", "0");
 
@@ -260,7 +261,6 @@ public class JilFileBuilder {
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
          // Example JIL shows 1 specifically, overriding the general value if different
-         // String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Not needed due to override below
          cmdJob.put("alarm_if_fail", "1");
          cmdJob.put("alarm_if_terminated", "1");
 
@@ -309,7 +309,6 @@ public class JilFileBuilder {
 
         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
         // Example JIL shows 0 specifically, overriding the general value if different
-        // String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Not needed due to override below
         mainBox.put("alarm_if_fail", "0");
         mainBox.put("alarm_if_terminated", "0");
 
@@ -338,7 +337,6 @@ public class JilFileBuilder {
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
          // Example JIL shows 1 specifically, overriding the general value if different
-         // String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Not needed due to override below
          cmdJob1.put("alarm_if_fail", "1");
          cmdJob1.put("alarm_if_terminated", "1");
 
@@ -380,7 +378,6 @@ public class JilFileBuilder {
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
          // Example JIL shows 1 specifically, overriding the general value if different
-         // String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Not needed due to override below
          cmdJob2.put("alarm_if_fail", "1");
          cmdJob2.put("alarm_if_terminated", "1");
 
