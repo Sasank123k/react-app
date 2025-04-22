@@ -60,15 +60,21 @@ public class JilFileBuilder {
      */
     private Map<String, Object> buildIngressFile1(AutosysParam param) {
         Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put("insert_job", param.getEdlboxJobName()); // Corrected case
+        mainBox.put("insert_job", param.getEdlboxJobName());
         mainBox.put("job_type", "BOX");
-        mainBox.put("owner", param.getEdlowner()); // Corrected case
+        mainBox.put("owner", param.getEdlowner());
         mainBox.put("permission", param.getPermission()); // Using general permission field
-        mainBox.put("date_conditions", param.getEdldateCondition()); // Corrected case
-        if (StringUtils.hasText(param.getEdldaysOfWeek())) mainBox.put("days_of_week", param.getEdldaysOfWeek()); // Corrected case
-        if (StringUtils.hasText(param.getEdlstartTime())) mainBox.put("start_times", param.getEdlstartTime()); // Corrected case
-        if (StringUtils.hasText(param.getEdldependenciesCondition())) mainBox.put("condition", param.getEdldependenciesCondition()); // Box condition - Corrected case
-        mainBox.put("description", param.getEdldescription()); // Using main EDL description for box - Corrected case
+        mainBox.put("date_conditions", param.getEdldateCondition());
+        if (StringUtils.hasText(param.getEdldaysOfWeek())) {
+             mainBox.put("days_of_week", param.getEdldaysOfWeek());
+        }
+        if (StringUtils.hasText(param.getEdlstartTime())) {
+             mainBox.put("start_times", param.getEdlstartTime());
+        }
+        if (StringUtils.hasText(param.getEdldependenciesCondition())) {
+             mainBox.put("condition", param.getEdldependenciesCondition()); // Box condition
+        }
+        mainBox.put("description", param.getEdldescription()); // Using main EDL description for box
 
         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
         String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
@@ -86,34 +92,37 @@ public class JilFileBuilder {
 
         // Build CMD Job
         Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put("insert_job", param.getEdlcmdJobName()); // Corrected case
+        cmdJob.put("insert_job", param.getEdlcmdJobName());
         cmdJob.put("job_type", "CMD");
-        cmdJob.put("box_name", param.getEdlboxJobName()); // Corrected case
-        cmdJob.put("command", param.getEdlCommand()); // Need field like getEdlCommand()
-        cmdJob.put("machine", param.getEdlmachineName()); // Corrected case
-        cmdJob.put("owner", param.getEdlowner()); // Corrected case
+        cmdJob.put("box_name", param.getEdlboxJobName());
+        cmdJob.put("command", param.getEdlcommand()); // Corrected case: getEdlcommand
+        cmdJob.put("machine", param.getEdlmachineName());
+        cmdJob.put("owner", param.getEdlowner());
         cmdJob.put("permission", param.getPermission()); // Using general permission field
         cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
-        if (StringUtils.hasText(param.getEdldependenciesCondition())) cmdJob.put("condition", param.getEdldependenciesCondition()); // CMD condition - Corrected case
+        if (StringUtils.hasText(param.getEdldependenciesCondition())) {
+             cmdJob.put("condition", param.getEdldependenciesCondition()); // CMD condition
+        }
         // Using main EDL description for cmd too? Or need getEdlcmdDescription()?
-        cmdJob.put("description", param.getEdldescription()); // Corrected case
+        cmdJob.put("description", param.getEdldescription());
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
          String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
          cmdJob.put("alarm_if_fail", cmdAlarmValue);
          cmdJob.put("alarm_if_terminated", cmdAlarmValue);
 
-
-        cmdJob.put("std_out_file", param.getEdlStdOutFile()); // Need field like getEdlStdOutFile()
-        cmdJob.put("std_err_file", param.getEdlStdErrFile()); // Need field like getEdlStdErrFile()
-        cmdJob.put("profile", param.getEdlprofilePath()); // Corrected case
+        // Use general StdOut/StdErr getters
+        cmdJob.put("std_out_file", param.getStdOutFile());
+        cmdJob.put("std_err_file", param.getStdErrFile());
+        cmdJob.put("profile", param.getEdlprofilePath());
         cmdJob.put("job_load", param.getJobLoad()); // Using generic load
         cmdJob.put("priority", param.getPriority()); // Using generic priority
         cmdJob.put("timezone", param.getTimeZone());
         cmdJob.put("group", param.getGroup());
         cmdJob.put("application", param.getApplication()); // Or a specific edlApplication?
-        cmdJob.put("success_codes", param.getEdlSuccessCodes()); // Need field like getEdlSuccessCodes()
-        cmdJob.put("fail_codes", param.getEdlFailCodes()); // Need field like getEdlFailCodes()
+        // Commented out success/fail codes as requested
+        // cmdJob.put("success_codes", param.getEdlSuccessCodes()); // Need field like getEdlSuccessCodes()
+        // cmdJob.put("fail_codes", param.getEdlFailCodes()); // Need field like getEdlFailCodes()
         // Add other CMD fields if needed (max_run_alarm, term_run_time, resources, etc.)
 
         List<Map<String, Object>> properties = new ArrayList<>();
@@ -131,15 +140,21 @@ public class JilFileBuilder {
      */
     private Map<String, Object> buildIngressFile2(AutosysParam param) {
          Map<String, Object> mainBox = new LinkedHashMap<>();
-         mainBox.put("insert_job", param.getCdmpboxJobName()); // Corrected case
+         mainBox.put("insert_job", param.getCdmpboxJobName());
          mainBox.put("job_type", "BOX");
-         mainBox.put("owner", param.getCdmpowner()); // Corrected case
+         mainBox.put("owner", param.getCdmpowner());
          mainBox.put("permission", param.getPermission()); // Using general permission field
-         mainBox.put("date_conditions", param.getCdmpdateCondition()); // Corrected case
-         if (StringUtils.hasText(param.getCdmpdaysOfWeek())) mainBox.put("days_of_week", param.getCdmpdaysOfWeek()); // Corrected case
-         if (StringUtils.hasText(param.getCdmpstartTime())) mainBox.put("start_times", param.getCdmpstartTime()); // Corrected case
-         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) mainBox.put("condition", param.getCdmpdependenciesCondition()); // Box condition - Corrected case
-         mainBox.put("description", param.getCdmpdescription()); // Using main CDMP description for box - Corrected case
+         mainBox.put("date_conditions", param.getCdmpdateCondition());
+         if (StringUtils.hasText(param.getCdmpdaysOfWeek())) {
+             mainBox.put("days_of_week", param.getCdmpdaysOfWeek());
+         }
+         if (StringUtils.hasText(param.getCdmpstartTime())) {
+             mainBox.put("start_times", param.getCdmpstartTime());
+         }
+         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
+             mainBox.put("condition", param.getCdmpdependenciesCondition()); // Box condition
+         }
+         mainBox.put("description", param.getCdmpdescription()); // Using main CDMP description for box
 
          // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
          String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
@@ -157,33 +172,37 @@ public class JilFileBuilder {
 
          // Build CMD Job
          Map<String, Object> cmdJob = new LinkedHashMap<>();
-         cmdJob.put("insert_job", param.getCdmpcmdJobName()); // Corrected case
+         cmdJob.put("insert_job", param.getCdmpcmdJobName());
          cmdJob.put("job_type", "CMD");
-         cmdJob.put("box_name", param.getCdmpboxJobName()); // Corrected case
-         cmdJob.put("command", param.getCdmpCommand()); // Need field like getCdmpCommand()
-         cmdJob.put("machine", param.getCdmpmachineName()); // Corrected case
-         cmdJob.put("owner", param.getCdmpowner()); // Corrected case
+         cmdJob.put("box_name", param.getCdmpboxJobName());
+         cmdJob.put("command", param.getCdmpcommand()); // Corrected case: getCdmpcommand
+         cmdJob.put("machine", param.getCdmpmachineName());
+         cmdJob.put("owner", param.getCdmpowner());
          cmdJob.put("permission", param.getPermission()); // Using general permission field
          cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
-         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) cmdJob.put("condition", param.getCdmpdependenciesCondition()); // CMD condition - Corrected case
+         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
+             cmdJob.put("condition", param.getCdmpdependenciesCondition()); // CMD condition
+         }
          // Using main CDMP description for cmd too? Or need getCdmpcmdDescription()?
-         cmdJob.put("description", param.getCdmpdescription()); // Corrected case
+         cmdJob.put("description", param.getCdmpdescription());
 
          // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
           String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
           cmdJob.put("alarm_if_fail", cmdAlarmValue);
           cmdJob.put("alarm_if_terminated", cmdAlarmValue);
 
-         cmdJob.put("std_out_file", param.getCdmpStdOutFile()); // Need field like getCdmpStdOutFile()
-         cmdJob.put("std_err_file", param.getCdmpStdErrFile()); // Need field like getCdmpStdErrFile()
-         cmdJob.put("profile", param.getCdmpprofilePath()); // Corrected case
+         // Use general StdOut/StdErr getters
+         cmdJob.put("std_out_file", param.getStdOutFile());
+         cmdJob.put("std_err_file", param.getStdErrFile());
+         cmdJob.put("profile", param.getCdmpprofilePath());
          cmdJob.put("job_load", param.getJobLoad()); // Using generic load
          cmdJob.put("priority", param.getPriority()); // Using generic priority
          cmdJob.put("timezone", param.getTimeZone());
          cmdJob.put("group", param.getGroup());
          cmdJob.put("application", param.getApplication()); // Or a specific cdmpApplication?
-         cmdJob.put("success_codes", param.getCdmpSuccessCodes()); // Need field like getCdmpSuccessCodes()
-         cmdJob.put("fail_codes", param.getCdmpFailCodes()); // Need field like getCdmpFailCodes()
+         // Commented out success/fail codes as requested
+         // cmdJob.put("success_codes", param.getCdmpSuccessCodes()); // Need field like getCdmpSuccessCodes()
+         // cmdJob.put("fail_codes", param.getCdmpFailCodes()); // Need field like getCdmpFailCodes()
          // Add other CMD fields if needed
 
          List<Map<String, Object>> properties = new ArrayList<>();
@@ -211,8 +230,8 @@ public class JilFileBuilder {
         mainBox.put("description", param.getCfgBoxDescription());
 
         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
-        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
         // Example JIL shows 0 specifically, overriding the general value if different
+        // String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Not needed due to override below
         mainBox.put("alarm_if_fail", "0");
         mainBox.put("alarm_if_terminated", "0");
 
@@ -234,17 +253,20 @@ public class JilFileBuilder {
         cmdJob.put("owner", param.getOwner()); // General owner
         cmdJob.put("permission", param.getPermission()); // General permission
         cmdJob.put("date_conditions", "0"); // Hardcoded as requested for CMD
-        if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition
+        if (StringUtils.hasText(param.getDependenciesCondition())) {
+             cmdJob.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition
+        }
         cmdJob.put("description", param.getCfgCmdJobDescription());
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
          // Example JIL shows 1 specifically, overriding the general value if different
+         // String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Not needed due to override below
          cmdJob.put("alarm_if_fail", "1");
          cmdJob.put("alarm_if_terminated", "1");
 
-        cmdJob.put("std_out_file", param.getStdOutFile()); // Using general stdOutFile
-        cmdJob.put("std_err_file", param.getStdErrFile()); // Using general stdErrFile
+        // Use general StdOut/StdErr getters
+        cmdJob.put("std_out_file", param.getStdOutFile());
+        cmdJob.put("std_err_file", param.getStdErrFile());
         cmdJob.put("profile", param.getProfilePath()); // Using general profilePath
         cmdJob.put("job_load", param.getJobLoad()); // Using generic load (example 30)
         cmdJob.put("priority", param.getPriority()); // Using generic priority (example 290)
@@ -275,15 +297,19 @@ public class JilFileBuilder {
         mainBox.put("owner", param.getOwner()); // General owner
         mainBox.put("permission", param.getPermission()); // General permission
         mainBox.put("date_conditions", param.getDateCondition()); // General dateCondition (example "1")
-        if (StringUtils.hasText(param.getDaysOfWeek())) mainBox.put("days_of_week", param.getDaysOfWeek()); // General (example "all")
-        if (StringUtils.hasText(param.getStartTime())) mainBox.put("start_times", param.getStartTime()); // General (example "00:00")
+        if (StringUtils.hasText(param.getDaysOfWeek())) {
+             mainBox.put("days_of_week", param.getDaysOfWeek()); // General (example "all")
+        }
+        if (StringUtils.hasText(param.getStartTime())) {
+             mainBox.put("start_times", param.getStartTime()); // General (example "00:00")
+        }
         // No box condition in example
 
         mainBox.put("description", param.getBoxJobDescription()); // General box description
 
         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
-        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Default to "0" if null/empty
         // Example JIL shows 0 specifically, overriding the general value if different
+        // String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : "0"; // Not needed due to override below
         mainBox.put("alarm_if_fail", "0");
         mainBox.put("alarm_if_terminated", "0");
 
@@ -305,16 +331,18 @@ public class JilFileBuilder {
         cmdJob1.put("owner", param.getOwner()); // General owner
         cmdJob1.put("permission", param.getPermission()); // General permission
         cmdJob1.put("date_conditions", "0"); // Hardcoded as requested for CMD
-        if (StringUtils.hasText(param.getDependenciesCondition())) cmdJob1.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition for CMD1
+        if (StringUtils.hasText(param.getDependenciesCondition())) {
+             cmdJob1.put("condition", param.getDependenciesCondition()); // Using general dependenciesCondition for CMD1
+        }
         cmdJob1.put("description", param.getPrmCmdJobDescription());
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
          // Example JIL shows 1 specifically, overriding the general value if different
+         // String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Not needed due to override below
          cmdJob1.put("alarm_if_fail", "1");
          cmdJob1.put("alarm_if_terminated", "1");
 
-        // Example uses specific format for std files here - assuming general ones for now
+        // Use general StdOut/StdErr getters
         cmdJob1.put("std_out_file", param.getStdOutFile()); // Or need prmStdOutFile?
         cmdJob1.put("std_err_file", param.getStdErrFile()); // Or need prmStdErrFile?
         cmdJob1.put("profile", param.getProfilePath()); // Using general profilePath
@@ -340,18 +368,23 @@ public class JilFileBuilder {
         // Construct condition for CMD2: General condition + Success of CMD1
         String cmd1SuccessCondition = "s(" + param.getPrmCmdJobName() + ") = SUCCESS";
         String baseCondition = param.getDependenciesCondition();
-        String finalCondition = StringUtils.hasText(baseCondition) ? baseCondition + " & " + cmd1SuccessCondition : cmd1SuccessCondition;
+        String finalCondition;
+        if (StringUtils.hasText(baseCondition)) {
+            finalCondition = baseCondition + " & " + cmd1SuccessCondition;
+        } else {
+            finalCondition = cmd1SuccessCondition;
+        }
         cmdJob2.put("condition", finalCondition);
 
         cmdJob2.put("description", param.getIngCmdJobDescription());
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Default to "0" if null/empty
          // Example JIL shows 1 specifically, overriding the general value if different
+         // String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : "0"; // Not needed due to override below
          cmdJob2.put("alarm_if_fail", "1");
          cmdJob2.put("alarm_if_terminated", "1");
 
-        // Example uses specific format for std files here - assuming general ones for now
+        // Use general StdOut/StdErr getters
         cmdJob2.put("std_out_file", param.getStdOutFile()); // Or need ingStdOutFile?
         cmdJob2.put("std_err_file", param.getStdErrFile()); // Or need ingStdErrFile?
         cmdJob2.put("profile", param.getProfilePath()); // Using general profilePath
