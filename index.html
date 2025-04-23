@@ -1,480 +1,910 @@
-package com.wellsfargo.utcap.service;
-
-import com.wellsfargo.utcap.exception.AutosysParamNotFoundException;
-import com.wellsfargo.utcap.exception.JiraStoryNotFoundException;
-import com.wellsfargo.utcap.model.AutosysParam;
-import com.wellsfargo.utcap.model.JiraStoryIntake;
-import com.wellsfargo.utcap.repository.AutosysParamRepository;
-import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-
-import java.util.*;
-
-/**
- * Builds the initial default JIL file structures based on flow type (EDL/INGRESS)
- * and parameters fetched from the AutosysParam collection.
- */
-@Component
-public class JilFileBuilder {
-
-    // --- Constants for JIL Keys ---
-    private static final String INSERT_JOB = "insert_job";
-    private static final String JOB_TYPE = "job_type";
-    private static final String OWNER = "owner";
-    private static final String PERMISSION = "permission";
-    private static final String DATE_CONDITIONS = "date_conditions";
-    private static final String DAYS_OF_WEEK = "days_of_week";
-    private static final String START_TIMES = "start_times";
-    private static final String CONDITION = "condition";
-    private static final String DESCRIPTION = "description";
-    private static final String ALARM_IF_FAIL = "alarm_if_fail";
-    private static final String ALARM_IF_TERMINATED = "alarm_if_terminated";
-    private static final String JOB_LOAD = "job_load";
-    private static final String TIMEZONE = "timezone";
-    private static final String GROUP = "group";
-    private static final String APPLICATION = "application";
-    private static final String PROPERTIES = "properties";
-    private static final String BOX_NAME = "box_name";
-    private static final String COMMAND = "command";
-    private static final String MACHINE = "machine";
-    private static final String STD_OUT_FILE = "std_out_file";
-    private static final String STD_ERR_FILE = "std_err_file";
-    private static final String PROFILE = "profile";
-    private static final String PRIORITY = "priority";
-    private static final String JSON_DATA_KEY = "jsonData";
-    private static final String MAIN_BOX_KEY = "mainBox"; // Corrected case
-    private static final String FILE_NAME_KEY = "fileName";
-    private static final String CONTENT_KEY = "content";
-    private static final String JOB_TYPE_BOX = "BOX";
-    private static final String JOB_TYPE_CMD = "CMD";
-    private static final String DEFAULT_CMD_DATE_CONDITIONS = "0";
-    private static final String DEFAULT_ALARM_VALUE = "0";
-    private static final String ALARM_ON = "1";
-    private static final String EDL_CONFIG_ALARM_OFF = "0";
-    private static final String EDL_CONFIG_CMD_ALARM_ON = "1";
-    private static final String EDL_INGEST_BOX_ALARM_OFF = "0";
-    private static final String EDL_INGEST_CMD_ALARM_ON = "1";
-
-
-    @Autowired
-    private JiraStoryIntakeRepository jiraRepo;
-
-    @Autowired
-    private AutosysParamRepository autosysParamRepo;
-
-    // --- Main Build Method ---
-
-    /**
-     * Fetches necessary data and delegates JIL file structure creation based on flow type.
-     * @param requirementId The Jira story ID used to fetch parameters.
-     * @return A list containing the map representations of the default JIL files.
-     * @throws JiraStoryNotFoundException if the Jira story cannot be found.
-     * @throws AutosysParamNotFoundException if the Autosys parameters cannot be found.
-     */
-    public List<Map<String, Object>> buildJilFiles(String requirementId) {
-        // Fetch Jira story using requirementId
-        List<JiraStoryIntake> jiraList = jiraRepo.findByJiraStoryIntakeId(requirementId);
-        if (jiraList == null || jiraList.isEmpty()) {
-            throw new JiraStoryNotFoundException("Jira story not found for requirementId: " + requirementId);
+{
+  "_id": {
+    "$oid": "67d65403aae69e7b503c8218"
+  },
+  "document": {
+    "application": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "isParallelProcessing": {
+          "type": "string",
+          "required": true,
+          "default": "Y",
+          "enum": ["Y", "N"]
+        },
+        "jobs": {
+          "type": "object",
+          "required": true,
+          "properties": {
+            "job": {
+              "type": "object",
+              "required": true,
+              "properties": {
+                "app": {
+                  "type": "string",
+                  "required": false
+                },
+                "appRemedyId": {
+                  "type": "string",
+                  "required": false
+                },
+                "sorRemedyId": {
+                  "type": "string",
+                  "required": false
+                },
+                "queryGroup": {
+                  "type": "string",
+                  "required": false
+                },
+                "zone": {
+                  "type": "string",
+                  "required": false
+                },
+                "sor": {
+                  "type": "string",
+                  "required": false
+                },
+                "jobId": {
+                  "type": "string",
+                  "required": false
+                },
+                "jobName": {
+                  "type": "string",
+                  "required": false
+                },
+                "isJobEnabled": {
+                  "type": "string",
+                  "required": false
+                },
+                "jobDescription": {
+                  "type": "string",
+                  "required": false
+                },
+                "Email": {
+                  "type": "object",
+                  "required": true,
+                  "properties": {
+                    "fromAddress": {
+                      "type": "string",
+                      "required": false,
+                      "default": "${EMAIL_TO_LIST}"
+                    },
+                    "toAddress": {
+                      "type": "string",
+                      "required": false,
+                      "default": "${EMAIL_CC_LIST}"
+                    },
+                    "subject": {
+                      "type": "string",
+                      "required": false
+                    },
+                    "isPriorityAlert": {
+                      "type": "string",
+                      "required": false,
+                      "default": "Y",
+                      "enum": ["Y", "N"]
+                    }
+                  }
+                },
+                "ingestions": {
+                  "type": "object",
+                  "required": false,
+                  "properties": {
+                    "ingestion": {
+                      "type": "array",
+                      "required": false,
+                      "items": {
+                        "type": "object",
+                        "required": false,
+                        "properties": {
+                          "dimcChecks": {
+                            "type": "object",
+                            "required": true,
+                            "properties": {
+                              "isDimcChecksEnabled": "${DIMC_CHECKS_ENABLED}",
+                              "dimcCheck": {
+                                "type": "array",
+                                "required": true,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "dimcCheckname": {
+                                      "type": "string",
+                                      "required": true,
+                                      "enum": [
+                                        "missingDbObjectCheck",
+                                        "emptySourceCheck",
+                                        "deliveryCheck",
+                                        "dataVolumeConsistencyCheck",
+                                        "missingFileCheck",
+                                        "duplicateFileLoadChecks"
+                                      ]
+                                    },
+                                    "isDimcCheckEnabled": {
+                                      "type": "string",
+                                      "required": true,
+                                      "default": "Y",
+                                      "enum": ["Y", "N"]
+                                    },
+                                    "isFailJobOnError": {
+                                      "type": "string",
+                                      "required": true,
+                                      "default": "Y",
+                                      "enum": ["Y", "N"]
+                                    },
+                                    "SLA": {
+                                      "type": "string",
+                                      "required": false
+                                    },
+                                    "upperThreshold": {
+                                      "type": "string",
+                                      "required": false
+                                    },
+                                    "lowerThreshold": {
+                                      "type": "string",
+                                      "required": false
+                                    },
+                                    "numsPastDays": {
+                                      "type": "string",
+                                      "required": false
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ingestionId": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "ingestionDesc": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isIngestionEnabled": {
+                            "type": "string",
+                            "required": true,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "sourceType": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "ConnectionHeader": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "sourceConnectionHeader": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "sourceName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "sourcePartition": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "sourceColumnList": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "whereCondition": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "sourceSQLQuery": {
+                            "type": "string",
+                            "required": false,
+                            "format": "textarea"
+                          },
+                          "dataFilePath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "stagingFilePath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "dataFrameName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "targetName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "targetType": {
+                            "type": "string",
+                            "required": false,
+                            "default": "parquet",
+                            "enum": ["parquet"]
+                          },
+                          "isCreateTargetTable": {
+                            "type": "string",
+                            "required": false,
+                            "default": "N",
+                            "enum": ["Y", "N"]
+                          },
+                          "targetTablePath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "targetPartition": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isParallelProcessing": {
+                            "type": "string",
+                            "required": false,
+                            "default": "N",
+                            "enum": ["Y", "N"]
+                          },
+                          "splitColumn": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "upperBound": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "lowerBound": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "numPartitions": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isRowCountDisabled": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "additionalReadConfigs": {
+                            "type": "object",
+                            "required": false,
+                            "properties": {
+                              "partitioner": {
+                                "type": "string",
+                                "required": false,
+                                "default": "MongoSplitVectorPartitioner"
+                              }
+                            }
+                          },
+                          "controlFile": {
+                            "type": "object",
+                            "required": false,
+                            "properties": {
+                              "path": {
+                                "type": "string",
+                                "required": false
+                              },
+                              "format": {
+                                "type": "string",
+                                "required": false
+                              },
+                              "delimiter": {
+                                "type": "string",
+                                "required": false
+                              }
+                            }
+                          },
+                          "sendEmail": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isCacheEnabled": {
+                            "type": "string",
+                            "required": false,
+                            "default": "N",
+                            "enum": ["Y", "N"]
+                          },
+                          "isOverWritePartition": {
+                            "type": "string",
+                            "required": false,
+                            "default": "N",
+                            "enum": ["Y", "N"]
+                          },
+                          "abortIfDuplicate": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "abortIfEmpty": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "isRunEMHReport": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "flows": {
+                  "type": "object",
+                  "required": false,
+                  "properties": {
+                    "flow": {
+                      "type": "array",
+                      "required": false,
+                      "items": {
+                        "type": "object",
+                        "required": false,
+                        "properties": {
+                          "flowId": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "flowDesc": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isFlowEnabled": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "seqDependencies": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "readQueryFromPath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "queryPath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "query": {
+                            "type": "string",
+                            "required": false,
+                            "format": "textarea"
+                          },
+                          "registerName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "saveOutput": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "flowDataBaseName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "storageName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "targetTablePath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "hivePartitionColumn": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isCreateFlowTargetTable": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "isCreateHiveView": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "hiveViewSql": {
+                            "type": "string",
+                            "required": false,
+                            "format": "textarea"
+                          },
+                          "hiveViewName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "hiveViewColumns": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "hiveViewCondition": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isSaveToMongoDB": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "mongoDBName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "mongoCollectionName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "mode": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isCreateMongoView": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "mongoViewName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "mongoViewCondition": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "partition": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "cleanUpTempView": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "externalJarClass": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "deviationPercent": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "lowerDeviationPercent": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "upperDeviationPercent": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "abortIfDeviationLimitExceed": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "sendEmailIfDeviationLimitExceed": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "abortOnDuplicate": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "dupKeys": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "writeOnlyUnique": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "cacheLevel": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "repartitionCount": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isHiveViewDisableCount": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "additionalWriteConfigs": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isRowCountDisabled": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "additionalReadConfigs": {
+                            "type": "object",
+                            "required": false,
+                            "properties": {
+                              "partitioner": {
+                                "type": "string",
+                                "required": false,
+                                "default": "MongoSplitVectorPartitioner"
+                              }
+                            }
+                          },
+                          "isPrivaceraEnabledTable": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "skipIfSourceDataFrameEmpty": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "aggColsForCntrlTopic": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isOverWritePartition": {
+                            "type": "string",
+                            "required": false,
+                            "default": "N",
+                            "enum": ["Y", "N"]
+                          },
+                          "isCacheEnabled": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "sendEmail": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "abortIfEmpty": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "dataChecks": {
+                  "type": "object",
+                  "required": true,
+                  "properties": {
+                    "acDCDatabase": {
+                      "type": "string",
+                      "required": true
+                    },
+                    "isTrendingEnabled": {
+                      "type": "string",
+                      "required": false,
+                      "default": "Y",
+                      "enum": ["Y", "N"]
+                    },
+                    "checks": {
+                      "type": "array",
+                      "required": false,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "checkId": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "checkName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "checkDesc": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isCheckEnabled": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "isUserSupplyQuery": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "readSourceQueryFromPath": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "sourceQuery": {
+                            "type": "string",
+                            "required": false,
+                            "format": "textarea"
+                          },
+                          "targetQuery": {
+                            "type": "string",
+                            "required": false,
+                            "format": "textarea"
+                          },
+                          "readTargetfalseFromPath": {
+                            "type": "string",
+                            "required": false,
+                            "default": "N",
+                            "enum": ["Y", "N"]
+                          },
+                          "partition": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "controlFilePath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isHeaderAvailable": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "isFailJobOnDataCheckError": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          }
+                        }
+                      }
+                    },
+                    "prechecks": {
+                      "type": "object",
+                      "required": true,
+                      "properties": {
+                        "isPreCheckEnabled": {
+                          "type": "string",
+                          "required": true,
+                          "default": "Y",
+                          "enum": ["Y", "N"]
+                        },
+                        "precheck": {
+                          "type": "array",
+                          "required": true,
+                          "default": [
+                            {
+                              "preCheckName": "ServiceIDCheck",
+                              "isFailJobOnPrecheckError": "${SERVICE_IDCHECK_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${SERVICE_IDCHECK_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "TargetDataBaseAvailabilityCheck",
+                              "isFailJobOnPrecheckError": "${TARGET_DATABASE_AVAILABILITY_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${TARGET_DATABASE_AVAILABILITY_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "TargetTableAvailabilityCheck",
+                              "isFailJobOnPrecheckError": "${TARGET_TABLE_AVAILABILITY_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${TARGET_TABLE_AVAILABILITY_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "TargetTablePathWritableCheck",
+                              "isFailJobOnPrecheckError": "${TARGET_TABLE_PATH_WRITABLE_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${TARGET_TABLE_PATH_WRITABLE_CHECK_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "FlowSeqDependenciesCheck",
+                              "isFailJobOnPrecheckError": "${FLOWSEQ_DEPENDENCIES_CHECK_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${FLOWSEQ_DEPENDENCIES_CHECK_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "SourceDataBaseAvailabilityCheck",
+                              "isFailJobOnPrecheckError": "${SOURCE_DB_AVAILABILITY_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${SOURCE_DB_AVAILABILITY_CHECK_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "SourceTableAvailabilityCheck",
+                              "isFailJobOnPrecheckError": "${SOURCE_TABLE_AVAILABILITY_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${SOURCE_TABLE_AVAILABILITY_CHECK_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "SourceTableEmptyCheck",
+                              "isFailJobOnPrecheckError": "${SOURCE_TABLE_EMPTY_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${SOURCE_TABLE_EMPTY_CHECK_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "SourcePathAvailabilityCheck",
+                              "isFailJobOnPrecheckError": "${SOURCE_PATH_AVAILABILITY_CHECK_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${SOURCE_PATH_AVAILABILITY_CHECK_ENABLED}"
+                            },
+                            {
+                              "preCheckName": "SourcePathEmptyCheck",
+                              "isFailJobOnPrecheckError": "${SOURCE_PATH_EMPTY_CHECK_FAILURE_FLAG}",
+                              "isPreCheckEnabled": "${SOURCE_PATH_EMPTY_CHECK_ENABLED}"
+                            }
+                          ],
+                          "items": {
+                            "type": "object",
+                            "required": false,
+                            "properties": {
+                              "preCheckName": {
+                                "type": "string",
+                                "required": true,
+                                "enum": [
+                                  "ServiceIDCheck",
+                                  "TargetDataBaseAvailabilityCheck",
+                                  "TargetTableAvailabilityCheck",
+                                  "TargetTablePathWritableCheck",
+                                  "FlowSeqDependenciesCheck",
+                                  "SourceDataBaseAvailabilityCheck",
+                                  "SourceTableAvailabilityCheck",
+                                  "SourceTableEmptyCheck",
+                                  "SourcePathAvailabilityCheck",
+                                  "SourcePathEmptyCheck"
+                                ]
+                              },
+                              "isPreCheckEnabled": {
+                                "type": "string",
+                                "required": true,
+                                "default": "Y",
+                                "enum": ["Y", "N"]
+                              },
+                              "isFailJobOnPrecheckError": {
+                                "type": "string",
+                                "required": true,
+                                "default": "Y",
+                                "enum": ["Y", "N"]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "fileExtracts": {
+                  "type": "object",
+                  "required": false,
+                  "properties": {
+                    "fileExtract": {
+                      "type": "array",
+                      "required": false,
+                      "items": {
+                        "type": "object",
+                        "required": false,
+                        "properties": {
+                          "fileExtractId": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isFileExtractEnabled": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "fileDescription": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "subjectArea": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "zone": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "system": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "consumer": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "fileType": {
+                            "type": "string",
+                            "required": false,
+                            "enum": ["parquet", "avro", "JSON", "csv"]
+                          },
+                          "extractQuery": {
+                            "type": "string",
+                            "required": false,
+                            "format": "textarea"
+                          },
+                          "databaseName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "tableName": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "filename": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "filedelimiter": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "isHeaderRequired": {
+                            "type": "string",
+                            "required": false,
+                            "default": "Y",
+                            "enum": ["Y", "N"]
+                          },
+                          "hdfsFilePath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "quoteAll": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "externalFilePath": {
+                            "type": "string",
+                            "required": false
+                          },
+                          "cdmpAdditionalParams": {
+                            "type": "object",
+                            "required": false,
+                            "properties": {
+                              "outputFormat": {
+                                "type": "string",
+                                "required": false,
+                                "default": "avro",
+                                "enum": ["avro"]
+                              },
+                              "cdmpFileName": {
+                                "type": "string",
+                                "required": false
+                              },
+                              "cdmpPatternMode": {
+                                "type": "string",
+                                "required": false,
+                                "default": "daily",
+                                "enum": ["daily", "weekly", "monthly"]
+                              },
+                              "isCustomPartitionRequired": {
+                                "type": "string",
+                                "required": false,
+                                "default": "true",
+                                "enum": ["true", "false"]
+                              },
+                              "desiredPartFileSize": {
+                                "type": "string",
+                                "required": false
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
-        JiraStoryIntake jira = jiraList.get(0);
-
-        // Fetch Autosys parameters for this requirement
-        // Assuming AutosysParam object now contains ALL necessary fields with appropriate getters
-        AutosysParam param = autosysParamRepo.findById(requirementId)
-                .orElseThrow(() -> new AutosysParamNotFoundException("Autosys parameters not found for requirementId: " + requirementId));
-
-        // Determine flow type ("GCP" for INGRESS, else EDL)
-        String targetType = jira.getTargetType();
-        boolean isIngress = "GCP".equalsIgnoreCase(targetType);
-
-        List<Map<String, Object>> jilFiles = new ArrayList<>();
-
-        if (isIngress) {
-            // INGRESS Flow: Create two JIL files
-            jilFiles.add(buildIngressFile1(param));
-            jilFiles.add(buildIngressFile2(param));
-        } else {
-            // EDL Flow: Create two JIL files
-            jilFiles.add(buildEdlFile1(param));
-            jilFiles.add(buildEdlFile2(param));
-        }
-        return jilFiles;
+      }
     }
-
-    // --- Specific Builder Methods ---
-
-    /**
-     * Builds the first INGRESS JIL file (Source Extract).
-     * Assumes param object has all necessary edl* prefixed fields with correct casing (e.g., getEdlboxJobName).
-     * @param param The AutosysParam object containing configuration values.
-     * @return A Map representing the JIL file structure.
-     */
-    private Map<String, Object> buildIngressFile1(AutosysParam param) {
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put(INSERT_JOB, param.getEdlboxJobName());
-        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-        mainBox.put(OWNER, param.getEdlowner());
-        mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, param.getEdldateCondition());
-        if (StringUtils.hasText(param.getEdldaysOfWeek())) {
-             mainBox.put(DAYS_OF_WEEK, param.getEdldaysOfWeek());
-        }
-        if (StringUtils.hasText(param.getEdlstartTime())) {
-             mainBox.put(START_TIMES, param.getEdlstartTime());
-        }
-        if (StringUtils.hasText(param.getEdldependenciesCondition())) {
-             mainBox.put(CONDITION, param.getEdldependenciesCondition());
-        }
-        mainBox.put(DESCRIPTION, param.getEdldescription());
-
-        // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
-        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : DEFAULT_ALARM_VALUE;
-        mainBox.put(ALARM_IF_FAIL, boxAlarmValue);
-        mainBox.put(ALARM_IF_TERMINATED, boxAlarmValue);
-
-        // Add other BOX specific fields if needed and available in param (e.g., edlBoxJobLoad)
-        mainBox.put(JOB_LOAD, param.getJobLoad());
-
-        // Common fields
-        mainBox.put(TIMEZONE, param.getTimeZone());
-        mainBox.put(GROUP, param.getGroup());
-        mainBox.put(APPLICATION, param.getApplication());
-
-
-        // Build CMD Job
-        Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put(INSERT_JOB, param.getEdlcmdJobName());
-        cmdJob.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob.put(BOX_NAME, param.getEdlboxJobName());
-        // Commented out command as requested
-        // cmdJob.put(COMMAND, param.getEdlcommand());
-        cmdJob.put(MACHINE, param.getEdlmachineName());
-        cmdJob.put(OWNER, param.getEdlowner());
-        cmdJob.put(PERMISSION, param.getPermission());
-        cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        if (StringUtils.hasText(param.getEdldependenciesCondition())) {
-             cmdJob.put(CONDITION, param.getEdldependenciesCondition());
-        }
-        cmdJob.put(DESCRIPTION, param.getEdldescription());
-
-        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-         cmdJob.put(ALARM_IF_FAIL, cmdAlarmValue);
-         cmdJob.put(ALARM_IF_TERMINATED, cmdAlarmValue);
-
-        // Use general StdOut/StdErr getters
-        cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob.put(PROFILE, param.getEdlprofilePath());
-        cmdJob.put(JOB_LOAD, param.getJobLoad());
-        cmdJob.put(PRIORITY, param.getPriority());
-        cmdJob.put(TIMEZONE, param.getTimeZone());
-        cmdJob.put(GROUP, param.getGroup());
-        cmdJob.put(APPLICATION, param.getApplication());
-        // Commented out success/fail codes as requested
-        // cmdJob.put("success_codes", param.getEdlSuccessCodes());
-        // cmdJob.put("fail_codes", param.getEdlFailCodes());
-        // Add other CMD fields if needed (max_run_alarm, term_run_time, resources, etc.)
-
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob);
-        mainBox.put(PROPERTIES, properties);
-
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put(MAIN_BOX_KEY, mainBox); // Use constant for key
-        return createFileObject("Source Extract JIL", jsonData);
-    }
-
-    /**
-     * Builds the second INGRESS JIL file (CDMP Driver).
-     * Assumes param object has all necessary cdmp* prefixed fields with correct casing (e.g., getCdmpboxJobName).
-     * @param param The AutosysParam object containing configuration values.
-     * @return A Map representing the JIL file structure.
-     */
-    private Map<String, Object> buildIngressFile2(AutosysParam param) {
-         Map<String, Object> mainBox = new LinkedHashMap<>();
-         mainBox.put(INSERT_JOB, param.getCdmpboxJobName());
-         mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-         mainBox.put(OWNER, param.getCdmpowner());
-         mainBox.put(PERMISSION, param.getPermission());
-         mainBox.put(DATE_CONDITIONS, param.getCdmpdateCondition());
-         if (StringUtils.hasText(param.getCdmpdaysOfWeek())) {
-             mainBox.put(DAYS_OF_WEEK, param.getCdmpdaysOfWeek());
-         }
-         if (StringUtils.hasText(param.getCdmpstartTime())) {
-             mainBox.put(START_TIMES, param.getCdmpstartTime());
-         }
-         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
-             mainBox.put(CONDITION, param.getCdmpdependenciesCondition());
-         }
-         mainBox.put(DESCRIPTION, param.getCdmpdescription());
-
-         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
-         String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : DEFAULT_ALARM_VALUE;
-         mainBox.put(ALARM_IF_FAIL, boxAlarmValue);
-         mainBox.put(ALARM_IF_TERMINATED, boxAlarmValue);
-
-         // Add other BOX specific fields if needed (e.g., cdmpBoxJobLoad)
-         mainBox.put(JOB_LOAD, param.getJobLoad());
-
-         // Common fields
-         mainBox.put(TIMEZONE, param.getTimeZone());
-         mainBox.put(GROUP, param.getGroup());
-         mainBox.put(APPLICATION, param.getApplication());
-
-
-         // Build CMD Job
-         Map<String, Object> cmdJob = new LinkedHashMap<>();
-         cmdJob.put(INSERT_JOB, param.getCdmpcmdJobName());
-         cmdJob.put(JOB_TYPE, JOB_TYPE_CMD);
-         cmdJob.put(BOX_NAME, param.getCdmpboxJobName());
-         // Commented out command as requested
-         // cmdJob.put(COMMAND, param.getCdmpcommand());
-         cmdJob.put(MACHINE, param.getCdmpmachineName());
-         cmdJob.put(OWNER, param.getCdmpowner());
-         cmdJob.put(PERMISSION, param.getPermission());
-         cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
-             cmdJob.put(CONDITION, param.getCdmpdependenciesCondition());
-         }
-         cmdJob.put(DESCRIPTION, param.getCdmpdescription());
-
-         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-          String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-          cmdJob.put(ALARM_IF_FAIL, cmdAlarmValue);
-          cmdJob.put(ALARM_IF_TERMINATED, cmdAlarmValue);
-
-         // Use general StdOut/StdErr getters
-         cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
-         cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
-         cmdJob.put(PROFILE, param.getCdmpprofilePath());
-         cmdJob.put(JOB_LOAD, param.getJobLoad());
-         cmdJob.put(PRIORITY, param.getPriority());
-         cmdJob.put(TIMEZONE, param.getTimeZone());
-         cmdJob.put(GROUP, param.getGroup());
-         cmdJob.put(APPLICATION, param.getApplication());
-         // Commented out success/fail codes as requested
-         // cmdJob.put("success_codes", param.getCdmpSuccessCodes());
-         // cmdJob.put("fail_codes", param.getCdmpFailCodes());
-         // Add other CMD fields if needed
-
-         List<Map<String, Object>> properties = new ArrayList<>();
-         properties.add(cmdJob);
-         mainBox.put(PROPERTIES, properties);
-
-         Map<String, Object> jsonData = new LinkedHashMap<>();
-         jsonData.put(MAIN_BOX_KEY, mainBox); // Use constant for key
-         return createFileObject("CDMP Driver Script", jsonData);
-    }
-
-
-    /**
-     * Builds the first EDL JIL file (Configuration).
-     * Uses cfg_* prefixed fields and some general fields from param.
-     * @param param The AutosysParam object containing configuration values.
-     * @return A Map representing the JIL file structure.
-     */
-    private Map<String, Object> buildEdlFile1(AutosysParam param) {
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put(INSERT_JOB, param.getCfgBoxJobName());
-        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-        mainBox.put(OWNER, param.getOwner());
-        mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS); // Example shows 0 for config box
-        // No days_of_week, start_times, condition in example for config box
-        mainBox.put(DESCRIPTION, param.getCfgBoxDescription());
-
-        // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
-        // Example JIL shows 0 specifically, overriding the general value if different
-        mainBox.put(ALARM_IF_FAIL, EDL_CONFIG_ALARM_OFF);
-        mainBox.put(ALARM_IF_TERMINATED, EDL_CONFIG_ALARM_OFF);
-
-        // No job_load in example for config box
-
-        // Common fields
-        mainBox.put(TIMEZONE, param.getTimeZone());
-        mainBox.put(GROUP, param.getGroup());
-        mainBox.put(APPLICATION, param.getApplication());
-
-
-        // Build CMD Job
-        Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put(INSERT_JOB, param.getCfgCmdJobName());
-        cmdJob.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob.put(BOX_NAME, param.getCfgBoxJobName());
-        cmdJob.put(COMMAND, param.getCfgCmdJobCommand());
-        cmdJob.put(MACHINE, param.getCfgCmdJobMachine());
-        cmdJob.put(OWNER, param.getOwner());
-        cmdJob.put(PERMISSION, param.getPermission());
-        cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        if (StringUtils.hasText(param.getDependenciesCondition())) {
-             cmdJob.put(CONDITION, param.getDependenciesCondition());
-        }
-        cmdJob.put(DESCRIPTION, param.getCfgCmdJobDescription());
-
-        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         // Example JIL shows 1 specifically, overriding the general value if different
-         cmdJob.put(ALARM_IF_FAIL, EDL_CONFIG_CMD_ALARM_ON);
-         cmdJob.put(ALARM_IF_TERMINATED, EDL_CONFIG_CMD_ALARM_ON);
-
-        // Use general StdOut/StdErr getters
-        cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob.put(PROFILE, param.getProfilePath());
-        cmdJob.put(JOB_LOAD, param.getJobLoad());
-        cmdJob.put(PRIORITY, param.getPriority());
-        cmdJob.put(TIMEZONE, param.getTimeZone());
-        cmdJob.put(GROUP, param.getGroup());
-        cmdJob.put(APPLICATION, param.getApplication());
-        // No success/fail codes in EDL flow
-         // Add other CMD fields if needed
-
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob);
-        mainBox.put(PROPERTIES, properties);
-
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put(MAIN_BOX_KEY, mainBox); // Use constant for key
-        return createFileObject("EDL_Config_JIL", jsonData);
-    }
-
-    /**
-     * Builds the second EDL JIL file (Ingestion).
-     * Uses general box fields and prm_*, ing_* fields from param.
-     * Contains MainBOX -> CMD1 (Set Parms) -> CMD2 (Ingest)
-     * @param param The AutosysParam object containing configuration values.
-     * @return A Map representing the JIL file structure.
-     */
-    private Map<String, Object> buildEdlFile2(AutosysParam param) {
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put(INSERT_JOB, param.getBoxJobName());
-        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-        mainBox.put(OWNER, param.getOwner());
-        mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, param.getDateCondition());
-        if (StringUtils.hasText(param.getDaysOfWeek())) {
-             mainBox.put(DAYS_OF_WEEK, param.getDaysOfWeek());
-        }
-        if (StringUtils.hasText(param.getStartTime())) {
-             mainBox.put(START_TIMES, param.getStartTime());
-        }
-        // No box condition in example
-
-        mainBox.put(DESCRIPTION, param.getBoxJobDescription());
-
-        // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
-        // Example JIL shows 0 specifically, overriding the general value if different
-        mainBox.put(ALARM_IF_FAIL, EDL_INGEST_BOX_ALARM_OFF);
-        mainBox.put(ALARM_IF_TERMINATED, EDL_INGEST_BOX_ALARM_OFF);
-
-        // No job_load in example for ingest box
-
-        // Common fields
-        mainBox.put(TIMEZONE, param.getTimeZone());
-        mainBox.put(GROUP, param.getGroup());
-        mainBox.put(APPLICATION, param.getApplication());
-
-
-        // Build CMD Job 1 (Set Parms)
-        Map<String, Object> cmdJob1 = new LinkedHashMap<>();
-        cmdJob1.put(INSERT_JOB, param.getPrmCmdJobName());
-        cmdJob1.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob1.put(BOX_NAME, param.getBoxJobName());
-        cmdJob1.put(COMMAND, param.getPrmCmdJobCommand());
-        cmdJob1.put(MACHINE, param.getPrmCmdJobMachine());
-        cmdJob1.put(OWNER, param.getOwner());
-        cmdJob1.put(PERMISSION, param.getPermission());
-        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        if (StringUtils.hasText(param.getDependenciesCondition())) {
-             cmdJob1.put(CONDITION, param.getDependenciesCondition());
-        }
-        cmdJob1.put(DESCRIPTION, param.getPrmCmdJobDescription());
-
-        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         // Example JIL shows 1 specifically, overriding the general value if different
-         cmdJob1.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
-         cmdJob1.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
-
-        // Use general StdOut/StdErr getters
-        cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob1.put(PROFILE, param.getProfilePath());
-        cmdJob1.put(JOB_LOAD, param.getJobLoad());
-        cmdJob1.put(PRIORITY, param.getPriority());
-        cmdJob1.put(TIMEZONE, param.getTimeZone());
-        cmdJob1.put(GROUP, param.getGroup());
-        cmdJob1.put(APPLICATION, param.getApplication());
-        // No success/fail codes in EDL flow
-
-
-        // Build CMD Job 2 (Ingest)
-        Map<String, Object> cmdJob2 = new LinkedHashMap<>();
-        cmdJob2.put(INSERT_JOB, param.getIngCmdJobName());
-        cmdJob2.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob2.put(BOX_NAME, param.getBoxJobName());
-        cmdJob2.put(COMMAND, param.getIngCmdJobCommand());
-        cmdJob2.put(MACHINE, param.getIngCmdJobMachine());
-        cmdJob2.put(OWNER, param.getOwner());
-        cmdJob2.put(PERMISSION, param.getPermission());
-        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-
-        // Construct condition for CMD2: General condition + Success of CMD1
-        String cmd1SuccessCondition = "s(" + param.getPrmCmdJobName() + ") = SUCCESS";
-        String baseCondition = param.getDependenciesCondition();
-        String finalCondition;
-        if (StringUtils.hasText(baseCondition)) {
-            finalCondition = baseCondition + " & " + cmd1SuccessCondition;
-        } else {
-            finalCondition = cmd1SuccessCondition;
-        }
-        cmdJob2.put(CONDITION, finalCondition);
-
-        cmdJob2.put(DESCRIPTION, param.getIngCmdJobDescription());
-
-        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         // Example JIL shows 1 specifically, overriding the general value if different
-         cmdJob2.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
-         cmdJob2.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
-
-        // Use general StdOut/StdErr getters
-        cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob2.put(PROFILE, param.getProfilePath());
-        cmdJob2.put(JOB_LOAD, param.getJobLoad());
-        cmdJob2.put(PRIORITY, param.getPriority());
-        cmdJob2.put(TIMEZONE, param.getTimeZone());
-        cmdJob2.put(GROUP, param.getGroup());
-        cmdJob2.put(APPLICATION, param.getApplication());
-        // No success/fail codes in EDL flow
-
-
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob1);
-        properties.add(cmdJob2); // Add second cmd job
-        mainBox.put(PROPERTIES, properties);
-
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put(MAIN_BOX_KEY, mainBox); // Use constant for key
-        return createFileObject("EDL_Ingestion_JIL", jsonData);
-    }
-
-
-    // --- Helper Method to Create Final File Object ---
-
-    /**
-     * Creates the standard wrapper object for a JIL file's data.
-     * @param defaultFileName The default name for the JIL file.
-     * @param jsonData The Map containing the actual JIL structure (starting with "mainBox").
-     * @return A Map representing the complete file object to be stored or sent to the frontend.
-     */
-    private Map<String, Object> createFileObject(String defaultFileName, Map<String, Object> jsonData) {
-        Map<String, Object> fileObject = new LinkedHashMap<>();
-        fileObject.put(FILE_NAME_KEY, defaultFileName);
-        fileObject.put(JSON_DATA_KEY, jsonData);
-        fileObject.put(CONTENT_KEY, ""); // Keep empty, frontend handles final JIL text conversion
-        return fileObject;
-    }
+  },
+  "_class": "com.wellsfargo.utcap.model.MetaData"
 }
