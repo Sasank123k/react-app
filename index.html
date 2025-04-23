@@ -407,7 +407,7 @@
                             "default": "Y",
                             "enum": ["Y", "N"]
                           },
-                          "isCreateHiveView": {
+                          "isCreateHiveView ": {
                             "type": "string",
                             "required": false,
                             "default": "Y",
@@ -689,52 +689,52 @@
                           "default": [
                             {
                               "preCheckName": "ServiceIDCheck",
-                              "isFailJobOnPrecheckError": "${SERVICE_IDCHECK_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${SERVICE_IDCHECK_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${SERVICE_IDCHECK_ENABLED}"
                             },
                             {
                               "preCheckName": "TargetDataBaseAvailabilityCheck",
-                              "isFailJobOnPrecheckError": "${TARGET_DATABASE_AVAILABILITY_FAILURE_FLAG}",
+                              "isFailJobOnPreChekError": "${TARGET_DATABASE_AVAILABILITY_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${TARGET_DATABASE_AVAILABILITY_ENABLED}"
                             },
                             {
                               "preCheckName": "TargetTableAvailabilityCheck",
-                              "isFailJobOnPrecheckError": "${TARGET_TABLE_AVAILABILITY_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${TARGET_TABLE_AVAILABILITY_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${TARGET_TABLE_AVAILABILITY_ENABLED}"
                             },
                             {
                               "preCheckName": "TargetTablePathWritableCheck",
-                              "isFailJobOnPrecheckError": "${TARGET_TABLE_PATH_WRITABLE_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${TARGET_TABLE_PATH_WRITABLE_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${TARGET_TABLE_PATH_WRITABLE_CHECK_ENABLED}"
                             },
                             {
                               "preCheckName": "FlowSeqDependenciesCheck",
-                              "isFailJobOnPrecheckError": "${FLOWSEQ_DEPENDENCIES_CHECK_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${FLOWSEQ_DEPENDENCIES_CHECK_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${FLOWSEQ_DEPENDENCIES_CHECK_ENABLED}"
                             },
                             {
                               "preCheckName": "SourceDataBaseAvailabilityCheck",
-                              "isFailJobOnPrecheckError": "${SOURCE_DB_AVAILABILITY_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${SOURCE_DB_AVAILABILITY_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${SOURCE_DB_AVAILABILITY_CHECK_ENABLED}"
                             },
                             {
                               "preCheckName": "SourceTableAvailabilityCheck",
-                              "isFailJobOnPrecheckError": "${SOURCE_TABLE_AVAILABILITY_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${SOURCE_TABLE_AVAILABILITY_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${SOURCE_TABLE_AVAILABILITY_CHECK_ENABLED}"
                             },
                             {
                               "preCheckName": "SourceTableEmptyCheck",
-                              "isFailJobOnPrecheckError": "${SOURCE_TABLE_EMPTY_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${SOURCE_TABLE_EMPTY_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${SOURCE_TABLE_EMPTY_CHECK_ENABLED}"
                             },
                             {
                               "preCheckName": "SourcePathAvailabilityCheck",
-                              "isFailJobOnPrecheckError": "${SOURCE_PATH_AVAILABILITY_CHECK_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${SOURCE_PATH_AVAILABILITY_CHECK_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${SOURCE_PATH_AVAILABILITY_CHECK_ENABLED}"
                             },
                             {
                               "preCheckName": "SourcePathEmptyCheck",
-                              "isFailJobOnPrecheckError": "${SOURCE_PATH_EMPTY_CHECK_FAILURE_FLAG}",
+                              "isFailJobOnPreCheckError": "${SOURCE_PATH_EMPTY_CHECK_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${SOURCE_PATH_EMPTY_CHECK_ENABLED}"
                             }
                           ],
@@ -764,7 +764,7 @@
                                 "default": "Y",
                                 "enum": ["Y", "N"]
                               },
-                              "isFailJobOnPrecheckError": {
+                              "isFailJobOnPreCheckError": {
                                 "type": "string",
                                 "required": true,
                                 "default": "Y",
@@ -840,7 +840,7 @@
                             "type": "string",
                             "required": false
                           },
-                          "filedelimiter": {
+                          "fileDelimiter": {
                             "type": "string",
                             "required": false
                           },
