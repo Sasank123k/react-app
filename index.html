@@ -15,6 +15,8 @@ import java.util.*;
 /**
  * Builds the initial default JIL file structures based on flow type (EDL/INGRESS)
  * and parameters fetched from the AutosysParam collection.
+ * INGRESS flow generates one file (MainBOX -> CMD -> CMD).
+ * EDL flow generates two files (Config: MainBOX -> CMD; Ingest: MainBOX -> CMD -> CMD).
  */
 @Component
 public class JilFileBuilder {
@@ -43,8 +45,10 @@ public class JilFileBuilder {
     private static final String STD_ERR_FILE = "std_err_file";
     private static final String PROFILE = "profile";
     private static final String PRIORITY = "priority";
+    private static final String SUCCESS_CODES = "success_codes";
+    private static final String FAIL_CODES = "fail_codes";
     private static final String JSON_DATA_KEY = "jsonData";
-    private static final String MAIN_BOX_KEY = "mainBox"; // Corrected case
+    private static final String MAIN_BOX_KEY = "mainBox";
     private static final String FILE_NAME_KEY = "fileName";
     private static final String CONTENT_KEY = "content";
     private static final String JOB_TYPE_BOX = "BOX";
@@ -56,6 +60,9 @@ public class JilFileBuilder {
     private static final String EDL_CONFIG_CMD_ALARM_ON = "1";
     private static final String EDL_INGEST_BOX_ALARM_OFF = "0";
     private static final String EDL_INGEST_CMD_ALARM_ON = "1";
+    // Constants for INGRESS success/fail codes based on example
+    private static final String INGRESS_SUCCESS_CODES = "0";
+    private static final String INGRESS_FAIL_CODES = "1-9999";
 
 
     @Autowired
@@ -93,181 +100,138 @@ public class JilFileBuilder {
         List<Map<String, Object>> jilFiles = new ArrayList<>();
 
         if (isIngress) {
-            // INGRESS Flow: Create two JIL files
-            jilFiles.add(buildIngressFile1(param));
-            jilFiles.add(buildIngressFile2(param));
+            // INGRESS Flow: Create ONE JIL file (MainBOX -> CMD -> CMD)
+            jilFiles.add(buildIngressFile(param));
         } else {
             // EDL Flow: Create two JIL files
-            jilFiles.add(buildEdlFile1(param));
-            jilFiles.add(buildEdlFile2(param));
+            jilFiles.add(buildEdlFile1(param));     // Config file (MainBOX -> 1 CMD)
+            jilFiles.add(buildEdlFile2(param));     // Ingestion file (MainBOX -> 2 CMDs)
         }
         return jilFiles;
     }
 
     // --- Specific Builder Methods ---
 
-    /**
-     * Builds the first INGRESS JIL file (Source Extract).
-     * Assumes param object has all necessary edl* prefixed fields with correct casing (e.g., getEdlboxJobName).
+     /**
+     * Builds the single INGRESS JIL file (MainBOX -> CMD1 -> CMD2).
+     * Uses a combination of edl* and cdmp* fields from the param object.
      * @param param The AutosysParam object containing configuration values.
      * @return A Map representing the JIL file structure.
      */
-    private Map<String, Object> buildIngressFile1(AutosysParam param) {
+    private Map<String, Object> buildIngressFile(AutosysParam param) {
         Map<String, Object> mainBox = new LinkedHashMap<>();
+        // Use edl* fields for the main box definition based on previous logic/example
         mainBox.put(INSERT_JOB, param.getEdlboxJobName());
         mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-        mainBox.put(OWNER, param.getEdlowner());
-        mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, param.getEdldateCondition());
+        mainBox.put(OWNER, param.getEdlowner()); // Owner from edl params
+        mainBox.put(PERMISSION, param.getPermission()); // General permission
+        mainBox.put(DATE_CONDITIONS, param.getEdldateCondition()); // Date conditions from edl
         if (StringUtils.hasText(param.getEdldaysOfWeek())) {
-             mainBox.put(DAYS_OF_WEEK, param.getEdldaysOfWeek());
+             mainBox.put(DAYS_OF_WEEK, param.getEdldaysOfWeek()); // Days from edl
         }
         if (StringUtils.hasText(param.getEdlstartTime())) {
-             mainBox.put(START_TIMES, param.getEdlstartTime());
+             mainBox.put(START_TIMES, param.getEdlstartTime()); // Start time from edl
         }
+        // Box condition from edl dependencies
         if (StringUtils.hasText(param.getEdldependenciesCondition())) {
              mainBox.put(CONDITION, param.getEdldependenciesCondition());
         }
+        // Description from edl params
         mainBox.put(DESCRIPTION, param.getEdldescription());
 
         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
         String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : DEFAULT_ALARM_VALUE;
-        mainBox.put(ALARM_IF_FAIL, boxAlarmValue);
-        mainBox.put(ALARM_IF_TERMINATED, boxAlarmValue);
+        // Example shows 1 for the main ingress box
+        mainBox.put(ALARM_IF_FAIL, ALARM_ON);
+        mainBox.put(ALARM_IF_TERMINATED, ALARM_ON);
 
-        // Add other BOX specific fields if needed and available in param (e.g., edlBoxJobLoad)
-        mainBox.put(JOB_LOAD, param.getJobLoad());
+        // Add other BOX specific fields if needed
+        mainBox.put(JOB_LOAD, param.getJobLoad()); // Using generic load
 
         // Common fields
         mainBox.put(TIMEZONE, param.getTimeZone());
         mainBox.put(GROUP, param.getGroup());
-        mainBox.put(APPLICATION, param.getApplication());
+        mainBox.put(APPLICATION, param.getApplication()); // Using general application
 
 
-        // Build CMD Job
-        Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put(INSERT_JOB, param.getEdlcmdJobName());
-        cmdJob.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob.put(BOX_NAME, param.getEdlboxJobName());
-        // Commented out command as requested
-        // cmdJob.put(COMMAND, param.getEdlcommand());
-        cmdJob.put(MACHINE, param.getEdlmachineName());
-        cmdJob.put(OWNER, param.getEdlowner());
-        cmdJob.put(PERMISSION, param.getPermission());
-        cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        if (StringUtils.hasText(param.getEdldependenciesCondition())) {
-             cmdJob.put(CONDITION, param.getEdldependenciesCondition());
-        }
-        cmdJob.put(DESCRIPTION, param.getEdldescription());
+        // Build CMD Job 1 (Avro to NAS) - Uses edl* fields
+        Map<String, Object> cmdJob1 = new LinkedHashMap<>();
+        cmdJob1.put(INSERT_JOB, param.getEdlcmdJobName()); // Job name from edl
+        cmdJob1.put(JOB_TYPE, JOB_TYPE_CMD);
+        cmdJob1.put(BOX_NAME, param.getEdlboxJobName()); // Parent is the main box
+        cmdJob1.put(COMMAND, param.getEdlcommand()); // Command from edl
+        cmdJob1.put(MACHINE, param.getEdlmachineName()); // Machine from edl
+        cmdJob1.put(OWNER, param.getEdlowner()); // Owner from edl
+        cmdJob1.put(PERMISSION, param.getPermission()); // General permission
+        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        // No specific condition for the first CMD job in the example
+        cmdJob1.put(DESCRIPTION, "Job to create avro file from " + param.getEdlcmdJobName() + " hive table"); // Example description pattern
 
         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-         String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-         cmdJob.put(ALARM_IF_FAIL, cmdAlarmValue);
-         cmdJob.put(ALARM_IF_TERMINATED, cmdAlarmValue);
+         String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
+         // Example shows 0 for the first ingress cmd job
+         cmdJob1.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
+         cmdJob1.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
 
         // Use general StdOut/StdErr getters
-        cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob.put(PROFILE, param.getEdlprofilePath());
-        cmdJob.put(JOB_LOAD, param.getJobLoad());
-        cmdJob.put(PRIORITY, param.getPriority());
-        cmdJob.put(TIMEZONE, param.getTimeZone());
-        cmdJob.put(GROUP, param.getGroup());
-        cmdJob.put(APPLICATION, param.getApplication());
-        // Commented out success/fail codes as requested
-        // cmdJob.put("success_codes", param.getEdlSuccessCodes());
-        // cmdJob.put("fail_codes", param.getEdlFailCodes());
-        // Add other CMD fields if needed (max_run_alarm, term_run_time, resources, etc.)
+        cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
+        cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob1.put(PROFILE, param.getEdlprofilePath()); // Profile from edl
+        cmdJob1.put(JOB_LOAD, param.getJobLoad()); // Using generic load
+        cmdJob1.put(PRIORITY, param.getPriority()); // Using generic priority
+        cmdJob1.put(TIMEZONE, param.getTimeZone());
+        cmdJob1.put(GROUP, param.getGroup());
+        cmdJob1.put(APPLICATION, param.getApplication()); // General application
+        cmdJob1.put(SUCCESS_CODES, INGRESS_SUCCESS_CODES); // Constant success code
+        cmdJob1.put(FAIL_CODES, INGRESS_FAIL_CODES); // Constant fail code
 
+
+        // Build CMD Job 2 (NAS to SAFRM/CDMP) - Uses cdmp* fields
+        Map<String, Object> cmdJob2 = new LinkedHashMap<>();
+        cmdJob2.put(INSERT_JOB, param.getCdmpcmdJobName()); // Job name from cdmp
+        cmdJob2.put(JOB_TYPE, JOB_TYPE_CMD);
+        cmdJob2.put(BOX_NAME, param.getEdlboxJobName()); // Parent is the main box
+        cmdJob2.put(COMMAND, param.getCdmpcommand()); // Command from cdmp
+        cmdJob2.put(MACHINE, param.getCdmpmachineName()); // Machine from cdmp
+        cmdJob2.put(OWNER, param.getCdmpowner()); // Owner from cdmp
+        cmdJob2.put(PERMISSION, param.getPermission()); // General permission
+        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+
+        // Condition for CMD2: Success of CMD1
+        String cmd1SuccessCondition = "s(" + param.getEdlcmdJobName() + ") = SUCCESS";
+        cmdJob2.put(CONDITION, cmd1SuccessCondition);
+
+        cmdJob2.put(DESCRIPTION, "Job for running cdmp drive script to insert data"); // Example description pattern
+
+        // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
+         String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
+         // Example shows 0 for the second ingress cmd job
+         cmdJob2.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
+         cmdJob2.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
+
+        // Use general StdOut/StdErr getters
+        cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
+        cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob2.put(PROFILE, param.getCdmpprofilePath()); // Profile from cdmp
+        cmdJob2.put(JOB_LOAD, param.getJobLoad()); // Using generic load
+        cmdJob2.put(PRIORITY, param.getPriority()); // Using generic priority
+        cmdJob2.put(TIMEZONE, param.getTimeZone());
+        cmdJob2.put(GROUP, param.getGroup());
+        cmdJob2.put(APPLICATION, param.getApplication()); // General application
+        // Success/Fail codes not shown in example for second job, but adding for consistency
+        cmdJob2.put(SUCCESS_CODES, INGRESS_SUCCESS_CODES); // Constant success code
+        cmdJob2.put(FAIL_CODES, INGRESS_FAIL_CODES); // Constant fail code
+
+
+        // Add both CMD jobs to the main box properties
         List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob);
+        properties.add(cmdJob1);
+        properties.add(cmdJob2);
         mainBox.put(PROPERTIES, properties);
 
         Map<String, Object> jsonData = new LinkedHashMap<>();
         jsonData.put(MAIN_BOX_KEY, mainBox); // Use constant for key
-        return createFileObject("Source Extract JIL", jsonData);
-    }
-
-    /**
-     * Builds the second INGRESS JIL file (CDMP Driver).
-     * Assumes param object has all necessary cdmp* prefixed fields with correct casing (e.g., getCdmpboxJobName).
-     * @param param The AutosysParam object containing configuration values.
-     * @return A Map representing the JIL file structure.
-     */
-    private Map<String, Object> buildIngressFile2(AutosysParam param) {
-         Map<String, Object> mainBox = new LinkedHashMap<>();
-         mainBox.put(INSERT_JOB, param.getCdmpboxJobName());
-         mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-         mainBox.put(OWNER, param.getCdmpowner());
-         mainBox.put(PERMISSION, param.getPermission());
-         mainBox.put(DATE_CONDITIONS, param.getCdmpdateCondition());
-         if (StringUtils.hasText(param.getCdmpdaysOfWeek())) {
-             mainBox.put(DAYS_OF_WEEK, param.getCdmpdaysOfWeek());
-         }
-         if (StringUtils.hasText(param.getCdmpstartTime())) {
-             mainBox.put(START_TIMES, param.getCdmpstartTime());
-         }
-         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
-             mainBox.put(CONDITION, param.getCdmpdependenciesCondition());
-         }
-         mainBox.put(DESCRIPTION, param.getCdmpdescription());
-
-         // Alarm mapping: Use boxAlarm value ("0" or "1") for both fields
-         String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : DEFAULT_ALARM_VALUE;
-         mainBox.put(ALARM_IF_FAIL, boxAlarmValue);
-         mainBox.put(ALARM_IF_TERMINATED, boxAlarmValue);
-
-         // Add other BOX specific fields if needed (e.g., cdmpBoxJobLoad)
-         mainBox.put(JOB_LOAD, param.getJobLoad());
-
-         // Common fields
-         mainBox.put(TIMEZONE, param.getTimeZone());
-         mainBox.put(GROUP, param.getGroup());
-         mainBox.put(APPLICATION, param.getApplication());
-
-
-         // Build CMD Job
-         Map<String, Object> cmdJob = new LinkedHashMap<>();
-         cmdJob.put(INSERT_JOB, param.getCdmpcmdJobName());
-         cmdJob.put(JOB_TYPE, JOB_TYPE_CMD);
-         cmdJob.put(BOX_NAME, param.getCdmpboxJobName());
-         // Commented out command as requested
-         // cmdJob.put(COMMAND, param.getCdmpcommand());
-         cmdJob.put(MACHINE, param.getCdmpmachineName());
-         cmdJob.put(OWNER, param.getCdmpowner());
-         cmdJob.put(PERMISSION, param.getPermission());
-         cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
-             cmdJob.put(CONDITION, param.getCdmpdependenciesCondition());
-         }
-         cmdJob.put(DESCRIPTION, param.getCdmpdescription());
-
-         // Alarm mapping: Use cmdAlarm value ("0" or "1") for both fields
-          String cmdAlarmValue = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-          cmdJob.put(ALARM_IF_FAIL, cmdAlarmValue);
-          cmdJob.put(ALARM_IF_TERMINATED, cmdAlarmValue);
-
-         // Use general StdOut/StdErr getters
-         cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
-         cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
-         cmdJob.put(PROFILE, param.getCdmpprofilePath());
-         cmdJob.put(JOB_LOAD, param.getJobLoad());
-         cmdJob.put(PRIORITY, param.getPriority());
-         cmdJob.put(TIMEZONE, param.getTimeZone());
-         cmdJob.put(GROUP, param.getGroup());
-         cmdJob.put(APPLICATION, param.getApplication());
-         // Commented out success/fail codes as requested
-         // cmdJob.put("success_codes", param.getCdmpSuccessCodes());
-         // cmdJob.put("fail_codes", param.getCdmpFailCodes());
-         // Add other CMD fields if needed
-
-         List<Map<String, Object>> properties = new ArrayList<>();
-         properties.add(cmdJob);
-         mainBox.put(PROPERTIES, properties);
-
-         Map<String, Object> jsonData = new LinkedHashMap<>();
-         jsonData.put(MAIN_BOX_KEY, mainBox); // Use constant for key
-         return createFileObject("CDMP Driver Script", jsonData);
+        return createFileObject("INGRESS_JIL", jsonData); // Default filename for the single ingress file
     }
 
 
@@ -478,6 +442,3 @@ public class JilFileBuilder {
         return fileObject;
     }
 }
-```
-
-This version should be free of trailing comments and incorporates the `mainBox` key correction and the use of constants for JIL attribut
