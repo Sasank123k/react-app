@@ -114,7 +114,6 @@ public class JilFileBuilder {
         mainBox.put(ALARM_IF_FAIL, ALARM_ON);
         mainBox.put(ALARM_IF_TERMINATED, ALARM_ON);
 
-        // Removed timezone, group, job_load from mainBox
         mainBox.put(APPLICATION, param.getApplication());
 
 
@@ -137,7 +136,6 @@ public class JilFileBuilder {
         cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
         cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
         cmdJob1.put(PROFILE, param.getEdlprofilePath());
-        // Removed job_load, priority, timezone, group from cmdJob1
         cmdJob1.put(APPLICATION, param.getApplication());
         cmdJob1.put(SUCCESS_CODES, INGRESS_SUCCESS_CODES);
         cmdJob1.put(FAIL_CODES, INGRESS_FAIL_CODES);
@@ -154,8 +152,10 @@ public class JilFileBuilder {
         cmdJob2.put(PERMISSION, param.getPermission());
         cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
 
-        String cmd1SuccessCondition = "s(" + param.getEdlcmdJobName() + ") = SUCCESS";
-        cmdJob2.put(CONDITION, cmd1SuccessCondition);
+        // Condition for CMD2: Directly use cdmpdependenciesCondition
+        if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
+            cmdJob2.put(CONDITION, param.getCdmpdependenciesCondition());
+        }
 
         cmdJob2.put(DESCRIPTION, "Job for running cdmp drive script to insert data");
 
@@ -166,7 +166,6 @@ public class JilFileBuilder {
         cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
         cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
         cmdJob2.put(PROFILE, param.getCdmpprofilePath());
-        // Removed job_load, priority, timezone, group, success_codes, fail_codes from cmdJob2
         cmdJob2.put(APPLICATION, param.getApplication());
 
 
@@ -295,13 +294,14 @@ public class JilFileBuilder {
         cmdJob2.put(PERMISSION, param.getPermission());
         cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
 
-        String cmd1SuccessCondition = "s(" + param.getPrmCmdJobName() + ") = SUCCESS";
+        // Construct condition for CMD2: General condition + s(CMD1_JOB_NAME)
+        String cmd1StatusCondition = "s(" + param.getPrmCmdJobName() + ")"; // Removed "= SUCCESS"
         String baseCondition = param.getDependenciesCondition();
         String finalCondition;
         if (StringUtils.hasText(baseCondition)) {
-            finalCondition = baseCondition + " & " + cmd1SuccessCondition;
+            finalCondition = baseCondition + " & " + cmd1StatusCondition;
         } else {
-            finalCondition = cmd1SuccessCondition;
+            finalCondition = cmd1StatusCondition;
         }
         cmdJob2.put(CONDITION, finalCondition);
 
