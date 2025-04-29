@@ -401,8 +401,8 @@ public class JsonRequirementService {
         checkNode.put("isCheckEnabled", "Y");
         checkNode.put("isUserSupplyQuery", "Y");
         checkNode.put("readSourceQueryFromPath", "N");
-        checkNode.put("sourceQuery", "select count(*) from " + jiraStoryIntake.getTableName() + "_raw_df");
-        checkNode.put("targetQuery", "select count(*) from " + jiraStoryIntake.getTargetSchema() + "." + jiraStoryIntake.getTableName() + " where " + applicationAuthorizer.getHivePartition() + "=${BUSINESS_DATE}");
+        checkNode.put("sourceQuery", "select count(*) from  " + jiraStoryIntake.getTableName() + "_raw_df");
+        checkNode.put("targetQuery", "select count(*) from " + jiraStoryIntake.getTargetSchema() + "." + jiraStoryIntake.getTableName() + " where " + applicationAuthorizer.getHivePartition() + "='${BUSINESS_DATE}");
         checkNode.put("readTargetQueryFromPath", "N");
         checkNode.put("isFailJobOnDataCheckError", "N");
 
@@ -428,7 +428,7 @@ public class JsonRequirementService {
         List<Map<Object, Object>> listDimcChecks = getChosenDimcChecksList(chosenDimcChecks);
         for (Map<Object, Object> dimcCheck : listDimcChecks) {
             ObjectNode dimcCheckNode = objectMapper.createObjectNode();
-            dimcCheckNode.put("dimcCheckName", dimcCheck.get("dimcCheckName").toString());
+            dimcCheckNode.put("dimcCheckname", dimcCheck.get("dimcCheckname").toString());
             dimcCheckNode.put("isDimcCheckEnabled", dimcCheck.get("isDimcCheckEnabled").toString());
             dataArrayNode.add(dimcCheckNode);
         }
@@ -463,7 +463,7 @@ public class JsonRequirementService {
 
         ObjectNode flowNode = objectMapper.createObjectNode();
         flowNode.put("flowId", flowId);
-        flowNode.put("flowDesc", jiraStoryIntake.getApplicationSorName().toUpperCase(Locale.ROOT) + TABLE + jiraStoryIntake.getTableName() + INGESTION_TO + jiraStoryIntake.getApplicationName() + " - " + zone.replaceFirst("\\.", zone.substring(0, 1)).toUpperCase(Locale.ROOT));
+        flowNode.put("flowDesc", jiraStoryIntake.getApplicationSorName().toUpperCase(Locale.ROOT) + TABLE + jiraStoryIntake.getTableName() + INGESTION_TO + jiraStoryIntake.getApplicationName() + " - " + zone.replaceFirst("\\.", zone.substring(0, 1).toUpperCase(Locale.ROOT)));
         flowNode.put("isFlowEnabled", "Y");
         flowNode.put("query", sqlScript.getSrcDataFrameQuery());
         flowNode.put("registerName", jiraStoryIntake.getTableName().toLowerCase() + "_" + zone.toLowerCase(Locale.ROOT));
@@ -498,8 +498,8 @@ public class JsonRequirementService {
         checkNode.put("isCheckEnabled", "Y");
         checkNode.put("isUserSupplyQuery", "Y");
         checkNode.put("readSourceQueryFromPath", "N");
-        checkNode.put("sourceQuery", "select count(*) from " + jiraStoryIntake.getTableName() + "_df");
-        checkNode.put("targetQuery", "select count(*) from " + jiraStoryIntake.getTargetSchema() + "." + jiraStoryIntake.getTableName() + " where " + applicationAuthorizer.getHivePartition() + "=${BUSINESS_DATE}");
+        checkNode.put("sourceQuery", "select count(*) from  " + jiraStoryIntake.getTableName() + "_df");
+        checkNode.put("targetQuery", "select count(*) from " + jiraStoryIntake.getTargetSchema() + "." + jiraStoryIntake.getTableName() + " where " + applicationAuthorizer.getHivePartition() + "='${BUSINESS_DATE}");
         checkNode.put("readTargetQueryFromPath", "N");
         checkNode.put("isFailJobOnDataCheckError", "Y");
         return checkNode;
