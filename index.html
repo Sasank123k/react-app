@@ -1,343 +1,237 @@
 package com.wellsfargo.utcap.service;
-
-import com.wellsfargo.utcap.exception.AutosysParamNotFoundException;
-import com.wellsfargo.utcap.exception.JiraStoryNotFoundException;
-import com.wellsfargo.utcap.model.AutosysParam;
-import com.wellsfargo.utcap.model.JiraStoryIntake;
-import com.wellsfargo.utcap.repository.AutosysParamRepository;
-import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.wellsfargo.utcap.model.*;
+import com.wellsfargo.utcap.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-
+import org.springframework.stereotype.Service;
 import java.util.*;
 
-@Component
-public class JilFileBuilder {
+@Service
+public class JsonRequirementService {
+    private static final Logger LOG = LoggerFactory.getLogger(CDMPAdditionalJson.class);
+    private static final String SANITIZED = "sanitized";
+    private static final String INGESTION_TO = " ingestion to ";
+    private static final String TABLE = " Table ";
+    private static final List<Map<Object,Object>> DIMC_CHECKS_LIST = new ArrayList<>();
 
-    // --- Constants for JIL Keys ---
-    private static final String INSERT_JOB = "insert_job";
-    private static final String JOB_TYPE = "job_type";
-    private static final String OWNER = "owner";
-    private static final String PERMISSION = "permission";
-    private static final String DATE_CONDITIONS = "date_conditions";
-    private static final String DAYS_OF_WEEK = "days_of_week";
-    private static final String START_TIMES = "start_times";
-    private static final String CONDITION = "condition";
-    private static final String DESCRIPTION = "description";
-    private static final String ALARM_IF_FAIL = "alarm_if_fail";
-    private static final String ALARM_IF_TERMINATED = "alarm_if_terminated";
-    private static final String JOB_LOAD = "job_load";
-    private static final String TIMEZONE = "timezone";
-    private static final String GROUP = "group";
-    private static final String APPLICATION = "application";
-    private static final String PROPERTIES = "properties";
-    private static final String BOX_NAME = "box_name";
-    private static final String COMMAND = "command";
-    private static final String MACHINE = "machine";
-    private static final String STD_OUT_FILE = "std_out_file";
-    private static final String STD_ERR_FILE = "std_err_file";
-    private static final String PROFILE = "profile";
-    private static final String PRIORITY = "priority";
-    private static final String SUCCESS_CODES = "success_codes";
-    private static final String FAIL_CODES = "fail_codes";
-    private static final String JSON_DATA_KEY = "jsonData";
-    private static final String MAIN_BOX_KEY = "mainBox";
-    private static final String FILE_NAME_KEY = "fileName";
-    private static final String CONTENT_KEY = "content";
-    private static final String JOB_TYPE_BOX = "BOX";
-    private static final String JOB_TYPE_CMD = "CMD";
-    private static final String DEFAULT_CMD_DATE_CONDITIONS = "0";
-    private static final String DEFAULT_ALARM_VALUE = "0";
-    private static final String ALARM_ON = "1";
-    private static final String EDL_CONFIG_ALARM_OFF = "0";
-    private static final String EDL_CONFIG_CMD_ALARM_ON = "1";
-    private static final String EDL_INGEST_BOX_ALARM_OFF = "0";
-    private static final String EDL_INGEST_CMD_ALARM_ON = "1";
-    private static final String INGRESS_SUCCESS_CODES = "0";
-    private static final String INGRESS_FAIL_CODES = "1-9999";
+    @Autowired 
+    public ApplicationAuthRepository applicationAuthRepository;
+    @Autowired 
+    public RequirementRepository requirementRepository;
 
+    @Autowired 
+    public JsonRequirementRepository jsonRequirementRepository;
 
-    @Autowired
-    private JiraStoryIntakeRepository jiraRepo;
+    @Autowired 
+    public JiraStoryIntakeRepository jiraStoryIntakeRepository;
 
-    @Autowired
-    private AutosysParamRepository autosysParamRepo;
+    @Autowired 
+    public SorRepository sorRepository;
 
-    // --- Main Build Method ---
+    @Autowired 
+    public SQLScriptRepository sqlScriptRepository;
 
-    public List<Map<String, Object>> buildJilFiles(String requirementId) {
-        List<JiraStoryIntake> jiraList = jiraRepo.findByJiraStoryIntakeId(requirementId);
-        if (jiraList == null || jiraList.isEmpty()) {
-            throw new JiraStoryNotFoundException("Jira story not found for requirementId: " + requirementId);
-        }
-        JiraStoryIntake jira = jiraList.get(0);
+    @Autowired 
+    public ConnJsonRequirementRepository connJsonRequirementRepository;
 
-        AutosysParam param = autosysParamRepo.findById(requirementId)
-                .orElseThrow(() -> new AutosysParamNotFoundException("Autosys parameters not found for requirementId: " + requirementId));
+    public JsonRequirement saveJson(String requirementId, Object newJson) {
+        JsonRequirement entity = jsonRequirementRepository.findById(requirementId).orElse(new JsonRequirement(requirementId, null));
+        entity.setJson(newJson);
+        return jsonRequirementRepository.save(entity);
+    }
+    public static void populateDimcChecksList() {
+        // FILE_CHECKS
+        Map<Object,Object> duplicateFileLoadChecks = new HashMap<>();
+        duplicateFileLoadChecks.put("dimcCheckName","duplicateFileLoadChecks");
+        duplicateFileLoadChecks.put("isDimcCheckEnabled","${DUPLICATE_FILELOAD_CHECK_ENABLED}");
+        duplicateFileLoadChecks.put("isFailJobOnError","${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}");
+        DIMC_CHECKS_LIST.add(duplicateFileLoadChecks);
 
-        String targetType = jira.getTargetType();
-        boolean isIngress = "GCP".equalsIgnoreCase(targetType);
+        Map<Object,Object> dataVolumeConsistencyCheck = new HashMap<>();
+        dataVolumeConsistencyCheck.put("dimcCheckName","dataVolumeConsistencyCheck");
+        dataVolumeConsistencyCheck.put("isDimcCheckEnabled","${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED}");
+        dataVolumeConsistencyCheck.put("upperThreshold","${UPPER_THRESHOLD}");
+        dataVolumeConsistencyCheck.put("lowerThreshold","${LOWER_THRESHOLD}");
+        dataVolumeConsistencyCheck.put("numPastDays","${NUM_PAST_DAYS}");
+        dataVolumeConsistencyCheck.put("isFailJobOnError","${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}");
+        DIMC_CHECKS_LIST.add(dataVolumeConsistencyCheck);
 
-        List<Map<String, Object>> jilFiles = new ArrayList<>();
+        Map<Object,Object> missingFileCheck = new HashMap<>();
+        missingFileCheck.put("dimcCheckName","missingFileCheck");
+        missingFileCheck.put("isDimcCheckEnabled","${MISSING_FILE_CHECK_ENABLED}");
+        missingFileCheck.put("isFailJobOnError","${MISSING_FILE_CHECK_FAILURE_FLAG}");
+        DIMC_CHECKS_LIST.add(missingFileCheck);
 
-        if (isIngress) {
-            jilFiles.add(buildIngressFile(param));
-        } else {
-            jilFiles.add(buildEdlFile1(param));
-            jilFiles.add(buildEdlFile2(param));
-        }
-        return jilFiles;
+        Map<Object,Object> deliveryCheck = new HashMap<>();
+        deliveryCheck.put("dimcCheckName","deliveryCheck");
+        deliveryCheck.put("isDimcCheckEnabled","${DELIVERY_CHECK_ENABLED}");
+        deliveryCheck.put("SLA","${DELIVERY_CHECK_SLA}");
+        deliveryCheck.put("isFailJobOnError","${DELIVERY_CHECK_FAILURE_FLAG}");
+        DIMC_CHECKS_LIST.add(deliveryCheck);
+
+        // TABLE_CHECKS
+        Map<Object,Object> missingDbObjectCheck = new HashMap<>();
+        missingDbObjectCheck.put("dimcCheckName","missingDbObjectCheck");
+        missingDbObjectCheck.put("isDimcCheckEnabled","${MISSING_DB_OBJECT_CHECK_ENABLED}");
+        missingDbObjectCheck.put("isFailJobOnError","${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG}");
+        DIMC_CHECKS_LIST.add(missingDbObjectCheck);
+
+        Map<Object,Object> emptySourceCheck = new HashMap<>();
+        emptySourceCheck.put("dimcCheckName","emptySourceCheck");
+        emptySourceCheck.put("isDimcCheckEnabled","${EMPTY_SOURCE_CHECK_ENABLED}");
+        emptySourceCheck.put("isFailJobOnError","${EMPTY_SOURCE_CHECK_FAILURE_FLAG}");
+        DIMC_CHECKS_LIST.add(emptySourceCheck);
+
     }
 
-    // --- Specific Builder Methods ---
-
-    private Map<String, Object> buildIngressFile(AutosysParam param) {
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put(INSERT_JOB, param.getEdlboxJobName());
-        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-        mainBox.put(OWNER, param.getEdlowner());
-        mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, param.getEdldateCondition());
-        if (StringUtils.hasText(param.getEdldaysOfWeek())) {
-             mainBox.put(DAYS_OF_WEEK, param.getEdldaysOfWeek());
+    static List<Map<Object,Object>> getChosenDimcChecksList(List<Integer> chosenIndices) {
+        if (!chosenIndices.isEmpty()) {
+            populateDimcChecksList();
         }
-        if (StringUtils.hasText(param.getEdlstartTime())) {
-             mainBox.put(START_TIMES, param.getEdlstartTime());
+        List<Map<Object,Object>> chosenDimcChecksList = new ArrayList<>();
+        for (Integer index : chosenIndices) {
+            if (index >= 0 && index < DIMC_CHECKS_LIST.size()) {
+                Map<Object,Object> dimcCheck = DIMC_CHECKS_LIST.get(index);
+                chosen
+            }
         }
-        if (StringUtils.hasText(param.getEdldependenciesCondition())) {
-             mainBox.put(CONDITION, param.getEdldependenciesCondition());
-        }
-        mainBox.put(DESCRIPTION, param.getEdldescription());
-
-        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : DEFAULT_ALARM_VALUE;
-        mainBox.put(ALARM_IF_FAIL, ALARM_ON);
-        mainBox.put(ALARM_IF_TERMINATED, ALARM_ON);
-
-        mainBox.put(APPLICATION, param.getApplication());
-
-
-        // Build CMD Job 1 (Avro to NAS)
-        Map<String, Object> cmdJob1 = new LinkedHashMap<>();
-        cmdJob1.put(INSERT_JOB, param.getEdlcmdJobName());
-        cmdJob1.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob1.put(BOX_NAME, param.getEdlboxJobName());
-        cmdJob1.put(COMMAND, param.getEdlwrapperScript()); // Use wrapper script
-        cmdJob1.put(MACHINE, param.getEdlmachineName());
-        cmdJob1.put(OWNER, param.getEdlowner());
-        cmdJob1.put(PERMISSION, param.getPermission());
-        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        cmdJob1.put(DESCRIPTION, "Job to create avro file from " + param.getEdlcmdJobName() + " hive table");
-
-         String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-         cmdJob1.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
-         cmdJob1.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
-
-        cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob1.put(PROFILE, param.getEdlprofilePath());
-        cmdJob1.put(APPLICATION, param.getApplication());
-        cmdJob1.put(SUCCESS_CODES, INGRESS_SUCCESS_CODES);
-        cmdJob1.put(FAIL_CODES, INGRESS_FAIL_CODES);
-
-
-        // Build CMD Job 2 (NAS to SAFRM/CDMP)
-        Map<String, Object> cmdJob2 = new LinkedHashMap<>();
-        cmdJob2.put(INSERT_JOB, param.getCdmpcmdJobName());
-        cmdJob2.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob2.put(BOX_NAME, param.getEdlboxJobName());
-        cmdJob2.put(COMMAND, param.getCdmpwrapperScript()); // Use wrapper script
-        cmdJob2.put(MACHINE, param.getCdmpmachineName());
-        cmdJob2.put(OWNER, param.getCdmpowner());
-        cmdJob2.put(PERMISSION, param.getPermission());
-        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-
-        // Condition for CMD2: Directly use cdmpdependenciesCondition
-        if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
-            cmdJob2.put(CONDITION, param.getCdmpdependenciesCondition());
-        }
-
-        cmdJob2.put(DESCRIPTION, "Job for running cdmp drive script to insert data");
-
-         String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-         cmdJob2.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
-         cmdJob2.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
-
-        cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob2.put(PROFILE, param.getCdmpprofilePath());
-        cmdJob2.put(APPLICATION, param.getApplication());
-
-
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob1);
-        properties.add(cmdJob2);
-        mainBox.put(PROPERTIES, properties);
-
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put(MAIN_BOX_KEY, mainBox);
-        return createFileObject("INGRESS_JIL", jsonData);
+        return chosenDimcChecksList;
     }
 
 
-    private Map<String, Object> buildEdlFile1(AutosysParam param) {
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put(INSERT_JOB, param.getCfgBoxJobName());
-        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-        mainBox.put(OWNER, param.getOwner());
-        mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        mainBox.put(DESCRIPTION, param.getCfgBoxDescription());
-
-        mainBox.put(ALARM_IF_FAIL, EDL_CONFIG_ALARM_OFF);
-        mainBox.put(ALARM_IF_TERMINATED, EDL_CONFIG_ALARM_OFF);
-
-        mainBox.put(TIMEZONE, param.getTimeZone());
-        mainBox.put(GROUP, param.getGroup());
-        mainBox.put(APPLICATION, param.getApplication());
+    public ConnJsonRequirement getOrCreateConnectionJsonReq(String requirementId) {
+    Optional<ConnJsonRequirement> existingConnJsonRequirement =connJsonRequirementRepository.findById(requirementId);
 
 
-        Map<String, Object> cmdJob = new LinkedHashMap<>();
-        cmdJob.put(INSERT_JOB, param.getCfgCmdJobName());
-        cmdJob.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob.put(BOX_NAME, param.getCfgBoxJobName());
-        cmdJob.put(COMMAND, param.getCfgCmdJobCommand());
-        cmdJob.put(MACHINE, param.getCfgCmdJobMachine());
-        cmdJob.put(OWNER, param.getOwner());
-        cmdJob.put(PERMISSION, param.getPermission());
-        cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        if (StringUtils.hasText(param.getDependenciesCondition())) {
-             cmdJob.put(CONDITION, param.getDependenciesCondition());
-        }
-        cmdJob.put(DESCRIPTION, param.getCfgCmdJobDescription());
+    if (existingConnJsonRequirement.isPresent()) {
+        return existingConnJsonRequirement.get();
+    }
+    ObjectMapper objectMapper = new ObjectMapper();
+    ObjectNode rootNode      = objectMapper.createObjectNode();
+    ObjectNode application   = objectMapper.createObjectNode();
 
-         cmdJob.put(ALARM_IF_FAIL, EDL_CONFIG_CMD_ALARM_ON);
-         cmdJob.put(ALARM_IF_TERMINATED, EDL_CONFIG_CMD_ALARM_ON);
+    ObjectNode email         = objectMapper.createObjectNode();
+    String sorName = requirementRepository.findByRequirementId(requirementId).get(0).getSorName();
+    String emailBody ="<p>Hello All,</p>"+ "<p> Ingestion for " + sorName+ " with Job Name $jobName has completed.</p>"
+    + "<p> SourceDate = $sourceDate , TargetDate = $targetDate </p>"+ "<p> Yarn Application ID = $yarnApplicationId</p>";
 
-        cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob.put(PROFILE, param.getProfilePath());
-        cmdJob.put(JOB_LOAD, param.getJobLoad());
-        cmdJob.put(PRIORITY, param.getPriority());
-        cmdJob.put(TIMEZONE, param.getTimeZone());
-        cmdJob.put(GROUP, param.getGroup());
-        cmdJob.put(APPLICATION, param.getApplication());
+    email.put("body", emailBody);
+    ObjectNode job = objectMapper.createObjectNode();
+    job.set("Email", email);
+    application.set("job", job);
+    rootNode.set("application", application);
+    Map<String, Object> json = objectMapper.convertValue(rootNode,new TypeReference<Map<String, Object>>() {});
 
+    ConnJsonRequirement connReq = new ConnJsonRequirement(requirementId, json);
+    return connJsonRequirementRepository.save(connReq);
+}
 
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob);
-        mainBox.put(PROPERTIES, properties);
+    public JsonRequirement getOrCreateJsonRequirement(String requirementId) throws JsonProcessingException {
+    String req = requirementId.split("-")[0];
+    Optional<JsonRequirement> existingJsonRequirement = jsonRequirementRepository.findById(requirementId);
 
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put(MAIN_BOX_KEY, mainBox);
-        return createFileObject("EDL_Config_JIL", jsonData);
+    if (existingJsonRequirement.isPresent()) {
+        return existingJsonRequirement.get();
+    }
+    Optional<JiraStoryIntake> jiraStoryIntake = jiraStoryIntakeRepository.findById(req);
+    if (jiraStoryIntake.isEmpty()) {
+        return null;
+    }
+    JiraStoryIntake jiraStoryIntake1 = jiraStoryIntake.get();
+    Sor sor = sorRepository.findBySorName(jiraStoryIntake1.getApplicationSorName()).get(0);
+    if (sor == null) {
+        return null;
+    }
+    ApplicationAuthorizer applicationAuthorizer;
+    if (applicationAuthRepository.findByApplicationName(jiraStoryIntake1.getApplicationName()).isEmpty()) {
+        return null;
+    }
+    // HARD-CODED DIMC CHECKS AS OF NOW TO BE REPLACED WITH USER INPUT
+    List<Integer> chosenDimcChecks = Arrays.asList(1, 5);
+    applicationAuthorizer = applicationAuthRepository.findByApplicationName(jiraStoryIntake1.getApplicationName()).get(0);
+    List<SQLScript> sqlScriptList = sqlScriptRepository.findByRequirementId(jiraStoryIntake1.getJiraStoryIntakeId());
+    SQLScript sqlScript = sqlScriptList.get(0);
+    ObjectMapper objectMapper = new ObjectMapper();
+    ObjectNode rootNode = objectMapper.createObjectNode();
+    rootNode.set("application",createApplicationNode(objectMapper,jiraStoryIntake1,sor,sqlScript,applicationAuthorizer,chosenDimcChecks));
+    Map<String, Object> json =objectMapper.convertValue(rootNode, new TypeReference<Map<String, Object>>() {});
+    JsonRequirement jsonRequirement = new JsonRequirement(requirementId, json);
+    return jsonRequirementRepository.save(jsonRequirement);
+
+}
+
+private static ObjectNode createApplicationNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer, List<Integer> chosenDimChecks) throws JsonProcessingException {
+    ObjectNode applicationNode = objectMapper.createObjectNode();
+    applicationNode.put("isParallelProcessing", "Y");
+    applicationNode.set("jobs", createJobsNode(objectMapper, jiraStoryIntake, sor, sqlScript, applicationAuthorizer, chosenDimChecks));
+    return applicationNode;
+}
+
+private static ObjectNode createJobsNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer, List<Integer> chosenDimChecks) throws JsonProcessingException {
+    ObjectNode jobsNode = objectMapper.createObjectNode();
+    jobsNode.set("job", createJobNode(objectMapper, jiraStoryIntake, sor, sqlScript, applicationAuthorizer, chosenDimChecks));
+    return jobsNode;
+}
+
+private static ObjectNode createJobNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor,SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer,List<Integer> chosenDimChecks) throws JsonProcessingException {
+    ObjectNode jobNode = objectMapper.createObjectNode();
+
+    if (!("gcp").equalsIgnoreCase(jiraStoryIntake.getTargetType())) {
+
+        jobNode.put("app", jiraStoryIntake.getApplicationName());
+
+        jobNode.put("appRemedyId", applicationAuthorizer.getAppRemedyId());
+        jobNode.put("sorRemedyId", sor.getRemedyId());
+        jobNode.put("queryGroup", "dim_check_" + sor.getSonName().toLowerCase(Locale.ROOT));
+        jobNode.put("zone", "SANITIZED");
+        jobNode.put("environment", sor.getSon().getSonEnv().toLowerCase(Locale.ROOT));
+    }
+    jobNode.put("jobId", jiraStoryIntake.getTableName());
+    jobNode.put("jobName", sor.getSon().getName().toLowerCase(Locale.ROOT) + TABLE + jiraStoryIntake.getTableName().toLowerCase(Locale.ROOT));
+    jobNode.put("jobDescription", "INGESTION_TO_" + applicationAuthorizer.getApplicationName());
+
+    if (("gcp").equalsIgnoreCase(jiraStoryIntake.getTargetType())) {
+        jobNode.put("jobDescription", "CDMP Extract for Hive table - " + jiraStoryIntake.getTableName().toLowerCase(Locale.ROOT));
     }
 
-    private Map<String, Object> buildEdlFile2(AutosysParam param) {
-        Map<String, Object> mainBox = new LinkedHashMap<>();
-        mainBox.put(INSERT_JOB, param.getBoxJobName());
-        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
-        mainBox.put(OWNER, param.getOwner());
-        mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, param.getDateCondition());
-        if (StringUtils.hasText(param.getDaysOfWeek())) {
-             mainBox.put(DAYS_OF_WEEK, param.getDaysOfWeek());
-        }
-        if (StringUtils.hasText(param.getStartTime())) {
-             mainBox.put(START_TIMES, param.getStartTime());
-        }
+    jobNode.put("isJobEnabled", "Y");
+    jobNode.set("Email", createEmailNode(objectMapper, jiraStoryIntake, sor));
 
-        mainBox.put(DESCRIPTION, param.getBoxJobDescription());
-
-        mainBox.put(ALARM_IF_FAIL, EDL_INGEST_BOX_ALARM_OFF);
-        mainBox.put(ALARM_IF_TERMINATED, EDL_INGEST_BOX_ALARM_OFF);
-
-        mainBox.put(TIMEZONE, param.getTimeZone());
-        mainBox.put(GROUP, param.getGroup());
-        mainBox.put(APPLICATION, param.getApplication());
-
-
-        Map<String, Object> cmdJob1 = new LinkedHashMap<>();
-        cmdJob1.put(INSERT_JOB, param.getPrmCmdJobName());
-        cmdJob1.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob1.put(BOX_NAME, param.getBoxJobName());
-        cmdJob1.put(COMMAND, param.getPrmCmdJobCommand());
-        cmdJob1.put(MACHINE, param.getPrmCmdJobMachine());
-        cmdJob1.put(OWNER, param.getOwner());
-        cmdJob1.put(PERMISSION, param.getPermission());
-        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        if (StringUtils.hasText(param.getDependenciesCondition())) {
-             cmdJob1.put(CONDITION, param.getDependenciesCondition());
-        }
-        cmdJob1.put(DESCRIPTION, param.getPrmCmdJobDescription());
-
-         cmdJob1.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
-         cmdJob1.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
-
-        cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob1.put(PROFILE, param.getProfilePath());
-        cmdJob1.put(JOB_LOAD, param.getJobLoad());
-        cmdJob1.put(PRIORITY, param.getPriority());
-        cmdJob1.put(TIMEZONE, param.getTimeZone());
-        cmdJob1.put(GROUP, param.getGroup());
-        cmdJob1.put(APPLICATION, param.getApplication());
-
-
-        Map<String, Object> cmdJob2 = new LinkedHashMap<>();
-        cmdJob2.put(INSERT_JOB, param.getIngCmdJobName());
-        cmdJob2.put(JOB_TYPE, JOB_TYPE_CMD);
-        cmdJob2.put(BOX_NAME, param.getBoxJobName());
-        cmdJob2.put(COMMAND, param.getIngCmdJobCommand());
-        cmdJob2.put(MACHINE, param.getIngCmdJobMachine());
-        cmdJob2.put(OWNER, param.getOwner());
-        cmdJob2.put(PERMISSION, param.getPermission());
-        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-
-        // Construct condition for CMD2: General condition + s(CMD1_JOB_NAME)
-        String cmd1StatusCondition = "s(" + param.getPrmCmdJobName() + ")"; // Removed "= SUCCESS"
-        String baseCondition = param.getDependenciesCondition();
-        String finalCondition;
-        if (StringUtils.hasText(baseCondition)) {
-            finalCondition = baseCondition + " & " + cmd1StatusCondition;
-        } else {
-            finalCondition = cmd1StatusCondition;
-        }
-        cmdJob2.put(CONDITION, finalCondition);
-
-        cmdJob2.put(DESCRIPTION, param.getIngCmdJobDescription());
-
-         cmdJob2.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
-         cmdJob2.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
-
-        cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
-        cmdJob2.put(PROFILE, param.getProfilePath());
-        cmdJob2.put(JOB_LOAD, param.getJobLoad());
-        cmdJob2.put(PRIORITY, param.getPriority());
-        cmdJob2.put(TIMEZONE, param.getTimeZone());
-        cmdJob2.put(GROUP, param.getGroup());
-        cmdJob2.put(APPLICATION, param.getApplication());
-
-
-        List<Map<String, Object>> properties = new ArrayList<>();
-        properties.add(cmdJob1);
-        properties.add(cmdJob2);
-        mainBox.put(PROPERTIES, properties);
-
-        Map<String, Object> jsonData = new LinkedHashMap<>();
-        jsonData.put(MAIN_BOX_KEY, mainBox);
-        return createFileObject("EDL_Ingestion_JIL", jsonData);
+    if (!("gcp").equalsIgnoreCase(jiraStoryIntake.getTargetType())) {
+        jobNode.set("ingestions", createIngestionsNode(objectMapper, jiraStoryIntake, sor, sqlScript, chosenDimChecks));
     }
 
+    jobNode.set("flows", createFlowsNode(objectMapper, jiraStoryIntake, sor, sqlScript, applicationAuthorizer));
+    jobNode.set("datachecks", createDataChecksNode(objectMapper, jiraStoryIntake, sor, applicationAuthorizer));
 
-    // --- Helper Method to Create Final File Object ---
-
-    private Map<String, Object> createFileObject(String defaultFileName, Map<String, Object> jsonData) {
-        Map<String, Object> fileObject = new LinkedHashMap<>();
-        fileObject.put(FILE_NAME_KEY, defaultFileName);
-        fileObject.put(JSON_DATA_KEY, jsonData);
-        fileObject.put(CONTENT_KEY, "");
-        return fileObject;
+    if (("gcp").equalsIgnoreCase(jiraStoryIntake.getTargetType())) {
+        jobNode.set("fileExtracts", createFileExtractNode(objectMapper, jiraStoryIntake, sqlScript));
     }
+
+    return jobNode;
+}
+
+
+
+
+
+private static ObjectNode createEmailNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor){
+    ObjectNode emailNode = objectMapper.createObjectNode();
+    emailNode.put("fromAddress", "${EMAIL_TO_LIST}");
+    emailNode.put("toAddress", "${EMAIL_CC_LIST}");
+    emailNode.put("subject", "Data Extract from " + sor.getSourceName().toUpperCase(Locale.ROOT) + " to " + jiraStoryIntake.getApplicationName() + " " + jiraStoryIntake.getTableName().toLowerCase(Locale.ROOT));
+
+    if(("gcp").equalsIgnoreCase(jiraStoryIntake.getTargetType())){
+        emailNode.put("fromAddress", "${FROM_EMAIL}");
+        emailNode.put("toAddress", "${TO_EMAIL}");
+        emailNode.put("subject", "CDMP Extraction - " + jiraStoryIntake.getTableName().toLowerCase(Locale.ROOT));
+    }
+    emailNode.put("isPriorityAlert", "Y");
+    return emailNode;
 }
