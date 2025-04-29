@@ -120,7 +120,7 @@ public class JsonRequirementService {
 
         ObjectNode email = objectMapper.createObjectNode();
         String sorName = requirementRepository.findByRequirementId(requirementId).get(0).getSorName();
-        String emailBody = "<p>Hello All,</p><p> Ingestion for " + sorName + " with Job Name $jobName has completed. " + "</p><p> SourceData =$sourceData , TargetDate = $targetDate </p><p> Yarn Application ID = $yarnApplicationId</p><html>";
+        String emailBody = "<p>Hello All,</p><p> Ingestion for " + sorName + " with Job Name $jobName has completed. " + "</p><p> SourceDate =$sourceDate , TargetDate = $targetDate </p><p> Yarn Application ID = $yarnApplicationId</p><html>";
 
         email.put("body", emailBody);
         ObjectNode job = objectMapper.createObjectNode();
@@ -419,23 +419,24 @@ public class JsonRequirementService {
         array.add(item);
     }
 
-    private static ObjectNode createFixedWidthFileIngestionNode(String ingestionId, ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, List<Integer> chosenDimChecks) throws JsonProcessingException {
+    private static ObjectNode createFixedWidthFileIngestionNode(String ingestionId, ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, List<Integer> chosenDimcChecks) throws JsonProcessingException {
         ObjectNode ingestionNode = objectMapper.createObjectNode();
-        ObjectNode dimChecks = objectMapper.createObjectNode();
-        Map<String, String> additionalReadConfigs = new HashMap<>();
+        ObjectNode dimcChecks = objectMapper.createObjectNode();
+
+        Map<String, String> additonalReadConfigs = new HashMap<>();
         ArrayNode dataArrayNode = objectMapper.createArrayNode();
-        List<Map<Object, Object>> listDimChecks = getChosenDimChecksList(chosenDimChecks);
-        for (Map<Object, Object> dimCheck : listDimChecks) {
-            ObjectNode dimCheckNode = objectMapper.createObjectNode();
-            dimCheckNode.put("dimCheckName", dimCheck.get("dimCheckName").toString());
-            dimCheckNode.put("isDimCheckEnabled", dimCheck.get("isDimCheckEnabled").toString());
-            dataArrayNode.add(dimCheckNode);
+        List<Map<Object, Object>> listDimcChecks = getChosenDimcChecksList(chosenDimcChecks);
+        for (Map<Object, Object> dimcCheck : listDimcChecks) {
+            ObjectNode dimcCheckNode = objectMapper.createObjectNode();
+            dimcCheckNode.put("dimcCheckName", dimcCheck.get("dimcCheckName").toString());
+            dimcCheckNode.put("isDimcCheckEnabled", dimcCheck.get("isDimcCheckEnabled").toString());
+            dataArrayNode.add(dimcCheckNode);
         }
-        dimChecks.set("dimCheck", dataArrayNode);
-        additionalReadConfigs.put("quote", "\"\\\"\"");
-        additionalReadConfigs.put("escape", "\\\\");
+        dimcChecks.set("dimcCheck", dataArrayNode);
+        additonalReadConfigs.put("quote", "\\\"");
+        additonalReadConfigs.put("escape", "\\\"");
         ingestionNode.put("ingestionId", ingestionId);
-        ingestionNode.set("dimChecks", dimChecks);
+        ingestionNode.set("dimcChecks", dimcChecks);
         ingestionNode.put("ingestionDesc", sor.getSorName().toLowerCase(Locale.ROOT) + TABLE + jiraStoryIntake.getTableName() + INGESTION_TO + jiraStoryIntake.getApplicationName());
         ingestionNode.put("isIngestionEnabled", "Y");
         ingestionNode.put("sourceType", "fixedWidthFile");
@@ -445,12 +446,13 @@ public class JsonRequirementService {
         ingestionNode.put("dataFilePath", "${SOURCE_FILE_DIR}/${SOURCE_FILE_NAME}");
         ingestionNode.put("isHeaderEnabled", "Y");
         ingestionNode.put("schemaFilePath", "${DCI_CONFIG_DIR_PATH}/config/" + sor.getSorName() + "/${FEED_NAME}/metadata/" + jiraStoryIntake.getTableName() + ".schema");
-        ingestionNode.set("additionalReadConfigs", objectMapper.readTree(objectMapper.writeValueAsString(additionalReadConfigs)));
+        ingestionNode.set("additionalReadConfigs", objectMapper.readTree(objectMapper.writeValueAsString(additonalReadConfigs)));
         ingestionNode.put("isCacheEnabled", "Y");
         ingestionNode.put("isOverWritePartition", "Y");
         ingestionNode.put("abortIfDuplicate", "N");
         ingestionNode.put("abortIfEmpty", "N");
         ingestionNode.put("isRunEMHReport", "N");
+
         return ingestionNode;
     }
 
@@ -461,21 +463,21 @@ public class JsonRequirementService {
 
         ObjectNode flowNode = objectMapper.createObjectNode();
         flowNode.put("flowId", flowId);
-        flowNode.put("flowDesc", jiraStoryIntake.getApplicationSorName().toUpperCase(Locale.ROOT) + TABLE + jiraStoryIntake.getTableName() + INGESTION_TO + jiraStoryIntake.getApplicationName() + "-" + zone.replaceFirst("\\.", zone.substring(0, 1)).toUpperCase(Locale.ROOT));
+        flowNode.put("flowDesc", jiraStoryIntake.getApplicationSorName().toUpperCase(Locale.ROOT) + TABLE + jiraStoryIntake.getTableName() + INGESTION_TO + jiraStoryIntake.getApplicationName() + " - " + zone.replaceFirst("\\.", zone.substring(0, 1)).toUpperCase(Locale.ROOT));
         flowNode.put("isFlowEnabled", "Y");
         flowNode.put("query", sqlScript.getSrcDataFrameQuery());
-        flowNode.put("registerName", jiraStoryIntake.getTableName().toLowerCase(Locale.ROOT) + "-" + zone.toLowerCase(Locale.ROOT));
+        flowNode.put("registerName", jiraStoryIntake.getTableName().toLowerCase() + "_" + zone.toLowerCase(Locale.ROOT));
 
-        if ("gcp".equalsIgnoreCase(jiraStoryIntake.getTargetType())) {
-            flowNode.put("query", sqlScript.getSrcTableQuery() + " ${EMB_LIMIT} ${LIMIT_COUNT}");
+        if (("gcp").equalsIgnoreCase(jiraStoryIntake.getTargetType())) {
+            flowNode.put("query", sqlScript.getSrcTableQuery() + " ${ENB_LIMIT} ${LIMIT_COUNT}");
             flowNode.put("flowDesc", "Extraction of " + jiraStoryIntake.getSourceTableName() + " for CDMP processing.");
             flowNode.put("registerName", jiraStoryIntake.getTableName().toLowerCase(Locale.ROOT) + "_extract_df");
         }
 
-        if (!"gcp".equalsIgnoreCase(jiraStoryIntake.getTargetType().toLowerCase(Locale.ROOT))) {
+        if (!("gcp").equalsIgnoreCase(jiraStoryIntake.getTargetType().toLowerCase(Locale.ROOT))) {
             flowNode.put("saveOutput", "Y");
-            flowNode.put("flowDataBaseName", jiraStoryIntake.getSourceTableName() + "-" + zone.toLowerCase(Locale.ROOT) + "_df");
-            flowNode.put("storageName", "/datalkgs/${EDL_ENV}/" + storageNameMap.get(jiraStoryIntake.getApplicationName()) + "/" + sor.getDomainName().toLowerCase(Locale.ROOT) + "/" + sor.getSorName().toLowerCase(Locale.ROOT) + "/" + zone.toLowerCase(Locale.ROOT) + "/" + jiraStoryIntake.getTableName());
+            flowNode.put("flowDataBaseName", jiraStoryIntake.getSourceTableName() + "_" + zone.toLowerCase(Locale.ROOT) + "_df");
+            flowNode.put("storageName", jiraStoryIntake.getTableName());
             flowNode.put("targetTablePath", "${EXP_EDL_PATH}/${TARGET_TABLE_NAME}");
             flowNode.put("hivePartitionColumn", applicationAuthorizer.getHivePartition());
             flowNode.put("isCreateFlowTargetTable", "Y");
@@ -491,7 +493,7 @@ public class JsonRequirementService {
     private static ObjectNode createFixedWidthFileCheckNode(ObjectMapper objectMapper, String checkId, String zone, JiraStoryIntake jiraStoryIntake, Sor sor, ApplicationAuthorizer applicationAuthorizer) {
         ObjectNode checkNode = objectMapper.createObjectNode();
         checkNode.put("checkId", checkId);
-        checkNode.put("checkName", "HHRNCTCHK");
+        checkNode.put("checkName", "HHRCNTCHK");
         checkNode.put("checkDesc", "Data Count Check");
         checkNode.put("isCheckEnabled", "Y");
         checkNode.put("isUserSupplyQuery", "Y");
@@ -503,4 +505,5 @@ public class JsonRequirementService {
         return checkNode;
     }
 
-} // End of class JsonRequirementService
+
+}
