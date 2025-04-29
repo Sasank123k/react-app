@@ -1,5 +1,4 @@
 package com.wellsfargo.utcap.service;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,16 +12,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.*;
 
-@Service // K007363 +1
+@Service
 public class JsonRequirementService {
-    private static final Logger LOG = LoggerFactory.getLogger(COMPAdditionalJson.class); // no usages
-    private static final String SANITIZED = "sanitized"; // 6 usages
-    private static final String INGESTION_ID = "ingestionId"; // 5 usages
-    private static final String TABLE = "Table"; // 5 usages
-    private static final List<Map<Object, Object>> DIMC_CHECKS_LIST = new ArrayList<>(); // 8 usages
+    private static final Logger LOG = LoggerFactory.getLogger(CDMPAdditionalJson.class);
+    private static final String SANITIZED = "sanitized";
+    private static final String INGESTION_TO = " ingestion to ";
+    private static final String TABLE = " Table ";
+    private static final List<Map<Object, Object>> DIMC_CHECKS_LIST = new ArrayList<>();
 
     @Autowired
-    Public ApplicationAuthRepository applicationAuthRepository;
+    public ApplicationAuthRepository applicationAuthRepository;
 
     @Autowired
     public RequirementRepository requirementRepository;
@@ -39,51 +38,52 @@ public class JsonRequirementService {
     @Autowired
     public SQLScriptRepository sqlScriptRepository;
 
-    @Autowired // 2 usages
+    @Autowired
     public ConnJsonRequirementRepository connJsonRequirementRepository;
 
 
-    public JsonRequirement saveJson(String requirementId, ObjectNode newJson) { // K007363
-        JsonRequirement entity = jsonRequirementRepository.findById(requirementId).orElse(new JsonRequirement(requirementId, newJson: null));
+    public JsonRequirement saveJson(String requirementId, Object newJson) {
+        JsonRequirement entity = jsonRequirementRepository.findById(requirementId).orElse(new JsonRequirement(requirementId, null));
         entity.setJson(newJson);
         return jsonRequirementRepository.save(entity);
     }
 
-    public static void populateDimcChecksList() { // 1 usage K097363
+    public static void populateDimcChecksList() { 
         //FILE CHECKS
         Map<Object, Object> duplicateFileLoadCheck = new HashMap<>();
-        duplicateFileLoadCheck.put("dimcCheckName", "duplicateFileLoadCheck");
-        duplicateFileLoadCheck.put("isDimcCheckEnabled", "${DUPLICATE_FILELOAD_CHECK_ENABLED}");
-        duplicateFileLoadCheck.put("dimcCheckFailureFlag", "${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}");
+        duplicateFileLoadChecks.put("dimcCheckName", "duplicateFileLoadCheck");
+        duplicateFileLoadChecks.put("isDimcCheckEnabled", "${DUPLICATE_FILELOAD_CHECK_ENABLED}");
+        duplicateFileLoadChecks.put("dimcCheckFailureFlag", "${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}");
         DIMC_CHECKS_LIST.add(duplicateFileLoadCheck);
 
         Map<Object, Object> dataVolumeConsistencyCheck = new HashMap<>();
         dataVolumeConsistencyCheck.put("dimcCheckName", "dataVolumeConsistencyCheck");
         dataVolumeConsistencyCheck.put("isDimcCheckEnabled", "${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED}");
+        dataVolumeConsistencyCheck.put("upperThreshold", "${UPPER_THRESHOLD}");
         dataVolumeConsistencyCheck.put("dimcCheckFailureFlag", "${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}");
         dataVolumeConsistencyCheck.put("lowerThreshold", "${LOWER_THRESHOLD}");
-        dataVolumeConsistencyCheck.put("pastNumDays", "${NUM_PAST_DAYS}");
-        dataVolumeConsistencyCheck.put("isFailJobOnDataError", "${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}");
+        dataVolumeConsistencyCheck.put("numPastDays", "${NUM_PAST_DAYS}");
+        dataVolumeConsistencyCheck.put("isFailJobOnError", "${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}");
         DIMC_CHECKS_LIST.add(dataVolumeConsistencyCheck);
 
         Map<Object, Object> missingFileCheck = new HashMap<>();
         missingFileCheck.put("dimcCheckName", "missingFileCheck");
         missingFileCheck.put("isDimcCheckEnabled", "${MISSING_FILE_CHECK_ENABLED}");
-        missingFileCheck.put("isFailJobOnErrer", "${MISSING_FILE_CHECK_FAILURE_FLAG}"); // Mispelled "Error" in original image
+        missingFileCheck.put("isFailJobOnError", "${MISSING_FILE_CHECK_FAILURE_FLAG}");
         DIMC_CHECKS_LIST.add(missingFileCheck);
 
         Map<Object, Object> deliveryCheck = new HashMap<>();
         deliveryCheck.put("dimcCheckName", "deliveryCheck");
         deliveryCheck.put("isDimcCheckEnabled", "${DELIVERY_CHECK_ENABLED}");
-        deliveryCheck.put("deliveryCheckSLA", "${DELIVERY_CHECK_SLA}");
-        deliveryCheck.put("dimcCheckFailureFlag", "${DELIVERY_CHECK_FAILURE_FLAG}");
+        deliveryCheck.put("SLA", "${DELIVERY_CHECK_SLA}");
+        deliveryCheck.put("isFailJobOnError", "${DELIVERY_CHECK_FAILURE_FLAG}");
         DIMC_CHECKS_LIST.add(deliveryCheck);
 
         //TABLE_CHECKS
         Map<Object, Object> missingDbObjectCheck = new HashMap<>();
         missingDbObjectCheck.put("dimcCheckName", "missingDbObjectCheck");
         missingDbObjectCheck.put("isDimcCheckEnabled", "${MISSING_DB_OBJECT_CHECK_ENABLED}");
-        missingDbObjectCheck.put("dimcCheckFailureFlag", "${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG}");
+        missingDbObjectCheck.put("isFailJobOnError", "${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG}");
         DIMC_CHECKS_LIST.add(missingDbObjectCheck);
 
         Map<Object, Object> emptySourceCheck = new HashMap<>();
@@ -95,22 +95,23 @@ public class JsonRequirementService {
     }
 
     public static List<Map<Object, Object>> getChosenDimcCheckList(List<Integer> chosenIndices) { // 2 usages K097363
-        populateDimcChecksList();
-
+        if(!chosenIndices.isEmpty()) {
+            populateDimcChecksList(); 
+        }
         List<Map<Object, Object>> chosenDimcChecksList = new ArrayList<>();
         for (Integer index : chosenIndices) {
-            if (index < DIMC_CHECKS_LIST.size()) {
-                 Map<Object, Object> dimcCheck = DIMC_CHECKS_LIST.get(index);
-                 chosenDimcChecksList.add(dimcCheck);
-            }
+            if (index >= 0 && index < DIMC_CHECKS_LIST.size()) {
+                Map<Object, Object> dimcCheck = DIMC_CHECKS_LIST.get(index);
+                chosenDimcChecksList.add(dimcCheck); 
+            } 
         }
         return chosenDimcChecksList;
     }
 
-    public ConnJsonRequirement getOrCreateConnectionJsonReq(String requirementId) { // K097363
+    public ConnJsonRequirement getOrCreateConnectionJsonReq(String requirementId){
         Optional<ConnJsonRequirement> existingConnJsonRequirement = connJsonRequirementRepository.findById(requirementId);
 
-        if(existingConnJsonRequirement.isPresent()) {
+        if(existingConnJsonRequirement.isPresent()){
             return existingConnJsonRequirement.get();
         }
         ObjectMapper objectMapper = new ObjectMapper();
