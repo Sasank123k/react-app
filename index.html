@@ -18,11 +18,10 @@ public class JsonRequirementService {
     private static final String SANITIZED = "sanitized";
     private static final String INGESTION_TO = " ingestion to ";
     private static final String TABLE = " Table ";
-    private static final List<Map<Object, Object>> DIMC_CHECKS_LIST = new ArrayList<>();
+    private static final List<Map<Object,Object>> DIMC_CHECKS_LIST = new ArrayList<>();
 
     @Autowired
     public ApplicationAuthRepository applicationAuthRepository;
-
     @Autowired
     public RequirementRepository requirementRepository;
 
@@ -41,26 +40,23 @@ public class JsonRequirementService {
     @Autowired
     public ConnJsonRequirementRepository connJsonRequirementRepository;
 
-
     public JsonRequirement saveJson(String requirementId, Object newJson) {
         JsonRequirement entity = jsonRequirementRepository.findById(requirementId).orElse(new JsonRequirement(requirementId, null));
         entity.setJson(newJson);
         return jsonRequirementRepository.save(entity);
     }
-
     public static void populateDimcChecksList() { 
         //FILE CHECKS
         Map<Object, Object> duplicateFileLoadCheck = new HashMap<>();
-        duplicateFileLoadChecks.put("dimcCheckName", "duplicateFileLoadCheck");
+        duplicateFileLoadChecks.put("dimcCheckName", "duplicateFileLoadChecks");
         duplicateFileLoadChecks.put("isDimcCheckEnabled", "${DUPLICATE_FILELOAD_CHECK_ENABLED}");
-        duplicateFileLoadChecks.put("dimcCheckFailureFlag", "${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}");
-        DIMC_CHECKS_LIST.add(duplicateFileLoadCheck);
+        duplicateFileLoadChecks.put("isFailJobOnError", "${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}");
+        DIMC_CHECKS_LIST.add(duplicateFileLoadChecks);
 
         Map<Object, Object> dataVolumeConsistencyCheck = new HashMap<>();
         dataVolumeConsistencyCheck.put("dimcCheckName", "dataVolumeConsistencyCheck");
         dataVolumeConsistencyCheck.put("isDimcCheckEnabled", "${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED}");
         dataVolumeConsistencyCheck.put("upperThreshold", "${UPPER_THRESHOLD}");
-        dataVolumeConsistencyCheck.put("dimcCheckFailureFlag", "${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}");
         dataVolumeConsistencyCheck.put("lowerThreshold", "${LOWER_THRESHOLD}");
         dataVolumeConsistencyCheck.put("numPastDays", "${NUM_PAST_DAYS}");
         dataVolumeConsistencyCheck.put("isFailJobOnError", "${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}");
@@ -82,14 +78,14 @@ public class JsonRequirementService {
         //TABLE_CHECKS
         Map<Object, Object> missingDbObjectCheck = new HashMap<>();
         missingDbObjectCheck.put("dimcCheckName", "missingDbObjectCheck");
-        missingDbObjectCheck.put("isDimcCheckEnabled", "${MISSING_DB_OBJECT_CHECK_ENABLED}");
-        missingDbObjectCheck.put("isFailJobOnError", "${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG}");
+        missingDbObjectCheck.put("isDimcCheckEnabled","${MISSING_DB_OBJECT_CHECK_ENABLED}");
+        missingDbObjectCheck.put("isFailJobOnError","${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG}");
         DIMC_CHECKS_LIST.add(missingDbObjectCheck);
 
         Map<Object, Object> emptySourceCheck = new HashMap<>();
         emptySourceCheck.put("dimcCheckName", "emptySourceCheck");
-        emptySourceCheck.put("isDimcCheckEnabled", "${EMPTY_SOURCE_CHECK_ENABLED}");
-        emptySourceCheck.put("dimcCheckFailureFlag", "${EMPTY_SOURCE_CHECK_FAILURE_FLAG}");
+        emptySourceCheck.put("isDimcCheckEnabled","${EMPTY_SOURCE_CHECK_ENABLED}");
+        emptySourceCheck.put("dimcCheckFailureFlag","${EMPTY_SOURCE_CHECK_FAILURE_FLAG}");
         DIMC_CHECKS_LIST.add(emptySourceCheck);
 
     }
@@ -98,7 +94,7 @@ public class JsonRequirementService {
         if(!chosenIndices.isEmpty()) {
             populateDimcChecksList(); 
         }
-        List<Map<Object, Object>> chosenDimcChecksList = new ArrayList<>();
+        List<Map<Object,Object>> chosenDimcChecksList = new ArrayList<>();
         for (Integer index : chosenIndices) {
             if (index >= 0 && index < DIMC_CHECKS_LIST.size()) {
                 Map<Object, Object> dimcCheck = DIMC_CHECKS_LIST.get(index);
@@ -116,78 +112,74 @@ public class JsonRequirementService {
         }
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode rootNode = objectMapper.createObjectNode();
-        ObjectNode job = objectMapper.createObjectNode();
-        ObjectNode wait = objectMapper.createObjectNode();
-        String sorName=connJsonRequirement.get().getSorName(); // This line seems problematic as connJsonRequirement might not exist yet. Copied as is.
-        String applicationName=connJsonRequirement.get().getApplicationName(); // Same potential issue as above.
-        String emailBody = "<p>Hi Team,</p><p> << "+sorName+" / "+applicationName+" Job Name: $yarnApplicationId >> Job has completed. " +
-                "</p><p> Job Status: $jobStatus </p><p> Target Date = $targetDate </p><p> Yarn Application ID = $yarnApplicationId</p></html>";
+        ObjectNode application = objectMapper.createObjectNode();
 
-        job.put("emailBody", emailBody);
-        job.set("wait", wait);
         ObjectNode email = objectMapper.createObjectNode();
-        job.set("email", email);
-        rootNode.set("application", job);
-        Map<String, Object> rootMap = objectMapper.convertValue(rootNode, new TypeReference<Map<String, Object>>() {});
+        String sorName=requirementRepository.findByRequirementId(requirementId).get(0).getSorName(); 
+        String emailBody = "<p>Hello All,</p><p> Ingestion for "+sorName+" with Job Name $jobName has completed. " + "</p><p> SourceData=$sourceData , TargetDate = $targetDate </p><p> Yarn Application ID = $yarnApplicationId</p><html>";
+        email.put("body", emailBody);
+        ObjectNode job = objectMapper.createObjectNode();
+        job.set("Email", email);
+        application.set("job",job);
+        rootNode.set("application", application);
+        Map<String,Object> json = objectMapper.convertValue(rootNode, new TypeReference<Map<String, Object>>() {});
 
-        ConnJsonRequirement connJsonRequirement = new ConnJsonRequirement(requirementId, rootMap);
+        ConnJsonRequirement connJsonRequirement = new ConnJsonRequirement(requirementId, json);
         return connJsonRequirementRepository.save(connJsonRequirement);
     }
 
-
-    public JsonRequirement getOrCreateJsonRequirement(String requirementId) throws JsonProcessingException { // K007363
-        String req = requirementId.split(":")[0];
+    public JsonRequirement getOrCreateJsonRequirement(String requirementId) throws JsonProcessingException {
+        String req = requirementId.split("_")[0];
         Optional<JsonRequirement> existingJsonRequirement = jsonRequirementRepository.findById(requirementId);
 
-        if(existingJsonRequirement.isPresent()) {
+        if(existingJsonRequirement.isPresent()){
             return existingJsonRequirement.get();
         }
 
         Optional<JiraStoryIntake> jiraStoryIntake = jiraStoryIntakeRepository.findById(req);
-        if(!jiraStoryIntake.isPresent()) {
+        if(jiraStoryIntake.isEmpty()){
              return null;
         }
 
-        Sor sor = sorRepository.findByApplicationName(jiraStoryIntake.get().getApplicationName()).get(0);
+        JiraStoryIntake jiraStoryIntake1 = jiraStoryIntake.get();
+        Sor sor = sorRepository.findBySorName(jiraStoryIntake1.getApplicationSorName()).get(0);
         if(sor == null){
              return null;
         }
-        ApplicationAuthorizer applicationAuthorizer = applicationAuthRepository.findByApplicationName(jiraStoryIntake.get().getApplicationName()).isEmpty() ?
-                null : applicationAuthRepository.findByApplicationName(jiraStoryIntake.get().getApplicationName()).get(0);
-        if(applicationAuthorizer==null){
+        ApplicationAuthorizer applicationAuthorizer;
+        if(applicationAuthRepository.findByApplicationName(jiraStoryIntake1.getApplicationName()).isEmpty()){
             return null;
         }
 
         //SOME LOGIC COULD USE CHECK AS HOW TO BE REPLACED WITH USER INPUT
-        List<Integer> chosenDimcChecks = Arrays.asList(0);
-        SQLScript sqlScript = sqlScriptRepository.get(0); // Assuming get(0) is valid
+        List<Integer> chosenDimcChecks = Arrays.asList(1,5);
+        applicationAuthorizer = applicationAuthRepository.findByApplicationName(jiraStoryIntake1.getApplicationName()).get(0);
+        List<SQLScript> sqlScriptList = sqlScriptRepository.findByRequirementId(jiraStoryIntake1.getJiraStoryIntakeId());
+        SQLScript sqlScript = sqlScriptList.get(0);
 
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode rootNode = objectMapper.createObjectNode();
 
-        ObjectNode applicationNode = createApplicationNode(objectMapper, jiraStoryIntake.get(), sor, sqlScript, applicationAuthorizer, chosenDimcChecks);
-        rootNode.set("application", applicationNode); // Changed applicationName to applicationNode based on variable name
-
+        rootNode.set("application", createApplicationNode(objectMapper, jiraStoryIntake1, sor, sqlScript, applicationAuthorizer, chosenDimcChecks)); 
         Map<String, Object> json = objectMapper.convertValue(rootNode, new TypeReference<Map<String, Object>>() {});
         JsonRequirement jsonRequirement = new JsonRequirement(requirementId, json);
-
         return jsonRequirementRepository.save(jsonRequirement);
-        // return jsonRequirement; // Original code had return inside save(), adjusted based on typical patterns. Reverted to match image.
     }
 
 
-    private static ObjectNode createApplicationNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer, List<Integer> chosenDimcChecks) throws JsonProcessingException { // K097363
+    private static ObjectNode createApplicationNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer, List<Integer> chosenDimcChecks) throws JsonProcessingException {
         ObjectNode applicationNode = objectMapper.createObjectNode();
-        applicationNode.put("name", jiraStoryIntake.getApplicationName());
         applicationNode.put("isParallelProcessing", "N");
-        ObjectNode jobsNode = createJobNode(objectMapper, jiraStoryIntake, sor, sqlScript, applicationAuthorizer, chosenDimcChecks); // Assuming createJobsNode is intended, but image shows createJobNode
-        // Changed JobsNode to jobsNode based on variable naming conventions. Reverted to match image.
-        applicationNode.set("jobs", jobsNode); // Assuming single job based on method called
-
+        applicationNode.put("jobs",createJobsNode(objectMapper, jiraStoryIntake, sor, sqlScript, applicationAuthorizer, chosenDimcChecks));
         return applicationNode;
     }
+    private static ObjectNode createJobsNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer, List<Integer> chosenDimcChecks) throws JsonProcessingException { 
+        ObjectNode jobsNode = objectMapper.createObjectNode();
+        jobsNode.set("job",createJobNode(objectMapper, jiraStoryIntake, sor, sqlScript, applicationAuthorizer, chosenDimcChecks));
+        return jobsNode;
+    }
 
-    private static ObjectNode createJobNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer, List<Integer> chosenDimcChecks) throws JsonProcessingException { // 1 usage K097363
+    private static ObjectNode createJobNode(ObjectMapper objectMapper, JiraStoryIntake jiraStoryIntake, Sor sor, SQLScript sqlScript, ApplicationAuthorizer applicationAuthorizer, List<Integer> chosenDimcChecks) throws JsonProcessingException {
         ObjectNode jobNode = objectMapper.createObjectNode();
 
         if("gcp".equalsIgnoreCase(jiraStoryIntake.getTargetType())) {
