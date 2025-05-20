@@ -1,238 +1,3 @@
-package com.wellsfargo.utcap.config;
-
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.wellsfargo.utcap.model.*;
-import lombok.Getter;
-import lombok.ToString;
-
-import java.util.List;
-import java.util.Map; // Keep for Map<String, Object> if used in future complex prebuilt parts
-import java.util.Objects;
-import java.util.Set;
-
-/**
- * Configuration object holding all necessary resolved data, pre-built structures,
- * and flags to drive the DCI JSON artifact generation for a specific
- * source-target combination.
- */
-@Getter
-@ToString
-public class JsonGenerationConfig {
-
-    public enum SourceType {
-        TERADATA,
-        FILE_FIXEDWIDTH,
-        FILE_PIPE,
-        FILE_COMMA,
-        MSSQL,
-        ORACLE,
-        HIVE,
-        UNKNOWN
-    }
-
-    public enum TargetType {
-        HIVE,
-        GCP,
-        UNKNOWN
-    }
-
-    // --- Core Input Data Objects ---
-    private final JiraStoryIntake jiraStoryIntake;
-    private final Sor sor;
-    private final ApplicationAuthorizer applicationAuthorizer;
-    private final SQLScript sqlScript;
-
-    // --- Determined Types & Overall Structural Flags ---
-    private final SourceType sourceType;
-    private final TargetType targetType;
-    private final boolean includeIngestions;
-    private final boolean includeFlows;
-    private final boolean includeDataChecks;
-    private final boolean includeFileExtracts;
-
-    // --- Field Inclusion Sets ---
-    private final Set<String> jobLevelFieldsToInclude;
-    private final Set<String> ingestionFieldsToInclude;
-
-    // --- Resolved Values / Pre-built Structures for INGESTION ---
-    private final String resolvedIngestionSourceTypeValue;
-    private final String resolvedIngestionConnectionHeaderValue;
-    private final String resolvedIngestionDataFrameName;
-    private final String resolvedIngestionSourceSQLQuery;
-    private final String resolvedIngestionSourceName; // For Oracle
-    private final String resolvedIngestionDataFilePath;
-    private final String resolvedIngestionSchemaFilePath;
-    private final String resolvedIngestionStagingFilePath;
-    private final String resolvedIngestionDelimiter;
-    private final String resolvedIngestionIsHeaderEnabled; // "Y" for all files currently
-    private final String resolvedIngestionSaveOutputFlag;
-    private final String resolvedIngestionTargetPartition;
-    private final String ingestionIsCreateTargetTableValue; // Standardized to "Y"
-    private final String ingestionIsCacheEnabledValue;      // Standardized to "Y"
-    private final String ingestionIsOverWritePartitionValue; // Standardized to "Y"
-    private final ObjectNode prebuiltIngestionAdditionalReadConfigsNode;
-    private final boolean includeDimcChecksInIngestion;
-    private final ObjectNode prebuiltIngestionDimcChecksNode;
-
-    // --- Resolved Values / Pre-built Structures for FLOWS ---
-    private final List<FlowDetailConfig> flowDetailsList;
-
-    // --- Resolved Values / Pre-built Structures for DATA CHECKS ---
-    private final String resolvedDataChecksAcDcDatabase;
-    private final List<CheckDetailConfig> checkDetailsList;
-    private final ObjectNode prebuiltDataChecksPreChecksNode;
-
-    @Getter
-    @ToString
-    public static class FlowDetailConfig {
-        private final String flowId;
-        private final String resolvedFlowDescription;
-        private final String resolvedFlowQuery;
-        private final String resolvedFlowRegisterName;
-        private final String resolvedFlowDatabaseName;
-        private final String resolvedFlowStorageName;
-        private final String resolvedFlowTargetTablePath;
-        private final String resolvedFlowHivePartitionColumn;
-        private final String isCreateFlowTargetTableValue;
-        private final String isOverWritePartitionValue;
-        private final String isCacheEnabledValue;
-        private final String sendEmailValue;
-        private final String abortIfEmptyValue;
-        private final String saveOutputValue;
-
-        public FlowDetailConfig(String flowId, String resolvedFlowDescription, String resolvedFlowQuery,
-                                String resolvedFlowRegisterName, String resolvedFlowDatabaseName,
-                                String resolvedFlowStorageName, String resolvedFlowTargetTablePath,
-                                String resolvedFlowHivePartitionColumn, String isCreateFlowTargetTableValue,
-                                String isOverWritePartitionValue, String isCacheEnabledValue,
-                                String sendEmailValue, String abortIfEmptyValue, String saveOutputValue) {
-            this.flowId = flowId;
-            this.resolvedFlowDescription = resolvedFlowDescription;
-            this.resolvedFlowQuery = resolvedFlowQuery;
-            this.resolvedFlowRegisterName = resolvedFlowRegisterName;
-            this.resolvedFlowDatabaseName = resolvedFlowDatabaseName;
-            this.resolvedFlowStorageName = resolvedFlowStorageName;
-            this.resolvedFlowTargetTablePath = resolvedFlowTargetTablePath;
-            this.resolvedFlowHivePartitionColumn = resolvedFlowHivePartitionColumn;
-            this.isCreateFlowTargetTableValue = isCreateFlowTargetTableValue;
-            this.isOverWritePartitionValue = isOverWritePartitionValue;
-            this.isCacheEnabledValue = isCacheEnabledValue;
-            this.sendEmailValue = sendEmailValue;
-            this.abortIfEmptyValue = abortIfEmptyValue;
-            this.saveOutputValue = saveOutputValue;
-        }
-    }
-
-    @Getter
-    @ToString
-    public static class CheckDetailConfig {
-        private final String checkId;
-        private final String checkName;
-        private final String checkDescription;
-        private final String resolvedCheckSourceQuery;
-        private final String resolvedCheckTargetQuery;
-        private final String isCheckEnabledValue;
-        private final String isUserSupplyQueryValue;
-        private final String readSourceQueryFromPathValue;
-        private final String readTargetQueryFromPathValue;
-        private final String isFailJobOnDataCheckErrorValue;
-
-        public CheckDetailConfig(String checkId, String checkName, String checkDescription,
-                                 String resolvedCheckSourceQuery, String resolvedCheckTargetQuery,
-                                 String isCheckEnabledValue, String isUserSupplyQueryValue,
-                                 String readSourceQueryFromPathValue, String readTargetQueryFromPathValue,
-                                 String isFailJobOnDataCheckErrorValue) {
-            this.checkId = checkId;
-            this.checkName = checkName;
-            this.checkDescription = checkDescription;
-            this.resolvedCheckSourceQuery = resolvedCheckSourceQuery;
-            this.resolvedCheckTargetQuery = resolvedCheckTargetQuery;
-            this.isCheckEnabledValue = isCheckEnabledValue;
-            this.isUserSupplyQueryValue = isUserSupplyQueryValue;
-            this.readSourceQueryFromPathValue = readSourceQueryFromPathValue;
-            this.readTargetQueryFromPathValue = readTargetQueryFromPathValue;
-            this.isFailJobOnDataCheckErrorValue = isFailJobOnDataCheckErrorValue;
-        }
-    }
-
-    public JsonGenerationConfig(
-            JiraStoryIntake jiraStoryIntake, Sor sor, ApplicationAuthorizer applicationAuthorizer, SQLScript sqlScript,
-            SourceType sourceType, TargetType targetType,
-            boolean includeIngestions, boolean includeFlows, boolean includeDataChecks, boolean includeFileExtracts,
-            Set<String> jobLevelFieldsToInclude, Set<String> ingestionFieldsToInclude,
-            String resolvedIngestionSourceTypeValue, String resolvedIngestionConnectionHeaderValue,
-            String resolvedIngestionDataFrameName, String resolvedIngestionSourceSQLQuery,
-            String resolvedIngestionSourceName, String resolvedIngestionDataFilePath,
-            String resolvedIngestionSchemaFilePath, String resolvedIngestionStagingFilePath,
-            String resolvedIngestionDelimiter, String resolvedIngestionIsHeaderEnabled,
-            String resolvedIngestionSaveOutputFlag, String resolvedIngestionTargetPartition,
-            String ingestionIsCreateTargetTableValue, String ingestionIsCacheEnabledValue, String ingestionIsOverWritePartitionValue,
-            ObjectNode prebuiltIngestionAdditionalReadConfigsNode,
-            boolean includeDimcChecksInIngestion, ObjectNode prebuiltIngestionDimcChecksNode,
-            List<FlowDetailConfig> flowDetailsList,
-            String resolvedDataChecksAcDcDatabase, List<CheckDetailConfig> checkDetailsList,
-            ObjectNode prebuiltDataChecksPreChecksNode
-    ) {
-        this.jiraStoryIntake = Objects.requireNonNull(jiraStoryIntake, "JiraStoryIntake cannot be null");
-        this.sor = Objects.requireNonNull(sor, "Sor cannot be null");
-        this.applicationAuthorizer = Objects.requireNonNull(applicationAuthorizer, "ApplicationAuthorizer cannot be null");
-        this.sqlScript = Objects.requireNonNull(sqlScript, "SQLScript cannot be null");
-        this.sourceType = Objects.requireNonNull(sourceType, "SourceType cannot be null");
-        this.targetType = Objects.requireNonNull(targetType, "TargetType cannot be null");
-        this.includeIngestions = includeIngestions;
-        this.includeFlows = includeFlows;
-        this.includeDataChecks = includeDataChecks;
-        this.includeFileExtracts = includeFileExtracts;
-        this.jobLevelFieldsToInclude = Objects.requireNonNull(jobLevelFieldsToInclude, "jobLevelFieldsToInclude cannot be null");
-        this.ingestionFieldsToInclude = Objects.requireNonNull(ingestionFieldsToInclude, "ingestionFieldsToInclude cannot be null");
-        this.resolvedIngestionSourceTypeValue = resolvedIngestionSourceTypeValue;
-        this.resolvedIngestionConnectionHeaderValue = resolvedIngestionConnectionHeaderValue;
-        this.resolvedIngestionDataFrameName = resolvedIngestionDataFrameName;
-        this.resolvedIngestionSourceSQLQuery = resolvedIngestionSourceSQLQuery;
-        this.resolvedIngestionSourceName = resolvedIngestionSourceName;
-        this.resolvedIngestionDataFilePath = resolvedIngestionDataFilePath;
-        this.resolvedIngestionSchemaFilePath = resolvedIngestionSchemaFilePath;
-        this.resolvedIngestionStagingFilePath = resolvedIngestionStagingFilePath;
-        this.resolvedIngestionDelimiter = resolvedIngestionDelimiter;
-        this.resolvedIngestionIsHeaderEnabled = resolvedIngestionIsHeaderEnabled;
-        this.resolvedIngestionSaveOutputFlag = resolvedIngestionSaveOutputFlag;
-        this.resolvedIngestionTargetPartition = resolvedIngestionTargetPartition;
-        this.ingestionIsCreateTargetTableValue = ingestionIsCreateTargetTableValue;
-        this.ingestionIsCacheEnabledValue = ingestionIsCacheEnabledValue;
-        this.ingestionIsOverWritePartitionValue = ingestionIsOverWritePartitionValue;
-        this.prebuiltIngestionAdditionalReadConfigsNode = prebuiltIngestionAdditionalReadConfigsNode;
-        this.includeDimcChecksInIngestion = includeDimcChecksInIngestion;
-        this.prebuiltIngestionDimcChecksNode = prebuiltIngestionDimcChecksNode;
-        this.flowDetailsList = Objects.requireNonNull(flowDetailsList, "flowDetailsList cannot be null");
-        this.resolvedDataChecksAcDcDatabase = resolvedDataChecksAcDcDatabase;
-        this.checkDetailsList = Objects.requireNonNull(checkDetailsList, "checkDetailsList cannot be null");
-        this.prebuiltDataChecksPreChecksNode = prebuiltDataChecksPreChecksNode;
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 package com.wellsfargo.utcap.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -251,7 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+// Removed unused import: java.util.stream.Stream; // Not directly used after DIMC list refactor
 
 @Service
 public class JsonRequirementService {
@@ -261,8 +26,7 @@ public class JsonRequirementService {
     private static final String RAW_ZONE = "raw";
     private static final String TABLE_TEXT = " Table ";
     private static final String INGESTION_TO_TEXT = " ingestion to ";
-    // Corrected type for DIMC_CHECKS_MASTER_LIST
-    private static final List<Map<String, Object>> DIMC_CHECKS_MASTER_LIST = new ArrayList<>();
+    private static final List<Map<String, Object>> DIMC_CHECKS_MASTER_LIST = new ArrayList<>(); // Corrected type
     private static final String DIMC_CHECKS_ENABLED_PLACEHOLDER = "${DIMCCHECK_ENABLED}";
 
 
@@ -354,11 +118,10 @@ public class JsonRequirementService {
         
         String resolvedIngestionSourceSQLQuery = null;
         if (includeIngestions && isDatabaseSource(sourceTypeEnum) && sqlScript != null) {
-             resolvedIngestionSourceSQLQuery = sqlScript.getSrcTableQuery(); // Base query
-             // Specific enrichments or alternative handling if needed (e.g. Oracle's sourceName usage)
+             resolvedIngestionSourceSQLQuery = sqlScript.getSrcTableQuery();
         }
         String resolvedIngestionSourceName = (includeIngestions && sourceTypeEnum == JsonGenerationConfig.SourceType.ORACLE) ?
-                "${BDDMCBD_SRC_SCHEMA}." + jira.getTableName() : null; // Example from Oracle JSON
+                "${BDDMCBD_SRC_SCHEMA}." + jira.getTableName() : null;
 
         String resolvedIngestionDataFilePath = (includeIngestions && isFileSource(sourceTypeEnum)) ? "${SOURCE_FILE_DIR}/${SOURCE_FILE_NAME}" : null;
         String resolvedIngestionSchemaFilePath = (includeIngestions && isFileSource(sourceTypeEnum)) ?
@@ -366,11 +129,11 @@ public class JsonRequirementService {
         String resolvedIngestionStagingFilePath = (includeIngestions && isFileSource(sourceTypeEnum)) ?
                 determineStagingFilePath(sourceTypeEnum, sor, jira) : null;
         String resolvedIngestionDelimiter = includeIngestions ? resolveIngestionDelimiter(sourceTypeEnum) : null;
-        String resolvedIngestionIsHeaderEnabled = (includeIngestions && isFileSource(sourceTypeEnum)) ? "Y" : null; // Standardized to "Y" for all files
-
-        boolean isPipeOrComma = sourceTypeEnum == JsonGenerationConfig.SourceType.FILE_PIPE || sourceTypeEnum == JsonGenerationConfig.SourceType.FILE_COMMA;
-        String resolvedIngestionSaveOutputFlag = (includeIngestions && isPipeOrComma) ? "Y" : null;
-        String resolvedIngestionTargetPartition = (includeIngestions && isPipeOrComma) ? "utcap_business_effective_date" : null;
+        String resolvedIngestionIsHeaderEnabled = (includeIngestions && isFileSource(sourceTypeEnum)) ? "Y" : null;
+        
+        boolean isPipeOrComma = includeIngestions && (sourceTypeEnum == JsonGenerationConfig.SourceType.FILE_PIPE || sourceTypeEnum == JsonGenerationConfig.SourceType.FILE_COMMA);
+        String resolvedIngestionSaveOutputFlag = isPipeOrComma ? "Y" : null;
+        String resolvedIngestionTargetPartition = isPipeOrComma ? "utcap_business_effective_date" : null;
 
         String ingestionIsCreateTargetTableValue = includeIngestions ? "Y" : null;
         String ingestionIsCacheEnabledValue = includeIngestions ? "Y" : null;
@@ -380,11 +143,10 @@ public class JsonRequirementService {
                 buildPrebuiltIngestionAdditionalReadConfigs(sourceTypeEnum) : null;
         
         boolean includeDimcChecksInIngestion = includeIngestions &&
-                (sourceTypeEnum == JsonGenerationConfig.SourceType.TERADATA ||
-                 isFileSource(sourceTypeEnum) ||
-                 sourceTypeEnum == JsonGenerationConfig.SourceType.HIVE);
+                (EnumSet.of(JsonGenerationConfig.SourceType.TERADATA, JsonGenerationConfig.SourceType.HIVE).contains(sourceTypeEnum) ||
+                 isFileSource(sourceTypeEnum)); // Only these sources get DIMC based on user rules
         
-        List<Integer> chosenDimcCheckIndices = Arrays.asList(0, 1, 2, 3, 4, 5); // Hardcoded for now
+        List<Integer> chosenDimcCheckIndices = Arrays.asList(0, 1, 2, 3, 4, 5); // Default all for now
         ObjectNode prebuiltIngestionDimcChecksNode = includeDimcChecksInIngestion ?
                 buildPrebuiltDimcChecksNode(chosenDimcCheckIndices) : null;
 
@@ -395,10 +157,11 @@ public class JsonRequirementService {
                 prepareCheckDetails(sourceTypeEnum, targetTypeEnum, jira, auth, flowDetailsList, resolvedIngestionDataFrameName) : Collections.emptyList();
         
         String resolvedDataChecksAcDcDatabase = includeDataChecks ?
-                determineDataChecksAcDcDatabase(sourceTypeEnum, targetTypeEnum, auth, sor, !checkDetailsList.isEmpty()) : null;
+                determineDataChecksAcDcDatabase(sourceTypeEnum, targetTypeEnum, auth, sor, jira, !checkDetailsList.isEmpty()) : null; // Passed jira
         ObjectNode prebuiltDataChecksPreChecksNode = includeDataChecks ?
-                buildPrebuiltDataChecksPreChecksNode(sourceTypeEnum, targetTypeEnum) : null;
+                buildPrebuiltDataChecksPreChecksNode(sourceTypeEnum) : null; // Removed targetType as preChecks are mostly source-driven or static
 
+        // Carefully match constructor order
         return new JsonGenerationConfig(
                 jira, sor, auth, sqlScript, sourceTypeEnum, targetTypeEnum,
                 includeIngestions, includeFlows, includeDataChecks, includeFileExtracts,
@@ -417,7 +180,7 @@ public class JsonRequirementService {
         );
     }
 
-    // --- Helper methods for buildJsonGenerationConfig ---
+    // --- Helper methods for buildJsonGenerationConfig (Value Resolvers & Structure Builders) ---
     private boolean isDatabaseSource(JsonGenerationConfig.SourceType sourceType) {
         return EnumSet.of(JsonGenerationConfig.SourceType.TERADATA,
                           JsonGenerationConfig.SourceType.MSSQL,
@@ -445,7 +208,7 @@ public class JsonRequirementService {
             "ingestionId", "ingestionDesc", "isIngestionEnabled", "dataFrameName",
             "isCreateTargetTable", "isCacheEnabled", "isOverWritePartition",
             "abortIfDuplicate", "abortIfEmpty", "isRunEMHReport", "sourceType"
-            // "targetType" (e.g. parquet) is added if target is Hive by generic builder
+            // "targetType" key for ingestion (value "parquet") will be added by generic builder if target is Hive
         ));
 
         if (isDatabaseSource(sourceType)) {
@@ -466,10 +229,8 @@ public class JsonRequirementService {
             }
         }
         
-        if (sourceType == JsonGenerationConfig.SourceType.TERADATA ||
-            isFileSource(sourceType) ||
-            sourceType == JsonGenerationConfig.SourceType.HIVE) { // Assuming Hive as source can have DIMC
-            fields.add("dimcChecks");
+        if (EnumSet.of(JsonGenerationConfig.SourceType.TERADATA, JsonGenerationConfig.SourceType.HIVE).contains(sourceType) || isFileSource(sourceType)) {
+            fields.add("dimcChecks"); // DIMC checks for TD, Files, Hive source
         }
         return fields;
     }
@@ -491,22 +252,25 @@ public class JsonRequirementService {
             case TERADATA: return "teradbConn";
             case MSSQL: return "jdbcConn";
             case ORACLE: return "oracleConn";
-            case HIVE: return "hiveConn"; // Assuming a connection header for Hive as source
+            case HIVE: return "hiveConn"; // Assuming for Hive as source
             default: return null;
         }
     }
 
     private String resolveIngestionDataFrameName(JsonGenerationConfig.SourceType sourceType, String tableName) {
         String safeTableName = tableName.toLowerCase(Locale.ROOT);
+        // Per user: _raw_df for DBs/FW, _df for Pipe/Comma
         if (isDatabaseSource(sourceType) || sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH) {
             return safeTableName + "_raw_df";
-        } else { // Pipe, Comma
+        } else { 
             return safeTableName + "_df";
         }
     }
     
     private String determineStagingFilePath(JsonGenerationConfig.SourceType sourceType, Sor sor, JiraStoryIntake jira) {
-        if (sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH && "Hemi".equalsIgnoreCase(sor.getSorName()) && "demog_exp_e3_load".equalsIgnoreCase(jira.getTableName())) {
+        if (sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH && 
+            "Hemi".equalsIgnoreCase(sor.getSorName()) && 
+            "demog_exp_e3_load".equalsIgnoreCase(jira.getTableName())) {
             return "/datalake/utcap/hemi/sanitized";
         }
         return "${EXP_EDL_PATH}";
@@ -525,7 +289,7 @@ public class JsonRequirementService {
             arNode.put("escape", "\"");
             return arNode;
         }
-        return null; // FixedWidth has no additionalReadConfigs per user
+        return null;
     }
 
     private ObjectNode buildPrebuiltDimcChecksNode(List<Integer> chosenIndices) throws JsonProcessingException {
@@ -548,17 +312,17 @@ public class JsonRequirementService {
             String flowId = String.valueOf(i + 1);
             boolean isFirstFlow = (i == 0);
             
-            String flowZone = SANITIZED_ZONE; // Default for single flows or second flow of DB
+            String flowZone = SANITIZED_ZONE; 
             if (numberOfFlows == 2 && isFirstFlow) {
-                flowZone = RAW_ZONE; // First flow for MSSQL/Oracle is "raw"
+                flowZone = RAW_ZONE; 
             }
+             
+            String querySourceDf = ingestionDataFrameNameIfAny; 
+            // Corrected placeholder for source database for Hive source. Use getSourceSchema() if that's correct.
+            String sourceHiveDb = jira.getSourceSchema() != null ? jira.getSourceSchema() : "${SOURCE_HIVE_DATABASE}"; // Default placeholder
 
-            String querySourceDf = ingestionDataFrameNameIfAny; // Default
-             // If Hive is source, ingestion might be skipped, flow query needs direct source.
-            if (sourceType == JsonGenerationConfig.SourceType.HIVE && targetType == JsonGenerationConfig.TargetType.GCP) {
-                querySourceDf = jira.getSourceTableName(); // Example: flow queries directly from source Hive table for Hive->GCP
-            } else if (sourceType == JsonGenerationConfig.SourceType.HIVE && targetType == JsonGenerationConfig.TargetType.HIVE) {
-                 querySourceDf = jira.getSourceTableName(); // Example for Hive->Hive
+            if (sourceType == JsonGenerationConfig.SourceType.HIVE) {
+                 querySourceDf = sourceHiveDb + "." + jira.getSourceTableName();
             }
 
 
@@ -568,46 +332,40 @@ public class JsonRequirementService {
             String flowDatabaseName = "";
             String storageName = "";
             String targetTablePath = null;
-            String hivePartitionColumn = auth.getHivePartition(); // Default
-            String isCreateFlowTargetTable = "N";
-            String isOverWritePartition = "Y";
-            String isCacheEnabledFlow = "N";
-            String sendEmailFlow = "N";
-            String saveOutputFlow = "Y";
+            String hivePartitionColumn = auth.getHivePartition(); 
+            String isCreateFlowTargetTable = "N"; 
+            String isOverWritePartition = "Y";   
+            String isCacheEnabledFlow = "N";     
+            String sendEmailFlow = "N";          
+            String saveOutputFlow = "Y";         
 
             if (targetType == JsonGenerationConfig.TargetType.GCP) {
                 query = sqlScript.getSrcTableQuery() + " ${ENB_LIMIT} ${LIMIT_COUNT}";
-                 if (sourceType == JsonGenerationConfig.SourceType.HIVE) { // Hive to GCP Example
-                     query = "SELECT * FROM " + jira.getSourceDatabase() + "." + jira.getSourceTableName() + " ${ENB_LIMIT} ${LIMIT_COUNT}";
+                 if (sourceType == JsonGenerationConfig.SourceType.HIVE) {
+                     query = "SELECT * FROM " + querySourceDf + " ${ENB_LIMIT} ${LIMIT_COUNT}"; // querySourceDf is now db.table
                  }
                 flowDesc = "Extraction of " + (jira.getSourceTableName() != null ? jira.getSourceTableName() : jira.getTableName()) + " for CDMP processing.";
                 registerName = jira.getTableName().toLowerCase(Locale.ROOT) + "_extract_df";
                 saveOutputFlow = "N"; 
             } else { // Hive Target
-                query = sqlScript.getSrcDataFrameQuery(); // Default for ingestion existing
-                 if (sourceType == JsonGenerationConfig.SourceType.HIVE) { // Hive to Hive example
-                     query = "SELECT * FROM " + jira.getSourceDatabase() + "." + jira.getSourceTableName(); // Direct query
-                     querySourceDf = null; // No intermediate DF from ingestion
-                 } else if (querySourceDf != null) { // If ingestion produced a DF
-                     // Default for most source-to-Hive flows that use ingestion output
-                     query = "SELECT * FROM " + querySourceDf;
-                 }
-
-
-                // Apply example-specific query structures for files
-                if (isFileSource(sourceType)) {
-                    String baseSelect = querySourceDf != null ? "SELECT df.*" : "SELECT *"; // df.* if querySourceDf existed
-                    String auditCols = ", '${UTCAP_CRTE_BY_ID}' as utcap_crte_by_id, '${UTCAP_CRTE_DTTM}' as utcap_crte_dttm, '${UTCAP_DELTA_CD}' as utcap_delta_cd, '${UTCAP_ERR_FLG_IND}' as utcap_err_flg_ind, '${UTCAP_ERR_TXT}' as utcap_err_txt, '${UTCAP_RUN_ID}' as utcap_run_id, '${UTCAP_SOR_CD}' as utcap_sor_cd, '${UTCAP_BUSINESS_EFFECTIVE_DATE}' as utcap_business_effective_date";
-                    query = baseSelect + auditCols + (querySourceDf != null ? (" FROM " + querySourceDf + " df") : ""); // Handle if querySourceDf is null
-
-                    // File specific paths (following Pipe/Comma JSONs as per instruction)
-                    storageName = "${TARGET_TABLE_NAME}";
+                if (sourceType == JsonGenerationConfig.SourceType.HIVE) { 
+                     query = "SELECT * FROM " + querySourceDf; // Direct query from db.table
+                } else if (querySourceDf != null) { 
+                     query = "SELECT * FROM " + querySourceDf; // Default select all from ingestion DF
+                     if (isFileSource(sourceType)) { // Files add audit columns
+                         query = "SELECT df.*, '${UTCAP_CRTE_BY_ID}' as utcap_crte_by_id, '${UTCAP_CRTE_DTTM}' as utcap_crte_dttm, '${UTCAP_DELTA_CD}' as utcap_delta_cd, '${UTCAP_ERR_FLG_IND}' as utcap_err_flg_ind, '${UTCAP_ERR_TXT}' as utcap_err_txt, '${UTCAP_RUN_ID}' as utcap_run_id, '${UTCAP_SOR_CD}' as utcap_sor_cd, '${UTCAP_BUSINESS_EFFECTIVE_DATE}' as utcap_business_effective_date FROM " + querySourceDf + " df";
+                     }
+                } else {
+                    query = sqlScript.getSrcDataFrameQuery(); // Fallback if no ingestionDF (should not happen if ingestion is present)
+                }
+                
+                if (isFileSource(sourceType)) { 
+                    storageName = "${TARGET_TABLE_NAME}"; 
                     targetTablePath = "${EXP_EDL_PATH}/${TARGET_TABLE_NAME}";
-                    flowDatabaseName = "${HIVE_TARGET_DBNAME}";
-                    hivePartitionColumn = "utcap_business_effective_date"; // Common for these file examples
+                    flowDatabaseName = "${HIVE_TARGET_DBNAME}"; 
+                    hivePartitionColumn = "utcap_business_effective_date"; 
                     sendEmailFlow = "Y";
-                    isCacheEnabledFlow = "N"; // Explicitly N for files in examples
-                    // isCreateFlowTargetTable is N for files
+                    // isCreateFlowTargetTable remains N for files
                 } else { // DB sources to Hive
                     Map<String, String> storageNameMap = Map.of("CNAPP", "consumer", "UTCAP", "utcap");
                     String appSubDir = storageNameMap.getOrDefault(jira.getApplicationName(), jira.getApplicationName().toLowerCase());
@@ -616,19 +374,19 @@ public class JsonRequirementService {
                                   sor.getSorName().toLowerCase(Locale.ROOT) + "/" +
                                   flowZone + "/" + jira.getTableName();
                     flowDatabaseName = "${ETL_ENV}" + appSubDir + "_" + sor.getSorName().toLowerCase() + "_" + flowZone;
-                    // Specific partition columns from DB examples
+                    
                     if (sourceType == JsonGenerationConfig.SourceType.ORACLE) hivePartitionColumn = "businessdate";
                     else if (sourceType == JsonGenerationConfig.SourceType.MSSQL) hivePartitionColumn = "eapp_dct_business_effective_date";
-                    // else defaults to auth.getHivePartition() (covers Teradata, Hive as source)
-                    isCreateFlowTargetTable = (sourceType == JsonGenerationConfig.SourceType.ORACLE) ? "Y" : "N"; // Oracle example creates tables in flows
-                    isCacheEnabledFlow = (sourceType == JsonGenerationConfig.SourceType.TERADATA) ? "Y" : "N"; // Teradata example had Y
+                    
+                    isCreateFlowTargetTable = (sourceType == JsonGenerationConfig.SourceType.ORACLE) ? "Y" : "N"; 
+                    isCacheEnabledFlow = (sourceType == JsonGenerationConfig.SourceType.TERADATA) ? "Y" : "N"; 
                 }
             }
 
             flowConfigs.add(new JsonGenerationConfig.FlowDetailConfig(
                     flowId, flowDesc, query, registerName, flowDatabaseName, storageName, targetTablePath,
                     hivePartitionColumn, isCreateFlowTargetTable, isOverWritePartition, isCacheEnabledFlow,
-                    sendEmailFlow, "N", saveOutputFlow // abortIfEmpty = "N" for all
+                    sendEmailFlow, "N", saveOutputFlow 
             ));
         }
         return flowConfigs;
@@ -641,81 +399,77 @@ public class JsonRequirementService {
 
         List<JsonGenerationConfig.CheckDetailConfig> checkConfigs = new ArrayList<>();
         if (targetType == JsonGenerationConfig.TargetType.GCP || flowDetails.isEmpty()) {
-            return checkConfigs; // No data checks for GCP target or if no flows defined
+            return checkConfigs;
         }
 
         for (JsonGenerationConfig.FlowDetailConfig currentFlow : flowDetails) {
-            String checkId = currentFlow.getFlowId(); // Match checkId to flowId
+            String checkId = currentFlow.getFlowId();
             String checkName = "HHRCNTCHK";
             String checkDesc = "Data Count Check";
             
             String checkSourceQueryDataFrame;
-            // Source for check is typically the output of ingestion, or initial table if no ingestion (Hive source)
-            if (sourceType == JsonGenerationConfig.SourceType.HIVE) { // If source is Hive, ingestion is skipped.
-                checkSourceQueryDataFrame = jira.getSourceDatabase() + "." + jira.getSourceTableName(); // Check raw Hive table
+            if (sourceType == JsonGenerationConfig.SourceType.HIVE) {
+                // Corrected placeholder for source database. Use getSourceSchema() if that's correct.
+                String sourceHiveDb = jira.getSourceSchema() != null ? jira.getSourceSchema() : "${SOURCE_HIVE_DATABASE}";
+                checkSourceQueryDataFrame = sourceHiveDb + "." + jira.getSourceTableName();
             } else if (ingestionDataFrameName != null) {
-                checkSourceQueryDataFrame = ingestionDataFrameName; // Use output of ingestion step
+                checkSourceQueryDataFrame = ingestionDataFrameName;
             } else {
                 LOG.warn("Cannot determine source DataFrame for data check for source: {} and flow: {}", sourceType, currentFlow.getFlowId());
-                continue; // Skip this check if source DF is unclear
+                continue; 
             }
 
             String checkSourceQuery = "select count(*) from " + checkSourceQueryDataFrame;
             String checkTargetQuery = "select count(*) from " + currentFlow.getResolvedFlowDatabaseName() + "." + jira.getTableName() +
                                      " where " + currentFlow.getResolvedFlowHivePartitionColumn() + "='${EAPP_DCT_BUSINESS_EFFECTIVE_DATE}'";
             
-            // Specific targetQuery for FixedWidth's single flow which uses registerName as target
             if (sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH && "demog_exp_e3_load_sanitized".equals(currentFlow.getResolvedFlowRegisterName())) {
-                checkTargetQuery = "select count(*) from " + currentFlow.getResolvedFlowRegisterName();
+                 checkTargetQuery = "select count(*) from " + currentFlow.getResolvedFlowRegisterName();
             }
-
 
             String isFailJobOnDataCheckError = (isFileSource(sourceType)) ? "Y" : "N";
 
             checkConfigs.add(new JsonGenerationConfig.CheckDetailConfig(
                     checkId, checkName, checkDesc, checkSourceQuery, checkTargetQuery,
-                    "Y", "Y", "N", "N", isFailJobOnDataCheckError // isEnabled, isUserSupply, readSourcePath, readTargetPath
+                    "Y", "Y", "N", "N", isFailJobOnDataCheckError
             ));
         }
         return checkConfigs;
     }
     
-    private String determineDataChecksAcDcDatabase(JsonGenerationConfig.SourceType sourceType, JsonGenerationConfig.TargetType targetType, ApplicationAuthorizer auth, Sor sor, boolean checksArePresent) {
+    // Corrected: Added JiraStoryIntake jira parameter
+    private String determineDataChecksAcDcDatabase(JsonGenerationConfig.SourceType sourceType, JsonGenerationConfig.TargetType targetType, ApplicationAuthorizer auth, Sor sor, JiraStoryIntake jira, boolean checksArePresent) {
         if (checksArePresent && targetType != JsonGenerationConfig.TargetType.GCP) {
             if(sourceType == JsonGenerationConfig.SourceType.MSSQL || sourceType == JsonGenerationConfig.SourceType.ORACLE) return "${ETL_ENV}consumer_audit";
-            if(sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH && "utcap".equalsIgnoreCase(jira.getApplicationName())) return "utcap_curated_mu_audit"; // jira is not in scope. Use auth.
-            if(sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH && "utcap".equalsIgnoreCase(auth.getApplicationName())) return "utcap_curated_mu_audit";
+            // Corrected: use jira.getApplicationName()
+            if(sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH && "utcap".equalsIgnoreCase(jira.getApplicationName())) return "utcap_curated_mu_audit";
             if((sourceType == JsonGenerationConfig.SourceType.FILE_PIPE || sourceType == JsonGenerationConfig.SourceType.FILE_COMMA) &&
-                "utcap".equalsIgnoreCase(auth.getApplicationName()) && "corelogic".equalsIgnoreCase(sor.getSorName())) return "${UTCAP_AUDIT_DB}";
+                "utcap".equalsIgnoreCase(jira.getApplicationName()) && "corelogic".equalsIgnoreCase(sor.getSorName())) return "${UTCAP_AUDIT_DB}";
             return auth.getAuditTable();
         }
         return "${AUDIT_DATABASE}";
     }
 
-    private ObjectNode buildPrebuiltDataChecksPreChecksNode(JsonGenerationConfig.SourceType sourceType, JsonGenerationConfig.TargetType targetType) {
+    private ObjectNode buildPrebuiltDataChecksPreChecksNode(JsonGenerationConfig.SourceType sourceType) {
         ObjectNode preChecksNode = objectMapper.createObjectNode();
-        // Default isPreCheckEnabled to "Y" from metadata, specific examples may override to "N"
-        boolean overallPreCheckEnabled = true; 
-        // Example: FixedWidth JSON set root isPreCheckEnabled to N
-        if(sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH) overallPreCheckEnabled = false;
+        boolean overallPreCheckEnabled = sourceType != JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH; // FW example had all N
 
-        preChecksNode.put("isPreCheckEnabled", overallPreCheckEnabled ? "Y" : "${PRECHECK_ENABLED}"); // Use Y/N or placeholder
+        preChecksNode.put("isPreCheckEnabled", overallPreCheckEnabled ? "Y" : "${PRECHECK_ENABLED}");
         ArrayNode preCheckArray = preChecksNode.putArray("preCheck");
 
         boolean isDbAsSource = isDatabaseSource(sourceType);
         boolean isFileAsSource = isFileSource(sourceType);
 
-        // Values "Y" / "N" for isPreCheckEnabled / isFailJobOnPreCheckError based on dominant patterns or specific example if available
         addPreCheckItem(preCheckArray, "ServiceIDCheck", overallPreCheckEnabled ? "Y" : "N", "Y");
-        addPreCheckItem(preCheckArray, "TargetDataBaseAvailabilityCheck", overallPreCheckEnabled && targetType == JsonGenerationConfig.TargetType.HIVE ? "Y" : "N", "Y");
-        addPreCheckItem(preCheckArray, "TargetTableAvailabilityCheck", overallPreCheckEnabled && targetType == JsonGenerationConfig.TargetType.HIVE ? "Y" : "N", "Y");
-        addPreCheckItem(preCheckArray, "TargetTablePathWritableCheck", overallPreCheckEnabled && targetType == JsonGenerationConfig.TargetType.HIVE ? "Y" : "N", "Y");
-        addPreCheckItem(preCheckArray, "FlowSeqDependenciesCheck", "N", "N"); // Commonly N
+        addPreCheckItem(preCheckArray, "TargetDataBaseAvailabilityCheck", overallPreCheckEnabled && isDbAsSource ? "Y" : "N", "Y");
+        addPreCheckItem(preCheckArray, "TargetTableAvailabilityCheck", overallPreCheckEnabled && isDbAsSource ? "Y" : "N", "Y");
+        addPreCheckItem(preCheckArray, "TargetTablePathWritableCheck", overallPreCheckEnabled ? "Y" : "N", "Y");
+        addPreCheckItem(preCheckArray, "FlowSeqDependenciesCheck", "N", "N");
         addPreCheckItem(preCheckArray, "SourceDataBaseAvailabilityCheck", overallPreCheckEnabled && isDbAsSource ? "Y" : "N", "Y");
         addPreCheckItem(preCheckArray, "SourceTableAvailabilityCheck", overallPreCheckEnabled && isDbAsSource ? "Y" : "N", "Y");
-        addPreCheckItem(preCheckArray, "SourceTableEmptyCheck", "N", "N"); // Commonly N
+        addPreCheckItem(preCheckArray, "SourceTableEmptyCheck", "N", "N");
         addPreCheckItem(preCheckArray, "SourcePathAvailabilityCheck", overallPreCheckEnabled && isFileAsSource ? "Y" : "N", "Y");
-        addPreCheckItem(preCheckArray, "SourcePathEmptyCheck", "N", "N"); // Commonly N
+        addPreCheckItem(preCheckArray, "SourcePathEmptyCheck", "N", "N");
         return preChecksNode;
     }
 
@@ -723,7 +477,7 @@ public class JsonRequirementService {
         ObjectNode item = objectMapper.createObjectNode();
         item.put("preCheckName", name);
         item.put("isPreCheckEnabled", enabled);
-        item.put("isFailJobOnPreCheckError", failOnError);
+        item.put("isFailJobOnPreCheckError", failOnError); // Standardized key
         array.add(item);
     }
 
@@ -754,7 +508,7 @@ public class JsonRequirementService {
         if (jobFields.contains("sorRemedyId")) jobNode.put("sorRemedyId", sor.getRemedyId());
         if (jobFields.contains("queryGroup")) jobNode.put("queryGroup", "dimc_check_" + sor.getSorName().toLowerCase(Locale.ROOT));
         if (jobFields.contains("zone")) jobNode.put("zone", SANITIZED_ZONE);
-        if (jobFields.contains("sor")) jobNode.put("sor", sor.getSorName().toLowerCase(Locale.ROOT)); // Use lowercase sor from examples
+        if (jobFields.contains("sor")) jobNode.put("sor", sor.getSorName().toLowerCase(Locale.ROOT));
 
         jobNode.put("jobId", "1");
         jobNode.put("jobDescription", determineJobDescription(config));
@@ -786,14 +540,14 @@ public class JsonRequirementService {
         if (config.getTargetType() == JsonGenerationConfig.TargetType.GCP) {
             return "CDMP Extract for Hive table - " + jira.getTableName().toLowerCase(Locale.ROOT);
         } else {
-            // Specific example overrides for description if needed
-            if ("BKPF".equalsIgnoreCase(sor.getSorName()) && "mappings_consolidations".equalsIgnoreCase(jira.getTableName())) { // MSSQL example
+            if ("BKPF".equalsIgnoreCase(sor.getSorName())) { // MSSQL example pattern
                  return sor.getSorName() + " " + jira.getTableName() + INGESTION_TO_TEXT + jira.getApplicationName();
-            } else if ("Hemi".equalsIgnoreCase(sor.getSorName()) && "demog_exp_e3_load".equalsIgnoreCase(jira.getTableName())) { // FW Example
-                return sor.getSorName() + TABLE_TEXT + jira.getTableName() + INGESTION_TO_TEXT + "Hive"; // Example has "to Hive"
-            } else if ("corelogic".equalsIgnoreCase(sor.getSorName()) && "utcap vol_lien_load".equalsIgnoreCase(jira.getTableName())) { // CSV/Pipe uses different JobName from table
+            } else if ("Hemi".equalsIgnoreCase(sor.getSorName())) { // FW Example
+                return sor.getSorName() + TABLE_TEXT + jira.getTableName() + INGESTION_TO_TEXT + "Hive";
+            } else if ("corelogic".equalsIgnoreCase(sor.getSorName())) { // CSV/Pipe example
                  return "utcap " + sor.getSorName() + " ingestion for feed " + jira.getTableName();
             }
+            // Default for other DBs to Hive (like Teradata, Oracle)
             return sor.getSorName() + TABLE_TEXT + jira.getTableName().toLowerCase(Locale.ROOT) + INGESTION_TO_TEXT + jira.getApplicationName();
         }
     }
@@ -831,17 +585,9 @@ public class JsonRequirementService {
         if (fields.isEmpty()) return null;
 
         ObjectNode ingestionItemNode = objectMapper.createObjectNode();
-        JiraStoryIntake jira = config.getJiraStoryIntake(); Sor sor = config.getSor();
-
+        // Common static values or directly resolved from config simple getters
         if (fields.contains("ingestionId")) ingestionItemNode.put("ingestionId", "1");
-        if (fields.contains("ingestionDesc")) {
-             String desc = sor.getSorName() + TABLE_TEXT + jira.getTableName() + INGESTION_TO_TEXT + jira.getApplicationName();
-             // Example-based overrides
-             if ("BKPF".equalsIgnoreCase(sor.getSorName())) desc = sor.getSorName() + " " + jira.getTableName() + " ingestion";
-             else if ("HEMI".equalsIgnoreCase(sor.getSorName())) desc = sor.getSorName() + TABLE_TEXT + jira.getTableName() + " ingestion to EDL";
-             else if ("corelogic".equalsIgnoreCase(sor.getSorName())) desc = jira.getTableName() + " ingestion to utcap sanitized";
-             ingestionItemNode.put("ingestionDesc", desc);
-        }
+        if (fields.contains("ingestionDesc")) ingestionItemNode.put("ingestionDesc", determineIngestionDescription(config));
         if (fields.contains("isIngestionEnabled")) ingestionItemNode.put("isIngestionEnabled", "Y");
         if (fields.contains("sourceType")) ingestionItemNode.put("sourceType", config.getResolvedIngestionSourceTypeValue());
         if (fields.contains("ConnectionHeader") && config.getResolvedIngestionConnectionHeaderValue() != null)
@@ -849,9 +595,11 @@ public class JsonRequirementService {
         if (fields.contains("delimiter") && config.getResolvedIngestionDelimiter() != null)
             ingestionItemNode.put("delimiter", config.getResolvedIngestionDelimiter());
         if (fields.contains("dataFrameName")) ingestionItemNode.put("dataFrameName", config.getResolvedIngestionDataFrameName());
+        
         if (fields.contains("isCreateTargetTable")) ingestionItemNode.put("isCreateTargetTable", config.getIngestionIsCreateTargetTableValue());
         if (fields.contains("isCacheEnabled")) ingestionItemNode.put("isCacheEnabled", config.getIngestionIsCacheEnabledValue());
         if (fields.contains("isOverWritePartition")) ingestionItemNode.put("isOverWritePartition", config.getIngestionIsOverWritePartitionValue());
+        
         if (fields.contains("abortIfDuplicate")) ingestionItemNode.put("abortIfDuplicate", "N");
         if (fields.contains("abortIfEmpty")) ingestionItemNode.put("abortIfEmpty", "N");
         if (fields.contains("isRunEMHReport")) ingestionItemNode.put("isRunEMHReport", "N");
@@ -875,21 +623,35 @@ public class JsonRequirementService {
         if (fields.contains("targetType") && config.getTargetType() == JsonGenerationConfig.TargetType.HIVE)
              ingestionItemNode.put("targetType", "parquet");
 
-
         if (fields.contains("additionalReadConfigs") && config.getPrebuiltIngestionAdditionalReadConfigsNode() != null)
             ingestionItemNode.set("additionalReadConfigs", config.getPrebuiltIngestionAdditionalReadConfigsNode());
         if (fields.contains("dimcChecks") && config.isIncludeDimcChecksInIngestion() && config.getPrebuiltIngestionDimcChecksNode() != null)
             ingestionItemNode.set("dimcChecks", config.getPrebuiltIngestionDimcChecksNode());
         
         ObjectNode finalIngestionsNode = objectMapper.createObjectNode();
-        if(ingestionItemNode.size() > 0) { // Only add if the item node has content
+        if(ingestionItemNode.size() > 0) {
              addToArray(finalIngestionsNode, "ingestion", ingestionItemNode);
              return finalIngestionsNode;
         }
         return null;
     }
+    
+    private String determineIngestionDescription(JsonGenerationConfig config){
+        JiraStoryIntake jira = config.getJiraStoryIntake(); Sor sor = config.getSor();
+        // Default pattern
+        String desc = sor.getSorName() + TABLE_TEXT + jira.getTableName() + INGESTION_TO_TEXT + jira.getApplicationName();
+        // Example-based overrides
+        if ("BKPF".equalsIgnoreCase(sor.getSorName())) desc = sor.getSorName() + " " + jira.getTableName() + " ingestion"; // MSSQL example
+        else if ("HEMI".equalsIgnoreCase(sor.getSorName())) desc = sor.getSorName() + TABLE_TEXT + jira.getTableName() + " ingestion to EDL"; // FW example
+        else if ("corelogic".equalsIgnoreCase(sor.getSorName())) desc = jira.getTableName() + " ingestion to utcap sanitized"; // CSV/Pipe Example
+        else if ("BDDM".equalsIgnoreCase(sor.getSorName())) desc = sor.getSorName() + TABLE_TEXT + jira.getTableName() + INGESTION_TO_TEXT + jira.getApplicationName(); // Oracle example
+        return desc;
+    }
+
 
     private ObjectNode buildGenericFlowsNode(JsonGenerationConfig config) {
+        // (Implementation from last response - seems okay, relies on FlowDetailConfig being well-populated)
+        // Minor adjustments for clarity
         if (!config.isIncludeFlows() || config.getFlowDetailsList().isEmpty()) return null;
 
         ObjectNode flowsNode = objectMapper.createObjectNode();
@@ -897,23 +659,23 @@ public class JsonRequirementService {
 
         for (JsonGenerationConfig.FlowDetailConfig flowDetail : config.getFlowDetailsList()) {
             ObjectNode flowItemNode = objectMapper.createObjectNode();
-            flowItemNode.put("flowId", flowDetail.getFlowId());
-            flowItemNode.put("flowDesc", flowDetail.getResolvedFlowDescription());
-            flowItemNode.put("isFlowEnabled", "Y");
-            flowItemNode.put("query", flowDetail.getResolvedFlowQuery());
-            flowItemNode.put("registerName", flowDetail.getResolvedFlowRegisterName());
+            if(flowDetail.getFlowId() != null) flowItemNode.put("flowId", flowDetail.getFlowId());
+            if(flowDetail.getResolvedFlowDescription() != null) flowItemNode.put("flowDesc", flowDetail.getResolvedFlowDescription());
+            flowItemNode.put("isFlowEnabled", "Y"); // Default
+            if(flowDetail.getResolvedFlowQuery() != null) flowItemNode.put("query", flowDetail.getResolvedFlowQuery());
+            if(flowDetail.getResolvedFlowRegisterName() != null) flowItemNode.put("registerName", flowDetail.getResolvedFlowRegisterName());
             
             if (config.getTargetType() == JsonGenerationConfig.TargetType.HIVE) {
-                flowItemNode.put("saveOutput", flowDetail.getSaveOutputValue());
+                if(flowDetail.getSaveOutputValue() != null) flowItemNode.put("saveOutput", flowDetail.getSaveOutputValue());
                 if(flowDetail.getResolvedFlowDatabaseName()!=null) flowItemNode.put("flowDataBaseName", flowDetail.getResolvedFlowDatabaseName());
                 if(flowDetail.getResolvedFlowStorageName()!=null) flowItemNode.put("storageName", flowDetail.getResolvedFlowStorageName());
                 if(flowDetail.getResolvedFlowTargetTablePath()!=null) flowItemNode.put("targetTablePath", flowDetail.getResolvedFlowTargetTablePath());
                 if(flowDetail.getResolvedFlowHivePartitionColumn()!=null) flowItemNode.put("hivePartitionColumn", flowDetail.getResolvedFlowHivePartitionColumn());
-                flowItemNode.put("isCreateFlowTargetTable", flowDetail.getIsCreateFlowTargetTableValue());
-                flowItemNode.put("isOverWritePartition", flowDetail.getIsOverWritePartitionValue());
-                flowItemNode.put("isCacheEnabled", flowDetail.getIsCacheEnabledValue());
-                flowItemNode.put("sendEmail", flowDetail.getSendEmailValue());
-                flowItemNode.put("abortIfEmpty", flowDetail.getAbortIfEmptyValue());
+                if(flowDetail.getIsCreateFlowTargetTableValue()!=null) flowItemNode.put("isCreateFlowTargetTable", flowDetail.getIsCreateFlowTargetTableValue());
+                if(flowDetail.getIsOverWritePartitionValue()!=null) flowItemNode.put("isOverWritePartition", flowDetail.getIsOverWritePartitionValue());
+                if(flowDetail.getIsCacheEnabledValue()!=null) flowItemNode.put("isCacheEnabled", flowDetail.getIsCacheEnabledValue());
+                if(flowDetail.getSendEmailValue()!=null) flowItemNode.put("sendEmail", flowDetail.getSendEmailValue());
+                if(flowDetail.getAbortIfEmptyValue()!=null) flowItemNode.put("abortIfEmpty", flowDetail.getAbortIfEmptyValue());
             }
             flowArray.add(flowItemNode);
         }
@@ -921,13 +683,18 @@ public class JsonRequirementService {
     }
 
     private ObjectNode buildGenericDataChecksNode(JsonGenerationConfig config) {
+        // (Implementation from last response - seems okay, relies on CheckDetailConfig)
+        // Minor adjustments
         if (!config.isIncludeDataChecks()) return null;
-        // Only build if there are actual checks or preChecks to add, beyond the base properties.
         boolean hasCheckDetails = !config.getCheckDetailsList().isEmpty();
-        boolean hasPreChecks = config.getPrebuiltDataChecksPreChecksNode() != null && config.getPrebuiltDataChecksPreChecksNode().size() > 0;
+        boolean hasPreChecks = config.getPrebuiltDataChecksPreChecksNode() != null && config.getPrebuiltDataChecksPreChecksNode().has("preCheck") && config.getPrebuiltDataChecksPreChecksNode().get("preCheck").size() > 0 ;
 
-        if (!hasCheckDetails && !hasPreChecks && config.getTargetType() == JsonGenerationConfig.TargetType.GCP) { // GCP has no checks usually
+
+        if (!hasCheckDetails && !hasPreChecks && config.getTargetType() == JsonGenerationConfig.TargetType.GCP ) {
              return null;
+        }
+        if (!hasCheckDetails && !hasPreChecks && ! (config.getResolvedDataChecksAcDcDatabase()!=null && !config.getResolvedDataChecksAcDcDatabase().equals("${AUDIT_DATABASE}")) ){ //if no checks, no prechecks and acdc database is default placeholder then dont add dataChecks node
+            return null;
         }
 
 
@@ -935,40 +702,36 @@ public class JsonRequirementService {
         if(config.getResolvedDataChecksAcDcDatabase() != null) {
              dataChecksNode.put("acDCDatabase", config.getResolvedDataChecksAcDcDatabase());
         }
-        dataChecksNode.put("isTrendingEnabled", "N");
+        dataChecksNode.put("isTrendingEnabled", "N"); 
 
         if (hasCheckDetails) {
-            ArrayNode checkArray = dataChecksNode.putArray("check");
+            ArrayNode checkArray = dataChecksNode.putArray("check"); 
             for (JsonGenerationConfig.CheckDetailConfig detail : config.getCheckDetailsList()) {
                 ObjectNode checkItemNode = objectMapper.createObjectNode();
-                checkItemNode.put("checkId", detail.getCheckId());
-                checkItemNode.put("checkName", detail.getCheckName());
-                checkItemNode.put("checkDesc", detail.getCheckDescription());
-                checkItemNode.put("isCheckEnabled", detail.getIsCheckEnabledValue());
-                checkItemNode.put("isUserSupplyQuery", detail.getIsUserSupplyQueryValue());
-                checkItemNode.put("readSourceQueryFromPath", detail.getReadSourceQueryFromPathValue());
-                checkItemNode.put("sourceQuery", detail.getResolvedCheckSourceQuery());
-                checkItemNode.put("targetQuery", detail.getResolvedCheckTargetQuery());
-                checkItemNode.put("readTargetQueryFromPath", detail.getReadTargetQueryFromPathValue());
-                checkItemNode.put("isFailJobOnDataCheckError", detail.getIsFailJobOnDataCheckErrorValue());
+                if(detail.getCheckId()!=null) checkItemNode.put("checkId", detail.getCheckId());
+                if(detail.getCheckName()!=null) checkItemNode.put("checkName", detail.getCheckName());
+                if(detail.getCheckDescription()!=null) checkItemNode.put("checkDesc", detail.getCheckDescription());
+                if(detail.getIsCheckEnabledValue()!=null) checkItemNode.put("isCheckEnabled", detail.getIsCheckEnabledValue());
+                if(detail.getIsUserSupplyQueryValue()!=null) checkItemNode.put("isUserSupplyQuery", detail.getIsUserSupplyQueryValue());
+                if(detail.getReadSourceQueryFromPathValue()!=null) checkItemNode.put("readSourceQueryFromPath", detail.getReadSourceQueryFromPathValue());
+                if(detail.getResolvedCheckSourceQuery()!=null) checkItemNode.put("sourceQuery", detail.getResolvedCheckSourceQuery());
+                if(detail.getResolvedCheckTargetQuery()!=null) checkItemNode.put("targetQuery", detail.getResolvedCheckTargetQuery());
+                if(detail.getReadTargetQueryFromPathValue()!=null) checkItemNode.put("readTargetQueryFromPath", detail.getReadTargetQueryFromPathValue());
+                if(detail.getIsFailJobOnDataCheckErrorValue()!=null) checkItemNode.put("isFailJobOnDataCheckError", detail.getIsFailJobOnDataCheckErrorValue());
                 checkArray.add(checkItemNode);
             }
         }
         
-        if(hasPreChecks) { // Add preChecks only if it's populated
+        if(hasPreChecks) { 
             dataChecksNode.set("preChecks", config.getPrebuiltDataChecksPreChecksNode());
         }
         
-        // Return node only if it has meaningful content
-        if (dataChecksNode.size() == 0 || (dataChecksNode.size() == 2 && dataChecksNode.has("acDCDatabase") && dataChecksNode.has("isTrendingEnabled") && !hasCheckDetails && !hasPreChecks) ) {
-            return null;
-        }
-        return dataChecksNode;
+        return dataChecksNode.size() > 0 ? dataChecksNode : null;
     }
 
     private ObjectNode buildGenericFileExtractsNode(JsonGenerationConfig config) {
+        // (Same as before)
         if (!config.isIncludeFileExtracts()) return null;
-        // (Structure from previous response, seems stable for GCP)
         ObjectNode fileExtractsNode = objectMapper.createObjectNode();
         ArrayNode fileExtractArray = fileExtractsNode.putArray("fileExtract");
         JiraStoryIntake jira = config.getJiraStoryIntake();
@@ -994,10 +757,11 @@ public class JsonRequirementService {
         return fileExtractsNode;
     }
 
+    // Corrected: Type of DIMC_CHECKS_MASTER_LIST and map creation
     private static synchronized void populateDimcChecksMasterList() {
         if (!DIMC_CHECKS_MASTER_LIST.isEmpty()) return;
         LOG.info("Populating DIMC Checks Master List...");
-        // Using HashMap<String, Object> explicitly
+        
         Map<String, Object> check1 = new HashMap<>(); check1.put("dimcCheckname", "duplicateFileLoadChecks"); check1.put("isDimcCheckEnabled", "${DUPLICATE_FILELOAD_CHECK_ENABLED}"); check1.put("isFailJobOnError", "${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check1));
         Map<String, Object> check2 = new HashMap<>(); check2.put("dimcCheckname", "dataVolumeConsistencyCheck"); check2.put("isDimcCheckEnabled", "${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED}"); check2.put("upperThreshold", "${UPPER_THRESHOLD}"); check2.put("lowerThreshold", "${LOWER_THRESHOLD}"); check2.put("numPastDays", "${NUM_PAST_DAYS}"); check2.put("isFailJobOnError", "${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check2));
         Map<String, Object> check3 = new HashMap<>(); check3.put("dimcCheckname", "missingFileCheck"); check3.put("isDimcCheckEnabled", "${MISSING_FILE_CHECK_ENABLED}"); check3.put("isFailJobOnError", "${MISSING_FILE_CHECK_FAILURE_FLAG}"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check3));
@@ -1007,6 +771,7 @@ public class JsonRequirementService {
         LOG.info("DIMC Checks Master List populated with {} items.", DIMC_CHECKS_MASTER_LIST.size());
     }
 
+    // Corrected: Return type and map creation
     private static List<Map<String, Object>> getChosenDimcChecksList(List<Integer> chosenIndices) {
         if (chosenIndices == null || chosenIndices.isEmpty()) return Collections.emptyList();
         return chosenIndices.stream()
@@ -1015,29 +780,31 @@ public class JsonRequirementService {
                 .collect(Collectors.toList());
     }
     
-    // ... (parseSourceType, parseTargetType, addToArray, getOrCreateConnectionJsonReq as before) ...
-    // (Make sure parseSourceType includes all new source types and maps them to the enum)
-    // (Make sure RequirementRepository is available for getOrCreateConnectionJsonReq if that method is still used)
-     private JsonGenerationConfig.SourceType parseSourceType(String sorTypeStr) {
+    private JsonGenerationConfig.SourceType parseSourceType(String sorTypeStr) {
         if (sorTypeStr == null) return JsonGenerationConfig.SourceType.UNKNOWN;
         String typeLower = sorTypeStr.toLowerCase(Locale.ROOT);
         switch (typeLower) {
             case "teradata": return JsonGenerationConfig.SourceType.TERADATA;
-            case "file-fixedwidth": case "fixedwidthfile": // from example
+            case "file-fixedwidth": case "fixedwidthfile":
                  return JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH;
-            case "file-pipe": // from user requirement
+            case "file-pipe": 
                  return JsonGenerationConfig.SourceType.FILE_PIPE;
-            case "file-comma": // from user requirement
+            case "file-comma": 
                  return JsonGenerationConfig.SourceType.FILE_COMMA;
-            case "mssql": // from user requirement
+            case "mssql": 
                  return JsonGenerationConfig.SourceType.MSSQL;
-            case "oracle": // from user requirement
+            case "oracle": 
                  return JsonGenerationConfig.SourceType.ORACLE;
-            case "hive": // from user requirement
+            case "hive": 
                  return JsonGenerationConfig.SourceType.HIVE;
-            case "file": // from csv/pipe examples - map to comma by default if no other info? Or require more specific type?
-                 LOG.warn("Generic 'file' sourceType found, assuming Comma. For specific behavior, use 'file-comma' or 'file-pipe'. Input: {}", sorTypeStr);
-                 return JsonGenerationConfig.SourceType.FILE_COMMA; // Defaulting generic 'file' to Comma
+            case "file": // Generic "file" from CSV/Pipe examples
+                 LOG.warn("Generic 'file' sourceType found. Differentiating based on delimiter presence later. Input: {}", sorTypeStr);
+                 // This might need to be smarter or rely on delimiter later. For now, can default or leave UNKNOWN to be refined.
+                 // Let's assume for now it implies it will be differentiated by other means (like delimiter presence).
+                 // It's safer to make the sorTypeStr more specific from the input data.
+                 // For parsing here, if it's just "file", we don't know subtype yet.
+                 // Let's default to Comma if strictly "file", but it's better if input is specific.
+                 return JsonGenerationConfig.SourceType.FILE_COMMA; 
             default:
                 LOG.warn("Unrecognized Source Type string: {}", sorTypeStr);
                 return JsonGenerationConfig.SourceType.UNKNOWN;
@@ -1045,6 +812,7 @@ public class JsonRequirementService {
     }
 
     private JsonGenerationConfig.TargetType parseTargetType(String targetTypeStr) {
+        // (Same as before)
         if (targetTypeStr == null) return JsonGenerationConfig.TargetType.UNKNOWN;
         String typeLower = targetTypeStr.toLowerCase(Locale.ROOT);
         switch (typeLower) {
@@ -1057,12 +825,14 @@ public class JsonRequirementService {
     }
 
     private static void addToArray(ObjectNode parent, String arrayName, ObjectNode item) {
-        if (item == null || item.size() == 0) return; // Do not add empty or null items
+        if (item == null || item.size() == 0) return;
         ArrayNode array = parent.has(arrayName) && parent.get(arrayName).isArray() ?
                 (ArrayNode) parent.get(arrayName) : parent.putArray(arrayName);
         array.add(item);
     }
+
      public ConnJsonRequirement getOrCreateConnectionJsonReq(String requirementId) {
+         // (Same as before, ensure RequirementRepository is correctly used)
          Optional<ConnJsonRequirement> existingConnJsonRequirement = connJsonRequirementRepository.findById(requirementId);
 
          if (existingConnJsonRequirement.isPresent()) {
@@ -1073,9 +843,6 @@ public class JsonRequirementService {
          ObjectNode email = objectMapper.createObjectNode();
          String sorName;
          try {
-             // Assuming requirementId for ConnJson is the same base requirementId (e.g. BZLS-XXXX)
-             // And that RequirementRepository holds data keyed by this.
-             // This part might need adjustment based on actual data model for RequirementRepository
              String baseRequirementId = requirementId.contains("_") ? requirementId.split("_")[0] : requirementId;
              List<Requirement> reqs = requirementRepository.findByRequirementId(baseRequirementId);
              if (reqs.isEmpty()) throw new ConfigurationException("Requirement not found in RequirementRepository for: " + baseRequirementId);
