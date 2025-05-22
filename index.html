@@ -1,3 +1,220 @@
+package com.wellsfargo.utcap.config;
+
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.wellsfargo.utcap.model.*; // Assuming these models are correctly defined
+import lombok.Getter;
+import lombok.ToString;
+
+import java.util.List;
+import java.util.Map; 
+import java.util.Objects;
+import java.util.Set;
+
+@Getter
+@ToString
+public class JsonGenerationConfig {
+
+    public enum SourceType { TERADATA, FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA, MSSQL, ORACLE, HIVE, UNKNOWN }
+    public enum TargetType { HIVE, GCP, UNKNOWN }
+
+    public static final String SANITIZED_ZONE = "sanitized";
+    public static final String RAW_ZONE = "raw";
+    public static final String TABLE_TEXT = " Table ";
+    public static final String INGESTION_TO_TEXT = " ingestion to ";
+
+    private final JiraStoryIntake jiraStoryIntake;
+    private final Sor sor;
+    private final ApplicationAuthorizer applicationAuthorizer;
+    private final SQLScript sqlScript;
+
+    private final SourceType sourceType;
+    private final TargetType targetType;
+    private final boolean includeIngestions;
+    private final boolean includeFlows;
+    private final boolean includeDataChecks;
+    private final boolean includeFileExtracts;
+
+    private final String resolvedJobName; 
+
+    private final Set<String> jobLevelFieldsToInclude;
+    private final Set<String> ingestionFieldsToInclude;
+
+    private final String resolvedIngestionSourceTypeValue;
+    private final String resolvedIngestionConnectionHeaderValue;
+    private final String resolvedIngestionDataFrameName; 
+    private final String resolvedIngestionSourceSQLQuery;
+    private final String resolvedIngestionSourceName; 
+    private final String resolvedIngestionDataFilePath;
+    private final String resolvedIngestionSchemaFilePath;
+    private final String resolvedIngestionStagingFilePath;
+    private final String resolvedIngestionDelimiter;
+    private final String resolvedIngestionIsHeaderEnabledValue; 
+    private final String resolvedIngestionSaveOutputFlag;      
+    private final String resolvedIngestionTargetPartition;   
+    private final String ingestionIsCreateTargetTableValue;    
+    private final String ingestionIsCacheEnabledValue;       
+    private final String ingestionIsOverWritePartitionValue; 
+    private final String ingestionIsRowCountDisabledValue; 
+    private final ObjectNode prebuiltIngestionAdditionalReadConfigsNode; 
+    private final ObjectNode prebuiltIngestionDimcChecksNode; 
+
+    private final List<FlowDetailConfig> flowDetailsList;
+
+    private final String resolvedDataChecksAcDcDatabase;
+    private final List<CheckDetailConfig> checkDetailsList;
+    private final ObjectNode prebuiltDataChecksPreChecksNode; 
+
+    @Getter
+    @ToString
+    public static class FlowDetailConfig {
+        private final String flowId;
+        private final String resolvedFlowDescription;
+        private final String resolvedFlowQuery;
+        private final String resolvedFlowRegisterName;
+        private final String resolvedFlowDatabaseName;
+        private final String resolvedFlowStorageName;
+        private final String resolvedFlowTargetTablePath;
+        private final String resolvedFlowHivePartitionColumn; 
+        private final String isCreateFlowTargetTableValue;    
+        private final String isOverWritePartitionValue;     
+        private final String isCacheEnabledValue;           
+        private final String sendEmailValue;                
+        private final String abortIfEmptyValue;             
+        private final String saveOutputValue;               
+
+        public FlowDetailConfig(String flowId, String resolvedFlowDescription, String resolvedFlowQuery,
+                                String resolvedFlowRegisterName, String resolvedFlowDatabaseName,
+                                String resolvedFlowStorageName, String resolvedFlowTargetTablePath,
+                                String resolvedFlowHivePartitionColumn, String isCreateFlowTargetTableValue,
+                                String isOverWritePartitionValue, String isCacheEnabledValue,
+                                String sendEmailValue, String abortIfEmptyValue, String saveOutputValue) {
+            this.flowId = flowId;
+            this.resolvedFlowDescription = resolvedFlowDescription;
+            this.resolvedFlowQuery = resolvedFlowQuery;
+            this.resolvedFlowRegisterName = resolvedFlowRegisterName;
+            this.resolvedFlowDatabaseName = resolvedFlowDatabaseName;
+            this.resolvedFlowStorageName = resolvedFlowStorageName;
+            this.resolvedFlowTargetTablePath = resolvedFlowTargetTablePath;
+            this.resolvedFlowHivePartitionColumn = resolvedFlowHivePartitionColumn;
+            this.isCreateFlowTargetTableValue = isCreateFlowTargetTableValue;
+            this.isOverWritePartitionValue = isOverWritePartitionValue;
+            this.isCacheEnabledValue = isCacheEnabledValue;
+            this.sendEmailValue = sendEmailValue;
+            this.abortIfEmptyValue = abortIfEmptyValue;
+            this.saveOutputValue = saveOutputValue;
+        }
+    }
+
+    @Getter
+    @ToString
+    public static class CheckDetailConfig {
+        private final String checkId;
+        private final String checkName;
+        private final String checkDescription;
+        private final String resolvedCheckSourceQuery;
+        private final String resolvedCheckTargetQuery;
+        private final String isCheckEnabledValue;           
+        private final String isUserSupplyQueryValue;        
+        private final String readSourceQueryFromPathValue;  
+        private final String readTargetQueryFromPathValue;  
+        private final String isFailJobOnDataCheckErrorValue;
+
+        public CheckDetailConfig(String checkId, String checkName, String checkDescription,
+                                 String resolvedCheckSourceQuery, String resolvedCheckTargetQuery,
+                                 String isCheckEnabledValue, String isUserSupplyQueryValue,
+                                 String readSourceQueryFromPathValue, String readTargetQueryFromPathValue,
+                                 String isFailJobOnDataCheckErrorValue) {
+            this.checkId = checkId;
+            this.checkName = checkName;
+            this.checkDescription = checkDescription;
+            this.resolvedCheckSourceQuery = resolvedCheckSourceQuery;
+            this.resolvedCheckTargetQuery = resolvedCheckTargetQuery;
+            this.isCheckEnabledValue = isCheckEnabledValue;
+            this.isUserSupplyQueryValue = isUserSupplyQueryValue;
+            this.readSourceQueryFromPathValue = readSourceQueryFromPathValue;
+            this.readTargetQueryFromPathValue = readTargetQueryFromPathValue;
+            this.isFailJobOnDataCheckErrorValue = isFailJobOnDataCheckErrorValue;
+        }
+    }
+
+    public JsonGenerationConfig(
+            JiraStoryIntake jiraStoryIntake, Sor sor, ApplicationAuthorizer applicationAuthorizer, SQLScript sqlScript,
+            SourceType sourceType, TargetType targetType, String resolvedJobName, 
+            boolean includeIngestions, boolean includeFlows, boolean includeDataChecks, boolean includeFileExtracts,
+            Set<String> jobLevelFieldsToInclude, Set<String> ingestionFieldsToInclude,
+            String resolvedIngestionSourceTypeValue, String resolvedIngestionConnectionHeaderValue,
+            String resolvedIngestionDataFrameName, String resolvedIngestionSourceSQLQuery,
+            String resolvedIngestionSourceName, String resolvedIngestionDataFilePath,
+            String resolvedIngestionSchemaFilePath, String resolvedIngestionStagingFilePath,
+            String resolvedIngestionDelimiter, String resolvedIngestionIsHeaderEnabledValue,
+            String resolvedIngestionSaveOutputFlag, String resolvedIngestionTargetPartition,
+            String ingestionIsCreateTargetTableValue, String ingestionIsCacheEnabledValue, String ingestionIsOverWritePartitionValue,
+            String ingestionIsRowCountDisabledValue, 
+            ObjectNode prebuiltIngestionAdditionalReadConfigsNode,
+            ObjectNode prebuiltIngestionDimcChecksNode,
+            List<FlowDetailConfig> flowDetailsList,
+            String resolvedDataChecksAcDcDatabase, List<CheckDetailConfig> checkDetailsList,
+            ObjectNode prebuiltDataChecksPreChecksNode
+    ) {
+        this.jiraStoryIntake = Objects.requireNonNull(jiraStoryIntake, "JiraStoryIntake cannot be null");
+        this.sor = Objects.requireNonNull(sor, "Sor cannot be null");
+        this.applicationAuthorizer = Objects.requireNonNull(applicationAuthorizer, "ApplicationAuthorizer cannot be null");
+        this.sqlScript = Objects.requireNonNull(sqlScript, "SQLScript cannot be null");
+        this.sourceType = Objects.requireNonNull(sourceType, "SourceType cannot be null");
+        this.targetType = Objects.requireNonNull(targetType, "TargetType cannot be null");
+        this.resolvedJobName = Objects.requireNonNull(resolvedJobName, "ResolvedJobName cannot be null");
+        this.includeIngestions = includeIngestions;
+        this.includeFlows = includeFlows;
+        this.includeDataChecks = includeDataChecks;
+        this.includeFileExtracts = includeFileExtracts;
+        this.jobLevelFieldsToInclude = Objects.requireNonNull(jobLevelFieldsToInclude, "jobLevelFieldsToInclude cannot be null");
+        this.ingestionFieldsToInclude = Objects.requireNonNull(ingestionFieldsToInclude, "ingestionFieldsToInclude cannot be null");
+        this.resolvedIngestionSourceTypeValue = resolvedIngestionSourceTypeValue;
+        this.resolvedIngestionConnectionHeaderValue = resolvedIngestionConnectionHeaderValue;
+        this.resolvedIngestionDataFrameName = resolvedIngestionDataFrameName;
+        this.resolvedIngestionSourceSQLQuery = resolvedIngestionSourceSQLQuery;
+        this.resolvedIngestionSourceName = resolvedIngestionSourceName;
+        this.resolvedIngestionDataFilePath = resolvedIngestionDataFilePath;
+        this.resolvedIngestionSchemaFilePath = resolvedIngestionSchemaFilePath;
+        this.resolvedIngestionStagingFilePath = resolvedIngestionStagingFilePath;
+        this.resolvedIngestionDelimiter = resolvedIngestionDelimiter;
+        this.resolvedIngestionIsHeaderEnabledValue = resolvedIngestionIsHeaderEnabledValue;
+        this.resolvedIngestionSaveOutputFlag = resolvedIngestionSaveOutputFlag;
+        this.resolvedIngestionTargetPartition = resolvedIngestionTargetPartition;
+        this.ingestionIsCreateTargetTableValue = ingestionIsCreateTargetTableValue;
+        this.ingestionIsCacheEnabledValue = ingestionIsCacheEnabledValue;
+        this.ingestionIsOverWritePartitionValue = ingestionIsOverWritePartitionValue;
+        this.ingestionIsRowCountDisabledValue = ingestionIsRowCountDisabledValue;
+        this.prebuiltIngestionAdditionalReadConfigsNode = prebuiltIngestionAdditionalReadConfigsNode;
+        this.prebuiltIngestionDimcChecksNode = prebuiltIngestionDimcChecksNode; 
+        this.flowDetailsList = Objects.requireNonNull(flowDetailsList, "flowDetailsList cannot be null");
+        this.resolvedDataChecksAcDcDatabase = resolvedDataChecksAcDcDatabase;
+        this.checkDetailsList = Objects.requireNonNull(checkDetailsList, "checkDetailsList cannot be null");
+        this.prebuiltDataChecksPreChecksNode = prebuiltDataChecksPreChecksNode; 
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 package com.wellsfargo.utcap.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -99,11 +316,9 @@ public class JsonRequirementService {
         if (targetTypeEnum == JsonGenerationConfig.TargetType.UNKNOWN)
             throw new ConfigurationException("Unknown Target Type: " + jira.getTargetType());
 
-        // Determine resolvedJobName (handles "bmg" SOR case)
-        String resolvedJobNameString;
         String inputTableName = jira.getTableName() != null ? jira.getTableName().toLowerCase(Locale.ROOT) : "";
         String inputSourceSchema = jira.getSourceSchema() != null ? jira.getSourceSchema().toLowerCase(Locale.ROOT) : "";
-
+        String resolvedJobNameString;
         if ("bmg".equalsIgnoreCase(sor.getSorName())) {
             resolvedJobNameString = (!inputSourceSchema.isEmpty() ? inputSourceSchema + "_" : "") + inputTableName;
         } else {
@@ -115,7 +330,7 @@ public class JsonRequirementService {
         boolean includeDataChecks = true; 
         boolean includeFileExtracts = (targetTypeEnum == JsonGenerationConfig.TargetType.GCP);
 
-        Set<String> jobLevelFieldsToInclude = determineJobLevelFieldsToInclude(targetTypeEnum);
+        Set<String> jobLevelFieldsToInclude = determineJobLevelFieldsToInclude(targetTypeEnum); // Updated to always include fields
         Set<String> ingestionFieldsToInclude = determineIngestionFieldsToInclude(sourceTypeEnum, includeIngestions, targetTypeEnum);
 
         String resolvedIngestionSourceTypeValue = includeIngestions ? resolveIngestionSourceTypeValue(sourceTypeEnum) : null;
@@ -124,14 +339,7 @@ public class JsonRequirementService {
         String resolvedIngestionDataFrameName;
         if (includeIngestions) {
             if ("bmg".equalsIgnoreCase(sor.getSorName())) {
-                // For BMG, DataFrame might follow the resolvedJobName pattern or a specific one from examples.
-                // Example Teradata-BMG JSON: bmgp_ref_mcc_cd_curr_visa_sanitized_df
-                // If resolvedJobNameString is "bmgp_ref_mcc_cd_curr_visa", then add suffix.
-                // Assuming a suffix rule like "_df" or specific like "_sanitized_df" if needed.
-                // For now, using generic "_df" suffix on resolvedJobNameString for BMG.
-                // This might need adjustment if BMG has other suffixes (e.g. _raw_df, _sanitized_df as seen in one example).
-                // Let's use resolvedJobName for consistency for now and it can be refined.
-                resolvedIngestionDataFrameName = resolvedJobNameString + "_df"; // Or a more specific suffix if BMG always has one.
+                resolvedIngestionDataFrameName = resolvedJobNameString + "_df"; // Or specific suffix like _raw_df / _sanitized_df
             } else {
                 resolvedIngestionDataFrameName = inputTableName + "_df";
             }
@@ -144,7 +352,7 @@ public class JsonRequirementService {
              resolvedIngestionSourceSQLQuery = sqlScript.getSrcTableQuery();
         }
         String resolvedIngestionSourceName = (includeIngestions && sourceTypeEnum == JsonGenerationConfig.SourceType.ORACLE) ?
-                "${BDDMCBD_SRC_SCHEMA}." + inputTableName : null; // Uses original table name for Oracle source name
+                "${BDDMCBD_SRC_SCHEMA}." + inputTableName : null;
 
         String resolvedIngestionDataFilePath = (includeIngestions && isFileSource(sourceTypeEnum)) ? "${SOURCE_FILE_DIR}/${SOURCE_FILE_NAME}" : null;
         String resolvedIngestionSchemaFilePath = (includeIngestions && isFileSource(sourceTypeEnum)) ?
@@ -161,7 +369,6 @@ public class JsonRequirementService {
         String ingestionIsCacheEnabledValue = includeIngestions ? "Y" : null;    
         String ingestionIsOverWritePartitionValue = includeIngestions ? "Y" : null; 
         String ingestionIsRowCountDisabledValue = (includeIngestions && sourceTypeEnum == JsonGenerationConfig.SourceType.TERADATA) ? "N" : null;
-
 
         ObjectNode prebuiltIngestionAdditionalReadConfigsNode = includeIngestions ?
                 buildPrebuiltIngestionAdditionalReadConfigs(sourceTypeEnum, this.objectMapper) : null;
@@ -208,13 +415,12 @@ public class JsonRequirementService {
     private boolean isDatabaseSource(JsonGenerationConfig.SourceType sourceType) { return EnumSet.of(JsonGenerationConfig.SourceType.TERADATA, JsonGenerationConfig.SourceType.MSSQL, JsonGenerationConfig.SourceType.ORACLE, JsonGenerationConfig.SourceType.HIVE).contains(sourceType); }
     private boolean isFileSource(JsonGenerationConfig.SourceType sourceType) { return EnumSet.of(JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH, JsonGenerationConfig.SourceType.FILE_PIPE, JsonGenerationConfig.SourceType.FILE_COMMA).contains(sourceType); }
 
+    // Updated: Always include these fields, regardless of target type.
     private Set<String> determineJobLevelFieldsToInclude(JsonGenerationConfig.TargetType targetType) {
-        if (targetType != JsonGenerationConfig.TargetType.GCP) {
-            return new HashSet<>(Arrays.asList("app", "appRemedyId", "sorRemedyId", "queryGroup", "zone", "sor"));
-        }
-        return Collections.emptySet();
+        return new HashSet<>(Arrays.asList("app", "appRemedyId", "sorRemedyId", "queryGroup", "zone", "sor"));
     }
     
+    // Updated: "targetType" key only for Teradata source to Hive. isRowCountDisabled for Teradata.
     private Set<String> determineIngestionFieldsToInclude(JsonGenerationConfig.SourceType sourceType, boolean includeIngestionsFlag, JsonGenerationConfig.TargetType targetType) {
         if (!includeIngestionsFlag) return Collections.emptySet();
         Set<String> fields = new HashSet<>(Arrays.asList(
@@ -222,12 +428,15 @@ public class JsonRequirementService {
             "isCreateTargetTable", "isCacheEnabled", "isOverWritePartition",
             "abortIfDuplicate", "abortIfEmpty", "isRunEMHReport", "sourceType"
         ));
-        if (targetType == JsonGenerationConfig.TargetType.HIVE) fields.add("targetType");
+        // "targetType":"parquet" only for Teradata source to Hive
+        if (targetType == JsonGenerationConfig.TargetType.HIVE && sourceType == JsonGenerationConfig.SourceType.TERADATA) {
+            fields.add("targetType");
+        }
 
         if (isDatabaseSource(sourceType)) {
             fields.add("ConnectionHeader"); fields.add("sourceSQLQuery");
             if (sourceType == JsonGenerationConfig.SourceType.ORACLE) fields.add("sourceName");
-            if (sourceType == JsonGenerationConfig.SourceType.TERADATA) fields.add("isRowCountDisabled"); // Added for Teradata
+            if (sourceType == JsonGenerationConfig.SourceType.TERADATA) fields.add("isRowCountDisabled"); 
         } else if (isFileSource(sourceType)) {
             fields.addAll(Arrays.asList("isHeaderEnabled", "dataFilePath", "schemaFilePath", "stagingFilePath", "additionalReadConfigs")); 
             if (sourceType != JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH) fields.add("delimiter"); 
@@ -312,7 +521,7 @@ public class JsonRequirementService {
     private List<JsonGenerationConfig.FlowDetailConfig> prepareFlowDetails(
         JsonGenerationConfig.SourceType sourceType, JsonGenerationConfig.TargetType targetType,
         JiraStoryIntake jira, Sor sor, ApplicationAuthorizer auth, SQLScript sqlScript, 
-        String ingestionDataFrameNameIfAny, String currentResolvedJobName) { // Added currentResolvedJobName
+        String ingestionDataFrameNameIfAny, String currentResolvedJobName) {
 
         List<JsonGenerationConfig.FlowDetailConfig> flowConfigs = new ArrayList<>();
         int numberOfFlows = (sourceType == JsonGenerationConfig.SourceType.MSSQL || sourceType == JsonGenerationConfig.SourceType.ORACLE) ? 2 : 1;
@@ -325,8 +534,7 @@ public class JsonRequirementService {
         String flowIsOverWritePartition = "Y";
         String flowAbortIfEmpty = "N";   
         
-        String baseTableNameForFlow = "bmg".equalsIgnoreCase(sor.getSorName()) ? currentResolvedJobName : jira.getTableName().toLowerCase(Locale.ROOT);
-
+        String baseNameForFlow = "bmg".equalsIgnoreCase(sor.getSorName()) ? currentResolvedJobName : jira.getTableName().toLowerCase(Locale.ROOT);
 
         for (int i = 0; i < numberOfFlows; i++) {
             String flowId = String.valueOf(i + 1);
@@ -340,7 +548,9 @@ public class JsonRequirementService {
             String querySourceDf = ingestionDataFrameNameIfAny; 
             String sourceHiveDbForFlow = jira.getSourceSchema() != null ? jira.getSourceSchema() : "${SOURCE_HIVE_DATABASE}";
             if (sourceType == JsonGenerationConfig.SourceType.HIVE) {
-                 querySourceDf = sourceHiveDbForFlow + "." + ("bmg".equalsIgnoreCase(sor.getSorName()) ? currentResolvedJobName : jira.getSourceTableName());
+                 // For Hive source, the source table name might use resolvedJobName if SOR is bmg
+                 String hiveSourceTableName = "bmg".equalsIgnoreCase(sor.getSorName()) ? currentResolvedJobName : (jira.getSourceTableName() !=null ? jira.getSourceTableName() : jira.getTableName());
+                 querySourceDf = sourceHiveDbForFlow + "." + hiveSourceTableName;
             }
 
             String flowDesc;
@@ -351,7 +561,7 @@ public class JsonRequirementService {
             }
             
             String query;
-            String registerName = baseTableNameForFlow + "_" + flowZone;
+            String registerName = baseNameForFlow + "_" + flowZone;
             String flowDatabaseName = "";
             String storageName = "";
             String targetTablePath = null;
@@ -361,8 +571,8 @@ public class JsonRequirementService {
                  if (sourceType == JsonGenerationConfig.SourceType.HIVE) {
                     query = "SELECT * FROM " + querySourceDf + " ${ENB_LIMIT} ${LIMIT_COUNT}";
                  }
-                flowDesc = "Extraction of " + ("bmg".equalsIgnoreCase(sor.getSorName()) ? currentResolvedJobName : (jira.getSourceTableName() != null ? jira.getSourceTableName() : jira.getTableName())) + " for CDMP processing.";
-                registerName = baseTableNameForFlow + "_extract_df";
+                flowDesc = "Extraction of " + baseNameForFlow + " for CDMP processing.";
+                registerName = baseNameForFlow + "_extract_df";
             } else { 
                 if (sourceType == JsonGenerationConfig.SourceType.HIVE) { 
                     query = "SELECT * FROM " + querySourceDf;
@@ -380,8 +590,9 @@ public class JsonRequirementService {
                 }
                 
                 if (isFileSource(sourceType)) { 
-                    storageName = "${TARGET_TABLE_NAME}"; // This placeholder would ideally use baseTableNameForFlow if it's for files too
-                    targetTablePath = "${EXP_EDL_PATH}/${TARGET_TABLE_NAME}"; // Same as above
+                    // For file sources, TARGET_TABLE_NAME placeholder is typically the original table name, not schema_table
+                    storageName = "${TARGET_TABLE_NAME}"; 
+                    targetTablePath = "${EXP_EDL_PATH}/${TARGET_TABLE_NAME}"; 
                     flowDatabaseName = "${HIVE_TARGET_DBNAME}"; 
                 } else { 
                     Map<String, String> storageNameMap = Map.of("CNAPP", "consumer", "UTCAP", "utcap");
@@ -389,7 +600,7 @@ public class JsonRequirementService {
                     storageName = "/datalake${EDL_ENV}/" + appSubDir + "/" +
                                   sor.getDomainName().toLowerCase(Locale.ROOT) + "/" +
                                   sor.getSorName().toLowerCase(Locale.ROOT) + "/" +
-                                  flowZone + "/" + baseTableNameForFlow; // Use baseTableNameForFlow (which is resolvedJobName for BMG)
+                                  flowZone + "/" + baseNameForFlow; 
                     flowDatabaseName = "${ETL_ENV}" + appSubDir + "_" + sor.getSorName().toLowerCase() + "_" + flowZone;
                 }
             }
@@ -406,7 +617,7 @@ public class JsonRequirementService {
     private List<JsonGenerationConfig.CheckDetailConfig> prepareCheckDetails(
         JsonGenerationConfig.SourceType sourceType, JsonGenerationConfig.TargetType targetType,
         JiraStoryIntake jira, ApplicationAuthorizer auth,
-        List<JsonGenerationConfig.FlowDetailConfig> flowDetails, String ingestionDataFrameName, String currentResolvedJobName) { // Added currentResolvedJobName
+        List<JsonGenerationConfig.FlowDetailConfig> flowDetails, String ingestionDataFrameName, String currentResolvedJobName) {
 
         List<JsonGenerationConfig.CheckDetailConfig> checkConfigs = new ArrayList<>();
         if (targetType == JsonGenerationConfig.TargetType.GCP || flowDetails.isEmpty()) {
@@ -414,7 +625,6 @@ public class JsonRequirementService {
         }
         
         String tableNameForCheck = "bmg".equalsIgnoreCase(jira.getApplicationSorName()) ? currentResolvedJobName : jira.getTableName();
-
 
         for (JsonGenerationConfig.FlowDetailConfig currentFlow : flowDetails) {
             String checkId = currentFlow.getFlowId();
@@ -424,7 +634,8 @@ public class JsonRequirementService {
             String checkSourceQueryDataFrame;
             String sourceHiveDbForCheck = jira.getSourceSchema() != null ? jira.getSourceSchema() : "${SOURCE_HIVE_DATABASE}";
             if (sourceType == JsonGenerationConfig.SourceType.HIVE) {
-                checkSourceQueryDataFrame = sourceHiveDbForCheck + "." + ("bmg".equalsIgnoreCase(jira.getApplicationSorName()) ? currentResolvedJobName : jira.getSourceTableName());
+                String hiveSourceTableName = "bmg".equalsIgnoreCase(jira.getApplicationSorName()) ? currentResolvedJobName : (jira.getSourceTableName() !=null ? jira.getSourceTableName() : jira.getTableName());
+                checkSourceQueryDataFrame = sourceHiveDbForCheck + "." + hiveSourceTableName;
             } else if (ingestionDataFrameName != null) {
                 checkSourceQueryDataFrame = ingestionDataFrameName;
             } else {
@@ -433,8 +644,10 @@ public class JsonRequirementService {
             }
 
             String checkSourceQuery = "select count(*) from " + checkSourceQueryDataFrame;
-            String checkTargetQuery = "select count(*) from " + currentFlow.getResolvedFlowDatabaseName() + "." + tableNameForCheck + // Use tableNameForCheck
-                                      " where " + currentFlow.getResolvedFlowHivePartitionColumn() + "='${EAPP_DCT_BUSINESS_EFFECTIVE_DATE}'"; 
+            // Use dynamic placeholder for partition value
+            String partitionValuePlaceholder = "${" + jira.getApplicationName().toUpperCase() + "_BUSINESS_EFFECTIVE_DATE}";
+            String checkTargetQuery = "select count(*) from " + currentFlow.getResolvedFlowDatabaseName() + "." + tableNameForCheck + 
+                                      " where " + currentFlow.getResolvedFlowHivePartitionColumn() + "='" + partitionValuePlaceholder + "'"; 
             
             if (sourceType == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH && "demog_exp_e3_load_sanitized".equals(currentFlow.getResolvedFlowRegisterName())) {
                  checkTargetQuery = "select count(*) from " + currentFlow.getResolvedFlowRegisterName();
@@ -467,10 +680,11 @@ public class JsonRequirementService {
         return pattern.matcher(camelOrPascalCase).replaceAll("_").toUpperCase(Locale.ROOT);
     }
 
+    // Updated: Main key is isPreChecksEnabled (plural)
     private ObjectNode buildPrebuiltDataChecksPreChecksNode(JsonGenerationConfig.SourceType sourceType, ObjectMapper mapper) {
         ObjectNode preChecksNode = mapper.createObjectNode();
         
-        preChecksNode.put("isPreCheckEnabled", "${PRECHECK_ENABLED}"); // Always use placeholder
+        preChecksNode.put("isPreChecksEnabled", "${PRECHECK_ENABLED}"); // Always use placeholder, key has 's'
         
         ArrayNode preCheckArray = preChecksNode.putArray("preCheck");
 
@@ -494,7 +708,7 @@ public class JsonRequirementService {
     private void addPreCheckItem(ArrayNode array, String name, String enabledPlaceholder, String failOnErrorPlaceholder, ObjectMapper mapper) {
         ObjectNode item = mapper.createObjectNode();
         item.put("preCheckName", name);
-        item.put("isPreCheckEnabled", enabledPlaceholder);
+        item.put("isPreCheckEnabled", enabledPlaceholder); // Item key is singular
         item.put("isFailJobOnPreCheckError", failOnErrorPlaceholder);
         array.add(item);
     }
@@ -518,9 +732,9 @@ public class JsonRequirementService {
         Sor sor = config.getSor();
         ApplicationAuthorizer auth = config.getApplicationAuthorizer();
 
-        jobNode.put("JobName", config.getResolvedJobName()); // Use resolvedJobName from config
+        jobNode.put("JobName", config.getResolvedJobName()); 
 
-        Set<String> jobFields = config.getJobLevelFieldsToInclude();
+        Set<String> jobFields = config.getJobLevelFieldsToInclude(); // Now always returns full set
         if (jobFields.contains("app")) jobNode.put("app", jira.getApplicationName());
         if (jobFields.contains("appRemedyId")) jobNode.put("appRemedyId", auth.getAppRemedyId()); 
         if (jobFields.contains("sorRemedyId")) jobNode.put("sorRemedyId", sor.getRemedyId()); 
@@ -557,47 +771,37 @@ public class JsonRequirementService {
     private String determineJobDescription(JsonGenerationConfig config){
         JiraStoryIntake jira = config.getJiraStoryIntake(); Sor sor = config.getSor();
         String appName = jira.getApplicationName(); String sorName = sor.getSorName();
-        String jobNameForDesc = config.getResolvedJobName(); // Use resolvedJobName
+        String jobNameForDesc = config.getResolvedJobName(); 
 
         if (config.getTargetType() == JsonGenerationConfig.TargetType.GCP) {
-            // For GCP, description might still use original table name or the resolved one if it's generic enough
             return "CDMP Extract for Hive table - " + (jira.getTableName() != null ? jira.getTableName().toLowerCase(Locale.ROOT) : jobNameForDesc);
         } else {
             if ("BKPF".equalsIgnoreCase(sorName))  return sorName + " " + jobNameForDesc + JsonGenerationConfig.INGESTION_TO_TEXT + appName;
             if ("Hemi".equalsIgnoreCase(sorName)) return sorName + JsonGenerationConfig.TABLE_TEXT + jobNameForDesc + JsonGenerationConfig.INGESTION_TO_TEXT + "Hive";
-            // For corelogic, jobNameForDesc is jira.getTableName(), so this is fine
             if ("corelogic".equalsIgnoreCase(sorName)) return "utcap " + sorName + " ingestion for feed " + jobNameForDesc; 
-            // For BDDM, jobNameForDesc is already resolvedJobName, if it's 'bmg' it will be schema_table
             if ("BDDM".equalsIgnoreCase(sorName) || "bmg".equalsIgnoreCase(sorName)) return sorName.toUpperCase() + JsonGenerationConfig.TABLE_TEXT + jobNameForDesc + JsonGenerationConfig.INGESTION_TO_TEXT + appName;
-            // Default
             return sorName.toUpperCase() + JsonGenerationConfig.TABLE_TEXT + jobNameForDesc + JsonGenerationConfig.INGESTION_TO_TEXT + appName;
         }
     }
 
+    // Updated Email Logic
     private ObjectNode createEmailNode(JsonGenerationConfig config) {
         ObjectNode emailNode = objectMapper.createObjectNode();
         JiraStoryIntake jira = config.getJiraStoryIntake(); Sor sor = config.getSor();
         
-        // Standardized addresses as per user confirmation
         String fromAddress = "${EMAIL_TO_LIST}"; 
         String toAddress = "${EMAIL_CC_LIST}";
         
-        String subjectTableNamePart = "bmg".equalsIgnoreCase(sor.getSorName()) ? config.getResolvedJobName() : jira.getTableName().toLowerCase(Locale.ROOT);
-        String subject = "Data Extract from " + sor.getSorName().toUpperCase(Locale.ROOT) + " to " + jira.getApplicationName() + " - " + subjectTableNamePart;
+        String subject;
+        String subjectNamePart = config.getResolvedJobName(); // Use resolved job name
 
         if (config.getTargetType() == JsonGenerationConfig.TargetType.GCP) {
-            // fromAddress and toAddress already set to common placeholders
-            subject = "CDMP Extraction - " + jira.getTableName().toLowerCase(Locale.ROOT); // GCP might still use original table name for simplicity here
-        } else if (config.getSourceType() == JsonGenerationConfig.SourceType.FILE_FIXEDWIDTH) {
-            // fromAddress already set
-            // Use dynamic app/sor names instead of "utcap demog"
-            subject = "Fixed width " + jira.getApplicationName().toLowerCase() + " " + sor.getSorName().toLowerCase() + " Feed ingestion " + jira.getTableName() + " hive table";
-        } else if (EnumSet.of(JsonGenerationConfig.SourceType.FILE_PIPE, JsonGenerationConfig.SourceType.FILE_COMMA).contains(config.getSourceType()) && "corelogic".equalsIgnoreCase(sor.getSorName())) {
-            // fromAddress already set
-            subject = "utcap ingestion for feed " + jira.getTableName(); 
-        } 
-        // The "bmg" case for subject line is handled by subjectTableNamePart logic above.
-        // No need for BMG specific FL email addresses.
+            subject = "CDMP Extraction - " + (jira.getTableName() != null ? jira.getTableName().toLowerCase(Locale.ROOT) : subjectNamePart);
+        } else if (isFileSource(config.getSourceType())) {
+            subject = "utcap ingestion for feed " + subjectNamePart; // Unified for all file types
+        } else { // Default for DB sources, including BMG (subjectNamePart will be schema_table for BMG)
+            subject = "Data Extract from " + sor.getSorName().toUpperCase(Locale.ROOT) + " to " + jira.getApplicationName() + " - " + subjectNamePart;
+        }
 
         emailNode.put("fromAddress", fromAddress); 
         emailNode.put("toAddress", toAddress); 
@@ -624,7 +828,7 @@ public class JsonRequirementService {
         if (fields.contains("isCreateTargetTable")) ingestionItemNode.put("isCreateTargetTable", config.getIngestionIsCreateTargetTableValue());
         if (fields.contains("isCacheEnabled")) ingestionItemNode.put("isCacheEnabled", config.getIngestionIsCacheEnabledValue());
         if (fields.contains("isOverWritePartition")) ingestionItemNode.put("isOverWritePartition", config.getIngestionIsOverWritePartitionValue());
-        if (fields.contains("isRowCountDisabled") && config.getIngestionIsRowCountDisabledValue() != null) // Added for Teradata
+        if (fields.contains("isRowCountDisabled") && config.getIngestionIsRowCountDisabledValue() != null) 
              ingestionItemNode.put("isRowCountDisabled", config.getIngestionIsRowCountDisabledValue());
 
         if (fields.contains("abortIfDuplicate")) ingestionItemNode.put("abortIfDuplicate", "N");
@@ -648,8 +852,10 @@ public class JsonRequirementService {
         if (fields.contains("targetPartition") && config.getResolvedIngestionTargetPartition() != null)
             ingestionItemNode.put("targetPartition", config.getResolvedIngestionTargetPartition());
         
-        if (fields.contains("targetType") && config.getTargetType() == JsonGenerationConfig.TargetType.HIVE)
+        // Condition for targetType: "parquet" updated to be Teradata specific
+        if (fields.contains("targetType") && config.getTargetType() == JsonGenerationConfig.TargetType.HIVE && config.getSourceType() == JsonGenerationConfig.SourceType.TERADATA) {
              ingestionItemNode.put("targetType", "parquet");
+        }
 
         if (fields.contains("additionalReadConfigs") && config.getPrebuiltIngestionAdditionalReadConfigsNode() != null)
             ingestionItemNode.set("additionalReadConfigs", config.getPrebuiltIngestionAdditionalReadConfigsNode());
@@ -668,14 +874,13 @@ public class JsonRequirementService {
     private String determineIngestionDescription(JsonGenerationConfig config){
         JiraStoryIntake jira = config.getJiraStoryIntake(); Sor sor = config.getSor();
         String appName = jira.getApplicationName(); String sorName = sor.getSorName(); 
-        String descTableNamePart = "bmg".equalsIgnoreCase(sorName) ? config.getResolvedJobName() : jira.getTableName().toLowerCase(Locale.ROOT);
+        String descTableNamePart = config.getResolvedJobName(); // Use resolvedJobName
         
         String desc = sorName.toUpperCase() + JsonGenerationConfig.TABLE_TEXT + descTableNamePart + JsonGenerationConfig.INGESTION_TO_TEXT + appName; 
         if ("BKPF".equalsIgnoreCase(sorName)) desc = sorName + " " + descTableNamePart + " ingestion"; 
         else if ("Hemi".equalsIgnoreCase(sorName)) desc = sorName.toUpperCase() + JsonGenerationConfig.TABLE_TEXT + descTableNamePart + " ingestion to EDL"; 
         else if ("corelogic".equalsIgnoreCase(sorName)) desc = descTableNamePart + " ingestion to utcap sanitized"; 
-        // BDDM and BMG would be covered by the updated default with descTableNamePart
-        else if ("BDDM".equalsIgnoreCase(sorName)) desc = sorName.toUpperCase() + JsonGenerationConfig.TABLE_TEXT + descTableNamePart + JsonGenerationConfig.INGESTION_TO_TEXT + appName; 
+        else if ("BDDM".equalsIgnoreCase(sorName) || "bmg".equalsIgnoreCase(sorName)) desc = sorName.toUpperCase() + JsonGenerationConfig.TABLE_TEXT + descTableNamePart + JsonGenerationConfig.INGESTION_TO_TEXT + appName; 
         return desc;
     }
 
@@ -710,6 +915,7 @@ public class JsonRequirementService {
         return flowsNode;
     }
 
+    // Updated: isTrendingEnabled removed
     private ObjectNode buildGenericDataChecksNode(JsonGenerationConfig config) { 
         if (!config.isIncludeDataChecks()) return null;
         
@@ -738,7 +944,7 @@ public class JsonRequirementService {
         if(config.getResolvedDataChecksAcDcDatabase() != null) {
              dataChecksNode.put("acDCDatabase", config.getResolvedDataChecksAcDcDatabase());
         }
-        dataChecksNode.put("isTrendingEnabled", "N"); 
+        // dataChecksNode.put("isTrendingEnabled", "N"); // Removed as per request
 
         if (hasCheckDetails) {
             ArrayNode checkArray = dataChecksNode.putArray("check"); 
@@ -762,10 +968,9 @@ public class JsonRequirementService {
             dataChecksNode.set("preChecks", preChecksNodeFromConfig);
         }
         
+        // Adjusted return logic after removing isTrendingEnabled
         if (dataChecksNode.size() == 0) return null;
-        if (dataChecksNode.size() == 1 && dataChecksNode.has("isTrendingEnabled")) return null; 
         if (dataChecksNode.size() == 1 && dataChecksNode.has("acDCDatabase") && "${AUDIT_DATABASE}".equals(dataChecksNode.get("acDCDatabase").asText())) return null; 
-        if (dataChecksNode.size() == 2 && dataChecksNode.has("isTrendingEnabled") && dataChecksNode.has("acDCDatabase") && "${AUDIT_DATABASE}".equals(dataChecksNode.get("acDCDatabase").asText())) return null; 
 
         return dataChecksNode;
     }
@@ -779,7 +984,7 @@ public class JsonRequirementService {
         fileExtractItemNode.put("fileExtractId", "1");
         fileExtractItemNode.put("isFileExtractEnabled", "${IS_FILE_EXTRACT_ENABLED}"); 
         
-        String sourceDescriptionPart = config.getSourceType() == JsonGenerationConfig.SourceType.HIVE ? "hive data" : config.getResolvedJobName(); // Use resolvedJobName
+        String sourceDescriptionPart = config.getSourceType() == JsonGenerationConfig.SourceType.HIVE ? "hive data" : config.getResolvedJobName(); 
         fileExtractItemNode.put("fileDescription", "Extracting " + sourceDescriptionPart + " to avro file for CDMP");
         fileExtractItemNode.put("subjectArea", config.getSourceType() == JsonGenerationConfig.SourceType.HIVE ? "cdmp using FileExtract" : "CDMP");
         
@@ -788,16 +993,16 @@ public class JsonRequirementService {
         fileExtractItemNode.put("fileType", "avro");
 
         String flowRegisterNameForExtract = config.getFlowDetailsList().isEmpty() || config.getFlowDetailsList().get(0).getResolvedFlowRegisterName() == null 
-                                            ? config.getResolvedJobName() + "_extract_df" // Use resolvedJobName
+                                            ? config.getResolvedJobName() + "_extract_df" 
                                             : config.getFlowDetailsList().get(0).getResolvedFlowRegisterName();
         fileExtractItemNode.put("extractQuery", "select * from " + flowRegisterNameForExtract); 
 
-        fileExtractItemNode.put("hdfsFilePath", "hdfs:///tmp/${TARGET_TABLE_NAME}"); // TARGET_TABLE_NAME placeholder might need to reflect resolvedJobName for BMG
+        fileExtractItemNode.put("hdfsFilePath", "hdfs:///tmp/${TARGET_TABLE_NAME}"); 
         fileExtractItemNode.put("externalFilePath", "${TGT_TBL_NDM_OUT_DIR_PATH}");
         ObjectNode cdmpParamsNode = objectMapper.createObjectNode();
         cdmpParamsNode.put("outputFormat", "avro");
         String cdmpFileNamePrefix = config.getSourceType() == JsonGenerationConfig.SourceType.HIVE ? "UTCAPT_" : "";
-        cdmpParamsNode.put("cdmpFileName", cdmpFileNamePrefix + config.getResolvedJobName() + "_cdmp_extract"); // Use resolvedJobName
+        cdmpParamsNode.put("cdmpFileName", cdmpFileNamePrefix + config.getResolvedJobName() + "_cdmp_extract"); 
         
         cdmpParamsNode.put("cdmpPatternMode", "daily");
         cdmpParamsNode.put("isCustomPartitionRequired", "true"); 
@@ -890,222 +1095,5 @@ public class JsonRequirementService {
         Map<String, Object> json = objectMapper.convertValue(rootNode, new TypeReference<Map<String, Object>>() {});
         ConnJsonRequirement connJsonRequirement = new ConnJsonRequirement(requirementId, json);
         return connJsonRequirementRepository.save(connJsonRequirement);
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-package com.wellsfargo.utcap.config;
-
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.wellsfargo.utcap.model.*; // Assuming these models are correctly defined
-import lombok.Getter;
-import lombok.ToString;
-
-import java.util.List;
-import java.util.Map; 
-import java.util.Objects;
-import java.util.Set;
-
-@Getter
-@ToString
-public class JsonGenerationConfig {
-
-    public enum SourceType { TERADATA, FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA, MSSQL, ORACLE, HIVE, UNKNOWN }
-    public enum TargetType { HIVE, GCP, UNKNOWN }
-
-    public static final String SANITIZED_ZONE = "sanitized";
-    public static final String RAW_ZONE = "raw";
-    public static final String TABLE_TEXT = " Table ";
-    public static final String INGESTION_TO_TEXT = " ingestion to ";
-
-    private final JiraStoryIntake jiraStoryIntake;
-    private final Sor sor;
-    private final ApplicationAuthorizer applicationAuthorizer;
-    private final SQLScript sqlScript;
-
-    private final SourceType sourceType;
-    private final TargetType targetType;
-    private final boolean includeIngestions;
-    private final boolean includeFlows;
-    private final boolean includeDataChecks;
-    private final boolean includeFileExtracts;
-
-    private final String resolvedJobName; // Added for conditional JobName
-
-    private final Set<String> jobLevelFieldsToInclude;
-    private final Set<String> ingestionFieldsToInclude;
-
-    private final String resolvedIngestionSourceTypeValue;
-    private final String resolvedIngestionConnectionHeaderValue;
-    private final String resolvedIngestionDataFrameName; 
-    private final String resolvedIngestionSourceSQLQuery;
-    private final String resolvedIngestionSourceName; 
-    private final String resolvedIngestionDataFilePath;
-    private final String resolvedIngestionSchemaFilePath;
-    private final String resolvedIngestionStagingFilePath;
-    private final String resolvedIngestionDelimiter;
-    private final String resolvedIngestionIsHeaderEnabledValue; 
-    private final String resolvedIngestionSaveOutputFlag;      
-    private final String resolvedIngestionTargetPartition;   
-    private final String ingestionIsCreateTargetTableValue;    
-    private final String ingestionIsCacheEnabledValue;       
-    private final String ingestionIsOverWritePartitionValue; 
-    private final String ingestionIsRowCountDisabledValue; // Added for Teradata
-    private final ObjectNode prebuiltIngestionAdditionalReadConfigsNode; 
-    private final ObjectNode prebuiltIngestionDimcChecksNode; 
-
-    private final List<FlowDetailConfig> flowDetailsList;
-
-    private final String resolvedDataChecksAcDcDatabase;
-    private final List<CheckDetailConfig> checkDetailsList;
-    private final ObjectNode prebuiltDataChecksPreChecksNode; 
-
-    @Getter
-    @ToString
-    public static class FlowDetailConfig {
-        private final String flowId;
-        private final String resolvedFlowDescription;
-        private final String resolvedFlowQuery;
-        private final String resolvedFlowRegisterName;
-        private final String resolvedFlowDatabaseName;
-        private final String resolvedFlowStorageName;
-        private final String resolvedFlowTargetTablePath;
-        private final String resolvedFlowHivePartitionColumn; 
-        private final String isCreateFlowTargetTableValue;    
-        private final String isOverWritePartitionValue;     
-        private final String isCacheEnabledValue;           
-        private final String sendEmailValue;                
-        private final String abortIfEmptyValue;             
-        private final String saveOutputValue;               
-
-        public FlowDetailConfig(String flowId, String resolvedFlowDescription, String resolvedFlowQuery,
-                                String resolvedFlowRegisterName, String resolvedFlowDatabaseName,
-                                String resolvedFlowStorageName, String resolvedFlowTargetTablePath,
-                                String resolvedFlowHivePartitionColumn, String isCreateFlowTargetTableValue,
-                                String isOverWritePartitionValue, String isCacheEnabledValue,
-                                String sendEmailValue, String abortIfEmptyValue, String saveOutputValue) {
-            this.flowId = flowId;
-            this.resolvedFlowDescription = resolvedFlowDescription;
-            this.resolvedFlowQuery = resolvedFlowQuery;
-            this.resolvedFlowRegisterName = resolvedFlowRegisterName;
-            this.resolvedFlowDatabaseName = resolvedFlowDatabaseName;
-            this.resolvedFlowStorageName = resolvedFlowStorageName;
-            this.resolvedFlowTargetTablePath = resolvedFlowTargetTablePath;
-            this.resolvedFlowHivePartitionColumn = resolvedFlowHivePartitionColumn;
-            this.isCreateFlowTargetTableValue = isCreateFlowTargetTableValue;
-            this.isOverWritePartitionValue = isOverWritePartitionValue;
-            this.isCacheEnabledValue = isCacheEnabledValue;
-            this.sendEmailValue = sendEmailValue;
-            this.abortIfEmptyValue = abortIfEmptyValue;
-            this.saveOutputValue = saveOutputValue;
-        }
-    }
-
-    @Getter
-    @ToString
-    public static class CheckDetailConfig {
-        private final String checkId;
-        private final String checkName;
-        private final String checkDescription;
-        private final String resolvedCheckSourceQuery;
-        private final String resolvedCheckTargetQuery;
-        private final String isCheckEnabledValue;           
-        private final String isUserSupplyQueryValue;        
-        private final String readSourceQueryFromPathValue;  
-        private final String readTargetQueryFromPathValue;  
-        private final String isFailJobOnDataCheckErrorValue;
-
-        public CheckDetailConfig(String checkId, String checkName, String checkDescription,
-                                 String resolvedCheckSourceQuery, String resolvedCheckTargetQuery,
-                                 String isCheckEnabledValue, String isUserSupplyQueryValue,
-                                 String readSourceQueryFromPathValue, String readTargetQueryFromPathValue,
-                                 String isFailJobOnDataCheckErrorValue) {
-            this.checkId = checkId;
-            this.checkName = checkName;
-            this.checkDescription = checkDescription;
-            this.resolvedCheckSourceQuery = resolvedCheckSourceQuery;
-            this.resolvedCheckTargetQuery = resolvedCheckTargetQuery;
-            this.isCheckEnabledValue = isCheckEnabledValue;
-            this.isUserSupplyQueryValue = isUserSupplyQueryValue;
-            this.readSourceQueryFromPathValue = readSourceQueryFromPathValue;
-            this.readTargetQueryFromPathValue = readTargetQueryFromPathValue;
-            this.isFailJobOnDataCheckErrorValue = isFailJobOnDataCheckErrorValue;
-        }
-    }
-
-    public JsonGenerationConfig(
-            JiraStoryIntake jiraStoryIntake, Sor sor, ApplicationAuthorizer applicationAuthorizer, SQLScript sqlScript,
-            SourceType sourceType, TargetType targetType, String resolvedJobName, // Added resolvedJobName
-            boolean includeIngestions, boolean includeFlows, boolean includeDataChecks, boolean includeFileExtracts,
-            Set<String> jobLevelFieldsToInclude, Set<String> ingestionFieldsToInclude,
-            String resolvedIngestionSourceTypeValue, String resolvedIngestionConnectionHeaderValue,
-            String resolvedIngestionDataFrameName, String resolvedIngestionSourceSQLQuery,
-            String resolvedIngestionSourceName, String resolvedIngestionDataFilePath,
-            String resolvedIngestionSchemaFilePath, String resolvedIngestionStagingFilePath,
-            String resolvedIngestionDelimiter, String resolvedIngestionIsHeaderEnabledValue,
-            String resolvedIngestionSaveOutputFlag, String resolvedIngestionTargetPartition,
-            String ingestionIsCreateTargetTableValue, String ingestionIsCacheEnabledValue, String ingestionIsOverWritePartitionValue,
-            String ingestionIsRowCountDisabledValue, // Added for Teradata
-            ObjectNode prebuiltIngestionAdditionalReadConfigsNode,
-            ObjectNode prebuiltIngestionDimcChecksNode,
-            List<FlowDetailConfig> flowDetailsList,
-            String resolvedDataChecksAcDcDatabase, List<CheckDetailConfig> checkDetailsList,
-            ObjectNode prebuiltDataChecksPreChecksNode
-    ) {
-        this.jiraStoryIntake = Objects.requireNonNull(jiraStoryIntake, "JiraStoryIntake cannot be null");
-        this.sor = Objects.requireNonNull(sor, "Sor cannot be null");
-        this.applicationAuthorizer = Objects.requireNonNull(applicationAuthorizer, "ApplicationAuthorizer cannot be null");
-        this.sqlScript = Objects.requireNonNull(sqlScript, "SQLScript cannot be null");
-        this.sourceType = Objects.requireNonNull(sourceType, "SourceType cannot be null");
-        this.targetType = Objects.requireNonNull(targetType, "TargetType cannot be null");
-        this.resolvedJobName = Objects.requireNonNull(resolvedJobName, "ResolvedJobName cannot be null");
-        this.includeIngestions = includeIngestions;
-        this.includeFlows = includeFlows;
-        this.includeDataChecks = includeDataChecks;
-        this.includeFileExtracts = includeFileExtracts;
-        this.jobLevelFieldsToInclude = Objects.requireNonNull(jobLevelFieldsToInclude, "jobLevelFieldsToInclude cannot be null");
-        this.ingestionFieldsToInclude = Objects.requireNonNull(ingestionFieldsToInclude, "ingestionFieldsToInclude cannot be null");
-        this.resolvedIngestionSourceTypeValue = resolvedIngestionSourceTypeValue;
-        this.resolvedIngestionConnectionHeaderValue = resolvedIngestionConnectionHeaderValue;
-        this.resolvedIngestionDataFrameName = resolvedIngestionDataFrameName;
-        this.resolvedIngestionSourceSQLQuery = resolvedIngestionSourceSQLQuery;
-        this.resolvedIngestionSourceName = resolvedIngestionSourceName;
-        this.resolvedIngestionDataFilePath = resolvedIngestionDataFilePath;
-        this.resolvedIngestionSchemaFilePath = resolvedIngestionSchemaFilePath;
-        this.resolvedIngestionStagingFilePath = resolvedIngestionStagingFilePath;
-        this.resolvedIngestionDelimiter = resolvedIngestionDelimiter;
-        this.resolvedIngestionIsHeaderEnabledValue = resolvedIngestionIsHeaderEnabledValue;
-        this.resolvedIngestionSaveOutputFlag = resolvedIngestionSaveOutputFlag;
-        this.resolvedIngestionTargetPartition = resolvedIngestionTargetPartition;
-        this.ingestionIsCreateTargetTableValue = ingestionIsCreateTargetTableValue;
-        this.ingestionIsCacheEnabledValue = ingestionIsCacheEnabledValue;
-        this.ingestionIsOverWritePartitionValue = ingestionIsOverWritePartitionValue;
-        this.ingestionIsRowCountDisabledValue = ingestionIsRowCountDisabledValue;
-        this.prebuiltIngestionAdditionalReadConfigsNode = prebuiltIngestionAdditionalReadConfigsNode;
-        this.prebuiltIngestionDimcChecksNode = prebuiltIngestionDimcChecksNode; 
-        this.flowDetailsList = Objects.requireNonNull(flowDetailsList, "flowDetailsList cannot be null");
-        this.resolvedDataChecksAcDcDatabase = resolvedDataChecksAcDcDatabase;
-        this.checkDetailsList = Objects.requireNonNull(checkDetailsList, "checkDetailsList cannot be null");
-        this.prebuiltDataChecksPreChecksNode = prebuiltDataChecksPreChecksNode; 
     }
 }
