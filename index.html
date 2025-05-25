@@ -1,82 +1,343 @@
-Placeholder Variable,Conceptual JSON Path(s),Applicable Source Type(s),Applicable Target Type(s),Notes/How it's derived
---- GENERAL & JOB LEVEL PLACEHOLDERS ---,,,,""
-${EMAIL_TO_LIST},job.Email.fromAddress,All,All,Standard 'from' address. Used for all scenarios unless overridden.
-${EMAIL_CC_LIST},job.Email.toAddress,All,All,Standard 'to' address. Used for all scenarios unless overridden.
-${FROM_EMAIL},job.Email.fromAddress,HIVE (as source),GCP,Used specifically for HIVE to GCP email notifications.
-${TO_EMAIL},job.Email.toAddress,HIVE (as source),GCP,Used specifically for HIVE to GCP email notifications.
---- INGESTION SECTION PLACEHOLDERS ---,,,,"Relevant when an 'ingestions' block is generated."
-${BDDMCBD_SRC_SCHEMA},ingestions.ingestion[].sourceName,ORACLE,HIVE,Used to prefix the table name for Oracle sources.
-${SOURCE_FILE_DIR},ingestions.ingestion[].dataFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Directory for source data files.
-${SOURCE_FILE_NAME},ingestions.ingestion[].dataFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Name of the source data file.
-${DCI_CONFIG_DIR_PATH},ingestions.ingestion[].schemaFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Base path for DCI configurations.
-${FEED_NAME},ingestions.ingestion[].schemaFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Specific feed name, part of schema path."
-${EXP_EDL_PATH},ingestions.ingestion[].stagingFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Default staging file path for file sources (can be overridden for specific cases like 'Hemi' SOR)."
---- FLOWS SECTION PLACEHOLDERS ---,,,,"Appear within the 'flows' array."
-${SOURCE_HIVE_DATABASE},"flows.flow[].query (if source is HIVE)","HIVE (as source)","HIVE, GCP",Database name when Hive is the source.
-${ENB_LIMIT},flows.flow[].query,All,GCP,Placeholder for enabling query limit for GCP extracts.
-${LIMIT_COUNT},flows.flow[].query,All,GCP,Placeholder for the actual limit count for GCP extracts.
-${UTCAP_CRTE_BY_ID},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
-${UTCAP_CRTE_DTTM},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
-${UTCAP_DELTA_CD},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
-${UTCAP_ERR_FLG_IND},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
-${UTCAP_ERR_TXT},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
-${UTCAP_RUN_ID},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
-${UTCAP_SOR_CD},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
-${UTCAP_BUSINESS_EFFECTIVE_DATE},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Audit column value; also default partition value for files."
-${TARGET_TABLE_NAME},"flows.flow[].storageName, flows.flow[].targetTablePath","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Used for defining target storage for file sources. For BMG SOR, the actual name used here would be schema_table derived via resolvedJobName."
-${EXP_EDL_PATH},flows.flow[].targetTablePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Base path for target table for file sources.
-${HIVE_TARGET_DBNAME},flows.flow[].flowDataBaseName,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Target Hive database name for file sources.
-${EDL_ENV},flows.flow[].storageName,"TERADATA, ORACLE, MSSQL (DBs)",HIVE,Environment specific part of HDFS path for DB sources.
-${ETL_ENV},flows.flow[].flowDataBaseName,"TERADATA, ORACLE, MSSQL (DBs)",HIVE,Environment specific prefix for Hive database names for DB sources.
---- DATACHECKS SECTION PLACEHOLDERS ---,,,,""
-${SOURCE_HIVE_DATABASE},"dataChecks.check[].sourceQuery (if source is HIVE)","HIVE (as source)",HIVE,Database name when Hive is the source for a data check.
-${<APP_NAME>_BUSINESS_EFFECTIVE_DATE},"dataChecks.check[].targetQuery (partition value)",All,HIVE,"Dynamically constructed placeholder based on jira.getApplicationName(). Example: ${UTCAP_BUSINESS_EFFECTIVE_DATE}."
-${AUDIT_DATABASE},dataChecks.acDCDatabase,All,"HIVE, GCP",Default audit database if no specific rule applies.
-${ETL_ENV}consumer_audit,dataChecks.acDCDatabase,"MSSQL, ORACLE",HIVE,Specific audit database for consumer app with these sources.
-${UTCAP_AUDIT_DB},dataChecks.acDCDatabase,"FILE_PIPE, FILE_COMMA (utcap/corelogic)",HIVE,"Specific audit database for utcap app, corelogic SOR, file sources."
-${PRECHECK_ENABLED},dataChecks.preChecks.isPreChecksEnabled,All,All,"Top-level enablement for the entire pre-checks block. Note: Key is isPreChecksEnabled (plural)."
---- PreCheck Item Placeholders (Pattern Based) ---,,,,"Pattern: ${<PRECHECK_NAME_SNAKE_CASE>_ENABLED} and ${<PRECHECK_NAME_SNAKE_CASE>_FAILURE_FLAG}"
-${SERVICE_ID_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: ServiceIDCheck].isPreCheckEnabled",All,All,"For 'ServiceIDCheck' item. Item key is isPreCheckEnabled (singular)."
-${SERVICE_ID_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: ServiceIDCheck].isFailJobOnPreCheckError",All,All,"For 'ServiceIDCheck' item."
-${TARGET_DATA_BASE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: TargetDataBaseAvailabilityCheck].isPreCheckEnabled",All,All,"For 'TargetDataBaseAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
-${TARGET_DATA_BASE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: TargetDataBaseAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'TargetDataBaseAvailabilityCheck' item."
-${TARGET_TABLE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: TargetTableAvailabilityCheck].isPreCheckEnabled",All,All,"For 'TargetTableAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
-${TARGET_TABLE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: TargetTableAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'TargetTableAvailabilityCheck' item."
-${TARGET_TABLE_PATH_WRITABLE_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: TargetTablePathWritableCheck].isPreCheckEnabled",All,All,"For 'TargetTablePathWritableCheck' item. Item key is isPreCheckEnabled (singular)."
-${TARGET_TABLE_PATH_WRITABLE_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: TargetTablePathWritableCheck].isFailJobOnPreCheckError",All,All,"For 'TargetTablePathWritableCheck' item."
-${FLOW_SEQ_DEPENDENCIES_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: FlowSeqDependenciesCheck].isPreCheckEnabled",All,All,"For 'FlowSeqDependenciesCheck' item. Item key is isPreCheckEnabled (singular)."
-${FLOW_SEQ_DEPENDENCIES_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: FlowSeqDependenciesCheck].isFailJobOnPreCheckError",All,All,"For 'FlowSeqDependenciesCheck' item."
-${SOURCE_DATA_BASE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourceDataBaseAvailabilityCheck].isPreCheckEnabled",All,All,"For 'SourceDataBaseAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
-${SOURCE_DATA_BASE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourceDataBaseAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'SourceDataBaseAvailabilityCheck' item."
-${SOURCE_TABLE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourceTableAvailabilityCheck].isPreCheckEnabled",All,All,"For 'SourceTableAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
-${SOURCE_TABLE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourceTableAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'SourceTableAvailabilityCheck' item."
-${SOURCE_TABLE_EMPTY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourceTableEmptyCheck].isPreCheckEnabled",All,All,"For 'SourceTableEmptyCheck' item. Item key is isPreCheckEnabled (singular)."
-${SOURCE_TABLE_EMPTY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourceTableEmptyCheck].isFailJobOnPreCheckError",All,All,"For 'SourceTableEmptyCheck' item."
-${SOURCE_PATH_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourcePathAvailabilityCheck].isPreCheckEnabled",All,All,"For 'SourcePathAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
-${SOURCE_PATH_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourcePathAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'SourcePathAvailabilityCheck' item."
-${SOURCE_PATH_EMPTY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourcePathEmptyCheck].isPreCheckEnabled",All,All,"For 'SourcePathEmptyCheck' item. Item key is isPreCheckEnabled (singular)."
-${SOURCE_PATH_EMPTY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourcePathEmptyCheck].isFailJobOnPreCheckError",All,All,"For 'SourcePathEmptyCheck' item."
---- DIMC CHECKS PLACEHOLDERS (within ingestions.ingestion[].dimcChecks.dimcCheck[]) ---,,,,""
-${DUPLICATE_FILELOAD_CHECK_ENABLED},"dimcCheck[name:duplicateFileLoadChecks].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
-${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG},"dimcCheck[name:duplicateFileLoadChecks].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
-${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED},"dimcCheck[name:dataVolumeConsistencyCheck].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
-${UPPER_THRESHOLD},"dimcCheck[name:dataVolumeConsistencyCheck].upperThreshold","FILE_*, TERADATA, HIVE",HIVE,""
-${LOWER_THRESHOLD},"dimcCheck[name:dataVolumeConsistencyCheck].lowerThreshold","FILE_*, TERADATA, HIVE",HIVE,""
-${NUM_PAST_DAYS},"dimcCheck[name:dataVolumeConsistencyCheck].numPastDays","FILE_*, TERADATA, HIVE",HIVE,""
-${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG},"dimcCheck[name:dataVolumeConsistencyCheck].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
-${MISSING_FILE_CHECK_ENABLED},"dimcCheck[name:missingFileCheck].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
-${MISSING_FILE_CHECK_FAILURE_FLAG},"dimcCheck[name:missingFileCheck].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
-${DELIVERY_CHECK_ENABLED},"dimcCheck[name:deliveryCheck].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
-${DELIVERY_CHECK_SLA},"dimcCheck[name:deliveryCheck].SLA","FILE_*, TERADATA, HIVE",HIVE,""
-${DELIVERY_CHECK_FAILURE_FLAG},"dimcCheck[name:deliveryCheck].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
-${MISSING_DB_OBJECT_CHECK_ENABLED},"dimcCheck[name:missingDbObjectCheck].isDimcCheckEnabled","TERADATA, HIVE",HIVE,""
-${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG},"dimcCheck[name:missingDbObjectCheck].isFailJobOnError","TERADATA, HIVE",HIVE,""
-${EMPTY_SOURCE_CHECK_ENABLED},"dimcCheck[name:emptySourceCheck].isDimcCheckEnabled","TERADATA, HIVE",HIVE,""
-${EMPTY_SOURCE_CHECK_FAILURE_FLAG},"dimcCheck[name:emptySourceCheck].isFailJobOnError","TERADATA, HIVE",HIVE,""
-${FILE_DATE_CHECK_ENABLED},"dimcCheck[name:fileDateCheck].isDimcCheckEnabled","FILE_FIXEDWIDTH (specifically)",HIVE,""
-${FILE_DATE_CHECK_FAILURE_FLAG},"dimcCheck[name:fileDateCheck].isFailJobOnError","FILE_FIXEDWIDTH (specifically)",HIVE,""
---- FILEEXTRACTS SECTION PLACEHOLDERS (Target: GCP) ---,,,,""
-${IS_FILE_EXTRACT_ENABLED},"fileExtracts.fileExtract[].isFileExtractEnabled","All (when target is GCP)",GCP,""
-${TARGET_TABLE_NAME},"fileExtracts.fileExtract[].hdfsFilePath","All (when target is GCP)",GCP,"Temporary HDFS path component. Actual value might be based on resolvedJobName for BMG SOR."
-${TGT_TBL_NDM_OUT_DIR_PATH},"fileExtracts.fileExtract[].externalFilePath","All (when target is GCP)",GCP,Final external file path.
-${PART_FILE_SIZE},"fileExtracts.fileExtract[].cdmpAdditionalParams.desiredPartFileSize","All (when target is GCP)",GCP,Desired partition file size for CDMP extract.
+package com.wellsfargo.utcap.service;
+
+import com.wellsfargo.utcap.exception.AutosysParamNotFoundException;
+import com.wellsfargo.utcap.exception.JiraStoryNotFoundException;
+import com.wellsfargo.utcap.model.AutosysParam;
+import com.wellsfargo.utcap.model.JiraStoryIntake;
+import com.wellsfargo.utcap.repository.AutosysParamRepository;
+import com.wellsfargo.utcap.repository.JiraStoryIntakeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.util.*;
+
+@Component
+public class JilFileBuilder {
+
+    // --- Constants for JIL Keys ---
+    private static final String INSERT_JOB = "insert_job";
+    private static final String JOB_TYPE = "job_type";
+    private static final String OWNER = "owner";
+    private static final String PERMISSION = "permission";
+    private static final String DATE_CONDITIONS = "date_conditions";
+    private static final String DAYS_OF_WEEK = "days_of_week";
+    private static final String START_TIMES = "start_times";
+    private static final String CONDITION = "condition";
+    private static final String DESCRIPTION = "description";
+    private static final String ALARM_IF_FAIL = "alarm_if_fail";
+    private static final String ALARM_IF_TERMINATED = "alarm_if_terminated";
+    private static final String JOB_LOAD = "job_load";
+    private static final String TIMEZONE = "timezone";
+    private static final String GROUP = "group";
+    private static final String APPLICATION = "application";
+    private static final String PROPERTIES = "properties";
+    private static final String BOX_NAME = "box_name";
+    private static final String COMMAND = "command";
+    private static final String MACHINE = "machine";
+    private static final String STD_OUT_FILE = "std_out_file";
+    private static final String STD_ERR_FILE = "std_err_file";
+    private static final String PROFILE = "profile";
+    private static final String PRIORITY = "priority";
+    private static final String SUCCESS_CODES = "success_codes";
+    private static final String FAIL_CODES = "fail_codes";
+    private static final String JSON_DATA_KEY = "jsonData";
+    private static final String MAIN_BOX_KEY = "mainBox";
+    private static final String FILE_NAME_KEY = "fileName";
+    private static final String CONTENT_KEY = "content";
+    private static final String JOB_TYPE_BOX = "BOX";
+    private static final String JOB_TYPE_CMD = "CMD";
+    private static final String DEFAULT_CMD_DATE_CONDITIONS = "0";
+    private static final String DEFAULT_ALARM_VALUE = "0";
+    private static final String ALARM_ON = "1";
+    private static final String EDL_CONFIG_ALARM_OFF = "0";
+    private static final String EDL_CONFIG_CMD_ALARM_ON = "1";
+    private static final String EDL_INGEST_BOX_ALARM_OFF = "0";
+    private static final String EDL_INGEST_CMD_ALARM_ON = "1";
+    private static final String INGRESS_SUCCESS_CODES = "0";
+    private static final String INGRESS_FAIL_CODES = "1-9999";
+
+
+    @Autowired
+    private JiraStoryIntakeRepository jiraRepo;
+
+    @Autowired
+    private AutosysParamRepository autosysParamRepo;
+
+    // --- Main Build Method ---
+
+    public List<Map<String, Object>> buildJilFiles(String requirementId) {
+        List<JiraStoryIntake> jiraList = jiraRepo.findByJiraStoryIntakeId(requirementId);
+        if (jiraList == null || jiraList.isEmpty()) {
+            throw new JiraStoryNotFoundException("Jira story not found for requirementId: " + requirementId);
+        }
+        JiraStoryIntake jira = jiraList.get(0);
+
+        AutosysParam param = autosysParamRepo.findById(requirementId)
+                .orElseThrow(() -> new AutosysParamNotFoundException("Autosys parameters not found for requirementId: " + requirementId));
+
+        String targetType = jira.getTargetType();
+        boolean isIngress = "GCP".equalsIgnoreCase(targetType);
+
+        List<Map<String, Object>> jilFiles = new ArrayList<>();
+
+        if (isIngress) {
+            jilFiles.add(buildIngressFile(param));
+        } else {
+            jilFiles.add(buildEdlFile1(param));
+            jilFiles.add(buildEdlFile2(param));
+        }
+        return jilFiles;
+    }
+
+    // --- Specific Builder Methods ---
+
+    private Map<String, Object> buildIngressFile(AutosysParam param) {
+        Map<String, Object> mainBox = new LinkedHashMap<>();
+        mainBox.put(INSERT_JOB, param.getEdlboxJobName());
+        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
+        mainBox.put(OWNER, param.getEdlowner());
+        mainBox.put(PERMISSION, param.getPermission());
+        mainBox.put(DATE_CONDITIONS, param.getEdldateCondition());
+        if (StringUtils.hasText(param.getEdldaysOfWeek())) {
+             mainBox.put(DAYS_OF_WEEK, param.getEdldaysOfWeek());
+        }
+        if (StringUtils.hasText(param.getEdlstartTime())) {
+             mainBox.put(START_TIMES, param.getEdlstartTime());
+        }
+        if (StringUtils.hasText(param.getEdldependenciesCondition())) {
+             mainBox.put(CONDITION, param.getEdldependenciesCondition());
+        }
+        mainBox.put(DESCRIPTION, param.getEdldescription());
+
+        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : DEFAULT_ALARM_VALUE;
+        mainBox.put(ALARM_IF_FAIL, ALARM_ON);
+        mainBox.put(ALARM_IF_TERMINATED, ALARM_ON);
+
+        mainBox.put(APPLICATION, param.getApplication());
+
+
+        // Build CMD Job 1 (Avro to NAS)
+        Map<String, Object> cmdJob1 = new LinkedHashMap<>();
+        cmdJob1.put(INSERT_JOB, param.getEdlcmdJobName());
+        cmdJob1.put(JOB_TYPE, JOB_TYPE_CMD);
+        cmdJob1.put(BOX_NAME, param.getEdlboxJobName());
+        cmdJob1.put(COMMAND, param.getEdlwrapperScript()); // Use wrapper script
+        cmdJob1.put(MACHINE, param.getEdlmachineName());
+        cmdJob1.put(OWNER, param.getEdlowner());
+        cmdJob1.put(PERMISSION, param.getPermission());
+        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        cmdJob1.put(DESCRIPTION, "Job to create avro file from " + param.getEdlcmdJobName() + " hive table");
+
+         String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
+         cmdJob1.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
+         cmdJob1.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
+
+        cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
+        cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob1.put(PROFILE, param.getEdlprofilePath());
+        cmdJob1.put(APPLICATION, param.getApplication());
+        cmdJob1.put(SUCCESS_CODES, INGRESS_SUCCESS_CODES);
+        cmdJob1.put(FAIL_CODES, INGRESS_FAIL_CODES);
+
+
+        // Build CMD Job 2 (NAS to SAFRM/CDMP)
+        Map<String, Object> cmdJob2 = new LinkedHashMap<>();
+        cmdJob2.put(INSERT_JOB, param.getCdmpcmdJobName());
+        cmdJob2.put(JOB_TYPE, JOB_TYPE_CMD);
+        cmdJob2.put(BOX_NAME, param.getEdlboxJobName());
+        cmdJob2.put(COMMAND, param.getCdmpwrapperScript()); // Use wrapper script
+        cmdJob2.put(MACHINE, param.getCdmpmachineName());
+        cmdJob2.put(OWNER, param.getCdmpowner());
+        cmdJob2.put(PERMISSION, param.getPermission());
+        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+
+        // Condition for CMD2: Directly use cdmpdependenciesCondition
+        if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
+            cmdJob2.put(CONDITION, param.getCdmpdependenciesCondition());
+        }
+
+        cmdJob2.put(DESCRIPTION, "Job for running cdmp drive script to insert data");
+
+         String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
+         cmdJob2.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
+         cmdJob2.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
+
+        cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
+        cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob2.put(PROFILE, param.getCdmpprofilePath());
+        cmdJob2.put(APPLICATION, param.getApplication());
+
+
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob1);
+        properties.add(cmdJob2);
+        mainBox.put(PROPERTIES, properties);
+
+        Map<String, Object> jsonData = new LinkedHashMap<>();
+        jsonData.put(MAIN_BOX_KEY, mainBox);
+        return createFileObject("INGRESS_JIL", jsonData);
+    }
+
+
+    private Map<String, Object> buildEdlFile1(AutosysParam param) {
+        Map<String, Object> mainBox = new LinkedHashMap<>();
+        mainBox.put(INSERT_JOB, param.getCfgBoxJobName());
+        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
+        mainBox.put(OWNER, param.getOwner());
+        mainBox.put(PERMISSION, param.getPermission());
+        mainBox.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        mainBox.put(DESCRIPTION, param.getCfgBoxDescription());
+
+        mainBox.put(ALARM_IF_FAIL, EDL_CONFIG_ALARM_OFF);
+        mainBox.put(ALARM_IF_TERMINATED, EDL_CONFIG_ALARM_OFF);
+
+        mainBox.put(TIMEZONE, param.getTimeZone());
+        mainBox.put(GROUP, param.getGroup());
+        mainBox.put(APPLICATION, param.getApplication());
+
+
+        Map<String, Object> cmdJob = new LinkedHashMap<>();
+        cmdJob.put(INSERT_JOB, param.getCfgCmdJobName());
+        cmdJob.put(JOB_TYPE, JOB_TYPE_CMD);
+        cmdJob.put(BOX_NAME, param.getCfgBoxJobName());
+        cmdJob.put(COMMAND, param.getCfgCmdJobCommand());
+        cmdJob.put(MACHINE, param.getCfgCmdJobMachine());
+        cmdJob.put(OWNER, param.getOwner());
+        cmdJob.put(PERMISSION, param.getPermission());
+        cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        if (StringUtils.hasText(param.getDependenciesCondition())) {
+             cmdJob.put(CONDITION, param.getDependenciesCondition());
+        }
+        cmdJob.put(DESCRIPTION, param.getCfgCmdJobDescription());
+
+         cmdJob.put(ALARM_IF_FAIL, EDL_CONFIG_CMD_ALARM_ON);
+         cmdJob.put(ALARM_IF_TERMINATED, EDL_CONFIG_CMD_ALARM_ON);
+
+        cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
+        cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob.put(PROFILE, param.getProfilePath());
+        cmdJob.put(JOB_LOAD, param.getJobLoad());
+        cmdJob.put(PRIORITY, param.getPriority());
+        cmdJob.put(TIMEZONE, param.getTimeZone());
+        cmdJob.put(GROUP, param.getGroup());
+        cmdJob.put(APPLICATION, param.getApplication());
+
+
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob);
+        mainBox.put(PROPERTIES, properties);
+
+        Map<String, Object> jsonData = new LinkedHashMap<>();
+        jsonData.put(MAIN_BOX_KEY, mainBox);
+        return createFileObject("EDL_Config_JIL", jsonData);
+    }
+
+    private Map<String, Object> buildEdlFile2(AutosysParam param) {
+        Map<String, Object> mainBox = new LinkedHashMap<>();
+        mainBox.put(INSERT_JOB, param.getBoxJobName());
+        mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
+        mainBox.put(OWNER, param.getOwner());
+        mainBox.put(PERMISSION, param.getPermission());
+        mainBox.put(DATE_CONDITIONS, param.getDateCondition());
+        if (StringUtils.hasText(param.getDaysOfWeek())) {
+             mainBox.put(DAYS_OF_WEEK, param.getDaysOfWeek());
+        }
+        if (StringUtils.hasText(param.getStartTime())) {
+             mainBox.put(START_TIMES, param.getStartTime());
+        }
+
+        mainBox.put(DESCRIPTION, param.getBoxJobDescription());
+
+        mainBox.put(ALARM_IF_FAIL, EDL_INGEST_BOX_ALARM_OFF);
+        mainBox.put(ALARM_IF_TERMINATED, EDL_INGEST_BOX_ALARM_OFF);
+
+        mainBox.put(TIMEZONE, param.getTimeZone());
+        mainBox.put(GROUP, param.getGroup());
+        mainBox.put(APPLICATION, param.getApplication());
+
+
+        Map<String, Object> cmdJob1 = new LinkedHashMap<>();
+        cmdJob1.put(INSERT_JOB, param.getPrmCmdJobName());
+        cmdJob1.put(JOB_TYPE, JOB_TYPE_CMD);
+        cmdJob1.put(BOX_NAME, param.getBoxJobName());
+        cmdJob1.put(COMMAND, param.getPrmCmdJobCommand());
+        cmdJob1.put(MACHINE, param.getPrmCmdJobMachine());
+        cmdJob1.put(OWNER, param.getOwner());
+        cmdJob1.put(PERMISSION, param.getPermission());
+        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        if (StringUtils.hasText(param.getDependenciesCondition())) {
+             cmdJob1.put(CONDITION, param.getDependenciesCondition());
+        }
+        cmdJob1.put(DESCRIPTION, param.getPrmCmdJobDescription());
+
+         cmdJob1.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
+         cmdJob1.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
+
+        cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
+        cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob1.put(PROFILE, param.getProfilePath());
+        cmdJob1.put(JOB_LOAD, param.getJobLoad());
+        cmdJob1.put(PRIORITY, param.getPriority());
+        cmdJob1.put(TIMEZONE, param.getTimeZone());
+        cmdJob1.put(GROUP, param.getGroup());
+        cmdJob1.put(APPLICATION, param.getApplication());
+
+
+        Map<String, Object> cmdJob2 = new LinkedHashMap<>();
+        cmdJob2.put(INSERT_JOB, param.getIngCmdJobName());
+        cmdJob2.put(JOB_TYPE, JOB_TYPE_CMD);
+        cmdJob2.put(BOX_NAME, param.getBoxJobName());
+        cmdJob2.put(COMMAND, param.getIngCmdJobCommand());
+        cmdJob2.put(MACHINE, param.getIngCmdJobMachine());
+        cmdJob2.put(OWNER, param.getOwner());
+        cmdJob2.put(PERMISSION, param.getPermission());
+        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+
+        // Construct condition for CMD2: General condition + s(CMD1_JOB_NAME)
+        String cmd1StatusCondition = "s(" + param.getPrmCmdJobName() + ")"; // Removed "= SUCCESS"
+        String baseCondition = param.getDependenciesCondition();
+        String finalCondition;
+        if (StringUtils.hasText(baseCondition)) {
+            finalCondition = baseCondition + " & " + cmd1StatusCondition;
+        } else {
+            finalCondition = cmd1StatusCondition;
+        }
+        cmdJob2.put(CONDITION, finalCondition);
+
+        cmdJob2.put(DESCRIPTION, param.getIngCmdJobDescription());
+
+         cmdJob2.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
+         cmdJob2.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
+
+        cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
+        cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob2.put(PROFILE, param.getProfilePath());
+        cmdJob2.put(JOB_LOAD, param.getJobLoad());
+        cmdJob2.put(PRIORITY, param.getPriority());
+        cmdJob2.put(TIMEZONE, param.getTimeZone());
+        cmdJob2.put(GROUP, param.getGroup());
+        cmdJob2.put(APPLICATION, param.getApplication());
+
+
+        List<Map<String, Object>> properties = new ArrayList<>();
+        properties.add(cmdJob1);
+        properties.add(cmdJob2);
+        mainBox.put(PROPERTIES, properties);
+
+        Map<String, Object> jsonData = new LinkedHashMap<>();
+        jsonData.put(MAIN_BOX_KEY, mainBox);
+        return createFileObject("EDL_Ingestion_JIL", jsonData);
+    }
+
+
+    // --- Helper Method to Create Final File Object ---
+
+    private Map<String, Object> createFileObject(String defaultFileName, Map<String, Object> jsonData) {
+        Map<String, Object> fileObject = new LinkedHashMap<>();
+        fileObject.put(FILE_NAME_KEY, defaultFileName);
+        fileObject.put(JSON_DATA_KEY, jsonData);
+        fileObject.put(CONTENT_KEY, "");
+        return fileObject;
+    }
+}
