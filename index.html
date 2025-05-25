@@ -110,9 +110,8 @@ public class JilFileBuilder {
         }
         mainBox.put(DESCRIPTION, param.getEdldescription());
 
-        String boxAlarmValue = StringUtils.hasText(param.getBoxAlarm()) ? param.getBoxAlarm() : DEFAULT_ALARM_VALUE;
-        mainBox.put(ALARM_IF_FAIL, ALARM_ON);
-        mainBox.put(ALARM_IF_TERMINATED, ALARM_ON);
+        mainBox.put(ALARM_IF_FAIL, param.getEdldateCondition());
+        mainBox.put(ALARM_IF_TERMINATED, param.getEdldateCondition());
 
         mainBox.put(APPLICATION, param.getApplication());
 
@@ -122,19 +121,18 @@ public class JilFileBuilder {
         cmdJob1.put(INSERT_JOB, param.getEdlcmdJobName());
         cmdJob1.put(JOB_TYPE, JOB_TYPE_CMD);
         cmdJob1.put(BOX_NAME, param.getEdlboxJobName());
-        cmdJob1.put(COMMAND, param.getEdlwrapperScript()); // Use wrapper script
+        cmdJob1.put(COMMAND, param.getEdlwrapperScript());
         cmdJob1.put(MACHINE, param.getEdlmachineName());
         cmdJob1.put(OWNER, param.getEdlowner());
         cmdJob1.put(PERMISSION, param.getPermission());
-        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
-        cmdJob1.put(DESCRIPTION, "Job to create avro file from " + param.getEdlcmdJobName() + " hive table");
+        cmdJob1.put(DATE_CONDITIONS, param.getCdmpdateCondition());
+        cmdJob1.put(DESCRIPTION, param.getEdldescription());
 
-         String cmdAlarmValue1 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-         cmdJob1.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
-         cmdJob1.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
+         cmdJob1.put(ALARM_IF_FAIL, param.getCdmpdateCondition());
+         cmdJob1.put(ALARM_IF_TERMINATED, param.getCdmpdateCondition());
 
-        cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob1.put(STD_OUT_FILE, param.getCdmpOutFile());
+        cmdJob1.put(STD_ERR_FILE, param.getCdmpErrFile());
         cmdJob1.put(PROFILE, param.getEdlprofilePath());
         cmdJob1.put(APPLICATION, param.getApplication());
         cmdJob1.put(SUCCESS_CODES, INGRESS_SUCCESS_CODES);
@@ -146,7 +144,7 @@ public class JilFileBuilder {
         cmdJob2.put(INSERT_JOB, param.getCdmpcmdJobName());
         cmdJob2.put(JOB_TYPE, JOB_TYPE_CMD);
         cmdJob2.put(BOX_NAME, param.getEdlboxJobName());
-        cmdJob2.put(COMMAND, param.getCdmpwrapperScript()); // Use wrapper script
+        cmdJob2.put(COMMAND, param.getCdmpwrapperScript());
         cmdJob2.put(MACHINE, param.getCdmpmachineName());
         cmdJob2.put(OWNER, param.getCdmpowner());
         cmdJob2.put(PERMISSION, param.getPermission());
@@ -157,14 +155,13 @@ public class JilFileBuilder {
             cmdJob2.put(CONDITION, param.getCdmpdependenciesCondition());
         }
 
-        cmdJob2.put(DESCRIPTION, "Job for running cdmp drive script to insert data");
+        cmdJob2.put(DESCRIPTION, param.getCdmpdescription());
 
-         String cmdAlarmValue2 = StringUtils.hasText(param.getCmdAlarm()) ? param.getCmdAlarm() : DEFAULT_ALARM_VALUE;
-         cmdJob2.put(ALARM_IF_FAIL, DEFAULT_ALARM_VALUE);
-         cmdJob2.put(ALARM_IF_TERMINATED, DEFAULT_ALARM_VALUE);
+         cmdJob2.put(ALARM_IF_FAIL, param.getCdmpdateCondition());
+         cmdJob2.put(ALARM_IF_TERMINATED, param.getCdmpdateCondition());
 
-        cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
-        cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
+        cmdJob2.put(STD_OUT_FILE, param.getCdmpOutFile());
+        cmdJob2.put(STD_ERR_FILE, param.getCdmpErrFile());
         cmdJob2.put(PROFILE, param.getCdmpprofilePath());
         cmdJob2.put(APPLICATION, param.getApplication());
 
@@ -205,14 +202,14 @@ public class JilFileBuilder {
         cmdJob.put(MACHINE, param.getCfgCmdJobMachine());
         cmdJob.put(OWNER, param.getOwner());
         cmdJob.put(PERMISSION, param.getPermission());
-        cmdJob.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        cmdJob.put(DATE_CONDITIONS, param.getDateCondition());
         if (StringUtils.hasText(param.getDependenciesCondition())) {
              cmdJob.put(CONDITION, param.getDependenciesCondition());
         }
         cmdJob.put(DESCRIPTION, param.getCfgCmdJobDescription());
 
-         cmdJob.put(ALARM_IF_FAIL, EDL_CONFIG_CMD_ALARM_ON);
-         cmdJob.put(ALARM_IF_TERMINATED, EDL_CONFIG_CMD_ALARM_ON);
+         cmdJob.put(ALARM_IF_FAIL, param.getCmdAlarm());
+         cmdJob.put(ALARM_IF_TERMINATED, param.getCmdAlarm());
 
         cmdJob.put(STD_OUT_FILE, param.getStdOutFile());
         cmdJob.put(STD_ERR_FILE, param.getStdErrFile());
@@ -239,7 +236,7 @@ public class JilFileBuilder {
         mainBox.put(JOB_TYPE, JOB_TYPE_BOX);
         mainBox.put(OWNER, param.getOwner());
         mainBox.put(PERMISSION, param.getPermission());
-        mainBox.put(DATE_CONDITIONS, param.getDateCondition());
+        mainBox.put(DATE_CONDITIONS, "0");
         if (StringUtils.hasText(param.getDaysOfWeek())) {
              mainBox.put(DAYS_OF_WEEK, param.getDaysOfWeek());
         }
@@ -265,14 +262,14 @@ public class JilFileBuilder {
         cmdJob1.put(MACHINE, param.getPrmCmdJobMachine());
         cmdJob1.put(OWNER, param.getOwner());
         cmdJob1.put(PERMISSION, param.getPermission());
-        cmdJob1.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        cmdJob1.put(DATE_CONDITIONS, param.getDateCondition());
         if (StringUtils.hasText(param.getDependenciesCondition())) {
              cmdJob1.put(CONDITION, param.getDependenciesCondition());
         }
         cmdJob1.put(DESCRIPTION, param.getPrmCmdJobDescription());
 
-         cmdJob1.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
-         cmdJob1.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
+         cmdJob1.put(ALARM_IF_FAIL, param.getCmdAlarm());
+         cmdJob1.put(ALARM_IF_TERMINATED, param.getCmdAlarm());
 
         cmdJob1.put(STD_OUT_FILE, param.getStdOutFile());
         cmdJob1.put(STD_ERR_FILE, param.getStdErrFile());
@@ -292,10 +289,10 @@ public class JilFileBuilder {
         cmdJob2.put(MACHINE, param.getIngCmdJobMachine());
         cmdJob2.put(OWNER, param.getOwner());
         cmdJob2.put(PERMISSION, param.getPermission());
-        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        cmdJob2.put(DATE_CONDITIONS, param.getDateCondition());
 
         // Construct condition for CMD2: General condition + s(CMD1_JOB_NAME)
-        String cmd1StatusCondition = "s(" + param.getPrmCmdJobName() + ")"; // Removed "= SUCCESS"
+        String cmd1StatusCondition = "s(" + param.getPrmCmdJobName() + ")"; 
         String baseCondition = param.getDependenciesCondition();
         String finalCondition;
         if (StringUtils.hasText(baseCondition)) {
@@ -307,8 +304,8 @@ public class JilFileBuilder {
 
         cmdJob2.put(DESCRIPTION, param.getIngCmdJobDescription());
 
-         cmdJob2.put(ALARM_IF_FAIL, EDL_INGEST_CMD_ALARM_ON);
-         cmdJob2.put(ALARM_IF_TERMINATED, EDL_INGEST_CMD_ALARM_ON);
+         cmdJob2.put(ALARM_IF_FAIL, param.getCmdAlarm());
+         cmdJob2.put(ALARM_IF_TERMINATED, param.getCmdAlarm());
 
         cmdJob2.put(STD_OUT_FILE, param.getStdOutFile());
         cmdJob2.put(STD_ERR_FILE, param.getStdErrFile());
