@@ -1,147 +1,82 @@
-import pandas as pd
-import re
-
-def to_upper_snake_case(camel_or_pascal_case):
-    """Converts a CamelCase or PascalCase string to UPPER_SNAKE_CASE."""
-    if not camel_or_pascal_case:
-        return ""
-    # Add underscore before a capital letter if it's preceded by a lowercase letter
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', camel_or_pascal_case)
-    # Add underscore before a capital letter if it's preceded by a non-uppercase letter and followed by a lowercase letter
-    # (handles cases like XMLFile -> XML_File, or ServiceID -> Service_ID)
-    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
-    return s2.upper()
-
-def generate_placeholder_excel(filename="dci_placeholders.xlsx"):
-    """
-    Generates an Excel file listing DCI placeholder variables.
-    """
-    header = [
-        "Placeholder Variable",
-        "Conceptual JSON Path(s)",
-        "Applicable Source Type(s)",
-        "Applicable Target Type(s)",
-        "Notes/How it's derived"
-    ]
-
-    data = []
-
-    # I. General & Job Level Placeholders
-    data.append(["--- GENERAL & JOB LEVEL PLACEHOLDERS ---", "", "", "", ""])
-    general_placeholders = [
-        ["${EMAIL_TO_LIST}", "job.Email.fromAddress", "All", "All", "Standard 'from' address. Used for all scenarios unless overridden."],
-        ["${EMAIL_CC_LIST}", "job.Email.toAddress", "All", "All", "Standard 'to' address. Used for all scenarios unless overridden."],
-        # Removed BMG/FW specific email address placeholders based on latest clarification
-        # They are now handled by the common ones above.
-        ["${FROM_EMAIL}", "job.Email.fromAddress", "HIVE (as source)", "GCP", "Used specifically for HIVE to GCP email notifications."],
-        ["${TO_EMAIL}", "job.Email.toAddress", "HIVE (as source)", "GCP", "Used specifically for HIVE to GCP email notifications."]
-    ]
-    data.extend(general_placeholders)
-
-    # II. Ingestion Section Placeholders
-    data.append(["--- INGESTION SECTION PLACEHOLDERS ---", "", "", "", "Relevant when an 'ingestions' block is generated."])
-    ingestion_placeholders = [
-        ["${BDDMCBD_SRC_SCHEMA}", "ingestions.ingestion[].sourceName", "ORACLE", "HIVE", "Used to prefix the table name for Oracle sources."],
-        ["${SOURCE_FILE_DIR}", "ingestions.ingestion[].dataFilePath", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Directory for source data files."],
-        ["${SOURCE_FILE_NAME}", "ingestions.ingestion[].dataFilePath", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Name of the source data file."],
-        ["${DCI_CONFIG_DIR_PATH}", "ingestions.ingestion[].schemaFilePath", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Base path for DCI configurations."],
-        ["${FEED_NAME}", "ingestions.ingestion[].schemaFilePath", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Specific feed name, part of schema path."],
-        ["${EXP_EDL_PATH}", "ingestions.ingestion[].stagingFilePath", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Default staging file path for file sources (can be overridden for specific cases like 'Hemi' SOR)."]
-    ]
-    data.extend(ingestion_placeholders)
-
-    # III. Flows Section Placeholders
-    data.append(["--- FLOWS SECTION PLACEHOLDERS ---", "", "", "", "Appear within the 'flows' array."])
-    flows_placeholders = [
-        ["${SOURCE_HIVE_DATABASE}", "flows.flow[].query (if source is HIVE)", "HIVE (as source)", "HIVE, GCP", "Database name when Hive is the source."],
-        ["${ENB_LIMIT}", "flows.flow[].query", "All", "GCP", "Placeholder for enabling query limit for GCP extracts."],
-        ["${LIMIT_COUNT}", "flows.flow[].query", "All", "GCP", "Placeholder for the actual limit count for GCP extracts."],
-        ["${UTCAP_CRTE_BY_ID}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value."],
-        ["${UTCAP_CRTE_DTTM}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value."],
-        ["${UTCAP_DELTA_CD}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value."],
-        ["${UTCAP_ERR_FLG_IND}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value."],
-        ["${UTCAP_ERR_TXT}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value."],
-        ["${UTCAP_RUN_ID}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value."],
-        ["${UTCAP_SOR_CD}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value."],
-        ["${UTCAP_BUSINESS_EFFECTIVE_DATE}", "flows.flow[].query (audit columns)", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Audit column value; also default partition value for files."],
-        ["${TARGET_TABLE_NAME}", "flows.flow[].storageName, flows.flow[].targetTablePath", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Used for defining target storage for file sources. For BMG SOR, the actual name used here would be schema_table derived via resolvedJobName."],
-        ["${EXP_EDL_PATH}", "flows.flow[].targetTablePath", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Base path for target table for file sources."],
-        ["${HIVE_TARGET_DBNAME}", "flows.flow[].flowDataBaseName", "FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA", "HIVE", "Target Hive database name for file sources."],
-        ["${EDL_ENV}", "flows.flow[].storageName", "TERADATA, ORACLE, MSSQL (DBs)", "HIVE", "Environment specific part of HDFS path for DB sources."],
-        ["${ETL_ENV}", "flows.flow[].flowDataBaseName", "TERADATA, ORACLE, MSSQL (DBs)", "HIVE", "Environment specific prefix for Hive database names for DB sources."]
-    ]
-    data.extend(flows_placeholders)
-
-    # IV. DataChecks Section Placeholders (including PreChecks)
-    data.append(["--- DATACHECKS SECTION PLACEHOLDERS ---", "", "", "", ""])
-    datachecks_placeholders = [
-        ["${SOURCE_HIVE_DATABASE}", "dataChecks.check[].sourceQuery (if source is HIVE)", "HIVE (as source)", "HIVE", "Database name when Hive is the source for a data check."],
-        ["${<APP_NAME>_BUSINESS_EFFECTIVE_DATE}", "dataChecks.check[].targetQuery (partition value)", "All", "HIVE", "Dynamically constructed placeholder based on jira.getApplicationName(). Example: ${UTCAP_BUSINESS_EFFECTIVE_DATE}."],
-        ["${AUDIT_DATABASE}", "dataChecks.acDCDatabase", "All", "HIVE, GCP", "Default audit database if no specific rule applies."],
-        ["${ETL_ENV}consumer_audit", "dataChecks.acDCDatabase", "MSSQL, ORACLE", "HIVE", "Specific audit database for consumer app with these sources."],
-        ["${UTCAP_AUDIT_DB}", "dataChecks.acDCDatabase", "FILE_PIPE, FILE_COMMA (utcap/corelogic)", "HIVE", "Specific audit database for utcap app, corelogic SOR, file sources."],
-        ["${PRECHECK_ENABLED}", "dataChecks.preChecks.isPreChecksEnabled", "All", "All", "Top-level enablement for the entire pre-checks block. Note: Key is isPreChecksEnabled (plural)."]
-    ]
-    data.extend(datachecks_placeholders)
-
-    data.append(["--- PreCheck Item Placeholders (Pattern Based) ---", "", "", "", "Pattern: ${<PRECHECK_NAME_SNAKE_CASE>_ENABLED} and ${<PRECHECK_NAME_SNAKE_CASE>_FAILURE_FLAG}"])
-    pre_check_names = [
-        "ServiceIDCheck", "TargetDataBaseAvailabilityCheck", "TargetTableAvailabilityCheck",
-        "TargetTablePathWritableCheck", "FlowSeqDependenciesCheck", "SourceDataBaseAvailabilityCheck",
-        "SourceTableAvailabilityCheck", "SourceTableEmptyCheck", "SourcePathAvailabilityCheck",
-        "SourcePathEmptyCheck"
-    ]
-    for name in pre_check_names:
-        snake_case_name = to_upper_snake_case(name)
-        enabled_placeholder = f"${{{snake_case_name}_ENABLED}}"
-        failure_placeholder = f"${{{snake_case_name}_FAILURE_FLAG}}"
-        data.append([enabled_placeholder, f"dataChecks.preChecks.preCheck[item: {name}].isPreCheckEnabled", "All", "All", f"For '{name}' item. Item key is isPreCheckEnabled (singular)."])
-        data.append([failure_placeholder, f"dataChecks.preChecks.preCheck[item: {name}].isFailJobOnPreCheckError", "All", "All", f"For '{name}' item."])
-
-    # V. DIMC Checks Placeholders
-    data.append(["--- DIMC CHECKS PLACEHOLDERS (within ingestions.ingestion[].dimcChecks.dimcCheck[]) ---", "", "", "", ""])
-    dimc_placeholders = [
-        ["${DUPLICATE_FILELOAD_CHECK_ENABLED}", "dimcCheck[name:duplicateFileLoadChecks].isDimcCheckEnabled", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}", "dimcCheck[name:duplicateFileLoadChecks].isFailJobOnError", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED}", "dimcCheck[name:dataVolumeConsistencyCheck].isDimcCheckEnabled", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${UPPER_THRESHOLD}", "dimcCheck[name:dataVolumeConsistencyCheck].upperThreshold", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${LOWER_THRESHOLD}", "dimcCheck[name:dataVolumeConsistencyCheck].lowerThreshold", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${NUM_PAST_DAYS}", "dimcCheck[name:dataVolumeConsistencyCheck].numPastDays", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}", "dimcCheck[name:dataVolumeConsistencyCheck].isFailJobOnError", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${MISSING_FILE_CHECK_ENABLED}", "dimcCheck[name:missingFileCheck].isDimcCheckEnabled", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${MISSING_FILE_CHECK_FAILURE_FLAG}", "dimcCheck[name:missingFileCheck].isFailJobOnError", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${DELIVERY_CHECK_ENABLED}", "dimcCheck[name:deliveryCheck].isDimcCheckEnabled", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${DELIVERY_CHECK_SLA}", "dimcCheck[name:deliveryCheck].SLA", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${DELIVERY_CHECK_FAILURE_FLAG}", "dimcCheck[name:deliveryCheck].isFailJobOnError", "FILE_*, TERADATA, HIVE", "HIVE", ""],
-        ["${MISSING_DB_OBJECT_CHECK_ENABLED}", "dimcCheck[name:missingDbObjectCheck].isDimcCheckEnabled", "TERADATA, HIVE", "HIVE", ""],
-        ["${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG}", "dimcCheck[name:missingDbObjectCheck].isFailJobOnError", "TERADATA, HIVE", "HIVE", ""],
-        ["${EMPTY_SOURCE_CHECK_ENABLED}", "dimcCheck[name:emptySourceCheck].isDimcCheckEnabled", "TERADATA, HIVE", "HIVE", ""],
-        ["${EMPTY_SOURCE_CHECK_FAILURE_FLAG}", "dimcCheck[name:emptySourceCheck].isFailJobOnError", "TERADATA, HIVE", "HIVE", ""],
-        ["${FILE_DATE_CHECK_ENABLED}", "dimcCheck[name:fileDateCheck].isDimcCheckEnabled", "FILE_FIXEDWIDTH (specifically)", "HIVE", ""],
-        ["${FILE_DATE_CHECK_FAILURE_FLAG}", "dimcCheck[name:fileDateCheck].isFailJobOnError", "FILE_FIXEDWIDTH (specifically)", "HIVE", ""],
-        # Note: dataVolumeCompletenessCheck & businessDateCheck had hardcoded 'N' in master list.
-    ]
-    data.extend(dimc_placeholders)
-
-    # VI. FileExtracts Section Placeholders
-    data.append(["--- FILEEXTRACTS SECTION PLACEHOLDERS (Target: GCP) ---", "", "", "", ""])
-    fileextract_placeholders = [
-        ["${IS_FILE_EXTRACT_ENABLED}", "fileExtracts.fileExtract[].isFileExtractEnabled", "All (when target is GCP)", "GCP", ""],
-        ["${TARGET_TABLE_NAME}", "fileExtracts.fileExtract[].hdfsFilePath", "All (when target is GCP)", "GCP", "Temporary HDFS path component. Actual value might be based on resolvedJobName for BMG SOR."],
-        ["${TGT_TBL_NDM_OUT_DIR_PATH}", "fileExtracts.fileExtract[].externalFilePath", "All (when target is GCP)", "GCP", "Final external file path."],
-        ["${PART_FILE_SIZE}", "fileExtracts.fileExtract[].cdmpAdditionalParams.desiredPartFileSize", "All (when target is GCP)", "GCP", "Desired partition file size for CDMP extract."]
-    ]
-    data.extend(fileextract_placeholders)
-
-    # Create DataFrame
-    df = pd.DataFrame(data, columns=header)
-
-    # Write to Excel
-    try:
-        df.to_excel(filename, index=False, sheet_name="DCI_Placeholders")
-        print(f"Excel file '{filename}' generated successfully.")
-    except Exception as e:
-        print(f"Error writing to Excel file: {e}")
-
-if __name__ == '__main__':
-    generate_placeholder_excel()
+Placeholder Variable,Conceptual JSON Path(s),Applicable Source Type(s),Applicable Target Type(s),Notes/How it's derived
+--- GENERAL & JOB LEVEL PLACEHOLDERS ---,,,,""
+${EMAIL_TO_LIST},job.Email.fromAddress,All,All,Standard 'from' address. Used for all scenarios unless overridden.
+${EMAIL_CC_LIST},job.Email.toAddress,All,All,Standard 'to' address. Used for all scenarios unless overridden.
+${FROM_EMAIL},job.Email.fromAddress,HIVE (as source),GCP,Used specifically for HIVE to GCP email notifications.
+${TO_EMAIL},job.Email.toAddress,HIVE (as source),GCP,Used specifically for HIVE to GCP email notifications.
+--- INGESTION SECTION PLACEHOLDERS ---,,,,"Relevant when an 'ingestions' block is generated."
+${BDDMCBD_SRC_SCHEMA},ingestions.ingestion[].sourceName,ORACLE,HIVE,Used to prefix the table name for Oracle sources.
+${SOURCE_FILE_DIR},ingestions.ingestion[].dataFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Directory for source data files.
+${SOURCE_FILE_NAME},ingestions.ingestion[].dataFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Name of the source data file.
+${DCI_CONFIG_DIR_PATH},ingestions.ingestion[].schemaFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Base path for DCI configurations.
+${FEED_NAME},ingestions.ingestion[].schemaFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Specific feed name, part of schema path."
+${EXP_EDL_PATH},ingestions.ingestion[].stagingFilePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Default staging file path for file sources (can be overridden for specific cases like 'Hemi' SOR)."
+--- FLOWS SECTION PLACEHOLDERS ---,,,,"Appear within the 'flows' array."
+${SOURCE_HIVE_DATABASE},"flows.flow[].query (if source is HIVE)","HIVE (as source)","HIVE, GCP",Database name when Hive is the source.
+${ENB_LIMIT},flows.flow[].query,All,GCP,Placeholder for enabling query limit for GCP extracts.
+${LIMIT_COUNT},flows.flow[].query,All,GCP,Placeholder for the actual limit count for GCP extracts.
+${UTCAP_CRTE_BY_ID},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
+${UTCAP_CRTE_DTTM},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
+${UTCAP_DELTA_CD},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
+${UTCAP_ERR_FLG_IND},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
+${UTCAP_ERR_TXT},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
+${UTCAP_RUN_ID},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
+${UTCAP_SOR_CD},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Audit column value.
+${UTCAP_BUSINESS_EFFECTIVE_DATE},"flows.flow[].query (audit columns)","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Audit column value; also default partition value for files."
+${TARGET_TABLE_NAME},"flows.flow[].storageName, flows.flow[].targetTablePath","FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,"Used for defining target storage for file sources. For BMG SOR, the actual name used here would be schema_table derived via resolvedJobName."
+${EXP_EDL_PATH},flows.flow[].targetTablePath,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Base path for target table for file sources.
+${HIVE_TARGET_DBNAME},flows.flow[].flowDataBaseName,"FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA",HIVE,Target Hive database name for file sources.
+${EDL_ENV},flows.flow[].storageName,"TERADATA, ORACLE, MSSQL (DBs)",HIVE,Environment specific part of HDFS path for DB sources.
+${ETL_ENV},flows.flow[].flowDataBaseName,"TERADATA, ORACLE, MSSQL (DBs)",HIVE,Environment specific prefix for Hive database names for DB sources.
+--- DATACHECKS SECTION PLACEHOLDERS ---,,,,""
+${SOURCE_HIVE_DATABASE},"dataChecks.check[].sourceQuery (if source is HIVE)","HIVE (as source)",HIVE,Database name when Hive is the source for a data check.
+${<APP_NAME>_BUSINESS_EFFECTIVE_DATE},"dataChecks.check[].targetQuery (partition value)",All,HIVE,"Dynamically constructed placeholder based on jira.getApplicationName(). Example: ${UTCAP_BUSINESS_EFFECTIVE_DATE}."
+${AUDIT_DATABASE},dataChecks.acDCDatabase,All,"HIVE, GCP",Default audit database if no specific rule applies.
+${ETL_ENV}consumer_audit,dataChecks.acDCDatabase,"MSSQL, ORACLE",HIVE,Specific audit database for consumer app with these sources.
+${UTCAP_AUDIT_DB},dataChecks.acDCDatabase,"FILE_PIPE, FILE_COMMA (utcap/corelogic)",HIVE,"Specific audit database for utcap app, corelogic SOR, file sources."
+${PRECHECK_ENABLED},dataChecks.preChecks.isPreChecksEnabled,All,All,"Top-level enablement for the entire pre-checks block. Note: Key is isPreChecksEnabled (plural)."
+--- PreCheck Item Placeholders (Pattern Based) ---,,,,"Pattern: ${<PRECHECK_NAME_SNAKE_CASE>_ENABLED} and ${<PRECHECK_NAME_SNAKE_CASE>_FAILURE_FLAG}"
+${SERVICE_ID_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: ServiceIDCheck].isPreCheckEnabled",All,All,"For 'ServiceIDCheck' item. Item key is isPreCheckEnabled (singular)."
+${SERVICE_ID_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: ServiceIDCheck].isFailJobOnPreCheckError",All,All,"For 'ServiceIDCheck' item."
+${TARGET_DATA_BASE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: TargetDataBaseAvailabilityCheck].isPreCheckEnabled",All,All,"For 'TargetDataBaseAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
+${TARGET_DATA_BASE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: TargetDataBaseAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'TargetDataBaseAvailabilityCheck' item."
+${TARGET_TABLE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: TargetTableAvailabilityCheck].isPreCheckEnabled",All,All,"For 'TargetTableAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
+${TARGET_TABLE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: TargetTableAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'TargetTableAvailabilityCheck' item."
+${TARGET_TABLE_PATH_WRITABLE_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: TargetTablePathWritableCheck].isPreCheckEnabled",All,All,"For 'TargetTablePathWritableCheck' item. Item key is isPreCheckEnabled (singular)."
+${TARGET_TABLE_PATH_WRITABLE_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: TargetTablePathWritableCheck].isFailJobOnPreCheckError",All,All,"For 'TargetTablePathWritableCheck' item."
+${FLOW_SEQ_DEPENDENCIES_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: FlowSeqDependenciesCheck].isPreCheckEnabled",All,All,"For 'FlowSeqDependenciesCheck' item. Item key is isPreCheckEnabled (singular)."
+${FLOW_SEQ_DEPENDENCIES_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: FlowSeqDependenciesCheck].isFailJobOnPreCheckError",All,All,"For 'FlowSeqDependenciesCheck' item."
+${SOURCE_DATA_BASE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourceDataBaseAvailabilityCheck].isPreCheckEnabled",All,All,"For 'SourceDataBaseAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
+${SOURCE_DATA_BASE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourceDataBaseAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'SourceDataBaseAvailabilityCheck' item."
+${SOURCE_TABLE_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourceTableAvailabilityCheck].isPreCheckEnabled",All,All,"For 'SourceTableAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
+${SOURCE_TABLE_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourceTableAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'SourceTableAvailabilityCheck' item."
+${SOURCE_TABLE_EMPTY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourceTableEmptyCheck].isPreCheckEnabled",All,All,"For 'SourceTableEmptyCheck' item. Item key is isPreCheckEnabled (singular)."
+${SOURCE_TABLE_EMPTY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourceTableEmptyCheck].isFailJobOnPreCheckError",All,All,"For 'SourceTableEmptyCheck' item."
+${SOURCE_PATH_AVAILABILITY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourcePathAvailabilityCheck].isPreCheckEnabled",All,All,"For 'SourcePathAvailabilityCheck' item. Item key is isPreCheckEnabled (singular)."
+${SOURCE_PATH_AVAILABILITY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourcePathAvailabilityCheck].isFailJobOnPreCheckError",All,All,"For 'SourcePathAvailabilityCheck' item."
+${SOURCE_PATH_EMPTY_CHECK_ENABLED},"dataChecks.preChecks.preCheck[item: SourcePathEmptyCheck].isPreCheckEnabled",All,All,"For 'SourcePathEmptyCheck' item. Item key is isPreCheckEnabled (singular)."
+${SOURCE_PATH_EMPTY_CHECK_FAILURE_FLAG},"dataChecks.preChecks.preCheck[item: SourcePathEmptyCheck].isFailJobOnPreCheckError",All,All,"For 'SourcePathEmptyCheck' item."
+--- DIMC CHECKS PLACEHOLDERS (within ingestions.ingestion[].dimcChecks.dimcCheck[]) ---,,,,""
+${DUPLICATE_FILELOAD_CHECK_ENABLED},"dimcCheck[name:duplicateFileLoadChecks].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
+${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG},"dimcCheck[name:duplicateFileLoadChecks].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
+${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED},"dimcCheck[name:dataVolumeConsistencyCheck].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
+${UPPER_THRESHOLD},"dimcCheck[name:dataVolumeConsistencyCheck].upperThreshold","FILE_*, TERADATA, HIVE",HIVE,""
+${LOWER_THRESHOLD},"dimcCheck[name:dataVolumeConsistencyCheck].lowerThreshold","FILE_*, TERADATA, HIVE",HIVE,""
+${NUM_PAST_DAYS},"dimcCheck[name:dataVolumeConsistencyCheck].numPastDays","FILE_*, TERADATA, HIVE",HIVE,""
+${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG},"dimcCheck[name:dataVolumeConsistencyCheck].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
+${MISSING_FILE_CHECK_ENABLED},"dimcCheck[name:missingFileCheck].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
+${MISSING_FILE_CHECK_FAILURE_FLAG},"dimcCheck[name:missingFileCheck].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
+${DELIVERY_CHECK_ENABLED},"dimcCheck[name:deliveryCheck].isDimcCheckEnabled","FILE_*, TERADATA, HIVE",HIVE,""
+${DELIVERY_CHECK_SLA},"dimcCheck[name:deliveryCheck].SLA","FILE_*, TERADATA, HIVE",HIVE,""
+${DELIVERY_CHECK_FAILURE_FLAG},"dimcCheck[name:deliveryCheck].isFailJobOnError","FILE_*, TERADATA, HIVE",HIVE,""
+${MISSING_DB_OBJECT_CHECK_ENABLED},"dimcCheck[name:missingDbObjectCheck].isDimcCheckEnabled","TERADATA, HIVE",HIVE,""
+${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG},"dimcCheck[name:missingDbObjectCheck].isFailJobOnError","TERADATA, HIVE",HIVE,""
+${EMPTY_SOURCE_CHECK_ENABLED},"dimcCheck[name:emptySourceCheck].isDimcCheckEnabled","TERADATA, HIVE",HIVE,""
+${EMPTY_SOURCE_CHECK_FAILURE_FLAG},"dimcCheck[name:emptySourceCheck].isFailJobOnError","TERADATA, HIVE",HIVE,""
+${FILE_DATE_CHECK_ENABLED},"dimcCheck[name:fileDateCheck].isDimcCheckEnabled","FILE_FIXEDWIDTH (specifically)",HIVE,""
+${FILE_DATE_CHECK_FAILURE_FLAG},"dimcCheck[name:fileDateCheck].isFailJobOnError","FILE_FIXEDWIDTH (specifically)",HIVE,""
+--- FILEEXTRACTS SECTION PLACEHOLDERS (Target: GCP) ---,,,,""
+${IS_FILE_EXTRACT_ENABLED},"fileExtracts.fileExtract[].isFileExtractEnabled","All (when target is GCP)",GCP,""
+${TARGET_TABLE_NAME},"fileExtracts.fileExtract[].hdfsFilePath","All (when target is GCP)",GCP,"Temporary HDFS path component. Actual value might be based on resolvedJobName for BMG SOR."
+${TGT_TBL_NDM_OUT_DIR_PATH},"fileExtracts.fileExtract[].externalFilePath","All (when target is GCP)",GCP,Final external file path.
+${PART_FILE_SIZE},"fileExtracts.fileExtract[].cdmpAdditionalParams.desiredPartFileSize","All (when target is GCP)",GCP,Desired partition file size for CDMP extract.
