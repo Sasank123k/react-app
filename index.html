@@ -148,9 +148,8 @@ public class JilFileBuilder {
         cmdJob2.put(MACHINE, param.getCdmpmachineName());
         cmdJob2.put(OWNER, param.getCdmpowner());
         cmdJob2.put(PERMISSION, param.getPermission());
-        cmdJob2.put(DATE_CONDITIONS, DEFAULT_CMD_DATE_CONDITIONS);
+        cmdJob2.put(DATE_CONDITIONS, param.getCdmpdateCondition());
 
-        // Condition for CMD2: Directly use cdmpdependenciesCondition
         if (StringUtils.hasText(param.getCdmpdependenciesCondition())) {
             cmdJob2.put(CONDITION, param.getCdmpdependenciesCondition());
         }
