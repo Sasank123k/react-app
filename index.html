@@ -1,164 +1,22 @@
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-// Assuming other necessary imports for Requirement, SourceTable, repositories, etc. are present.
+// Inside createSqlScript method, after srcTableQuery has been constructed and added to sqlScriptList.
+// String srcTableQuery = sqlScriptList.get(0); // Or the variable itself if still in scope
 
-public class ApplicationAuthorizerController { // Or whatever class this method belongs to
+String srcDataFrameQueryString;
+String currentSorType = currentRequirement.getSorType() != null ? currentRequirement.getSorType().toLowerCase() : "";
+String currentTargetType = currentRequirement.getTargetType() != null ? currentRequirement.getTargetType().toLowerCase() : ""; // Assuming getTargetType() exists
+String tableNameFromJira = currentRequirement.getTableName() != null ? currentRequirement.getTableName().toLowerCase() : "";
+String sourceSchema = currentRequirement.getSrcSchema() != null ? currentRequirement.getSrcSchema().toLowerCase() : "";
 
-    // Assuming these repositories are injected or accessible
-    // private RequirementRepository requirementRepository;
-    // private SourceTableRepository sourceTableRepository;
-    // private JiraStoryIntakeRepository jiraStoryIntakeRepository; // May be needed if targetType isn't directly on Requirement
-    // private SorRepository sorRepository; // May be needed if sorName needs more than just string comparison
-
-    private static final String SELECT = "SELECT "; // Define if not already present
-
-    public List<String> createSqlScript(String requirementId) {
-        List<String> sqlScriptList = new ArrayList<>();
-        List<Requirement> requirementList = requirementRepository.findByRequirementId(requirementId);
-        List<SourceTable> sourceTableList = sourceTableRepository.findByRequirementId(requirementId);
-
-        // Existing initial check
-        if (!requirementList.isEmpty() && !sourceTableList.isEmpty() && !(sourceTableList.get(0).getColumnName().isEmpty())) {
-            Requirement currentRequirement = requirementList.get(0);
-
-            // --- Existing logic for srcTableQuery, tgtTableQuery etc. (should remain as is) ---
-            String srcSchemaName = currentRequirement.getSrcSchema().toUpperCase();
-            String srcTableNameOriginalCase = currentRequirement.getSrcTableName(); // Keep original case for some uses
-            String srcTableNameForQuery = srcTableNameOriginalCase.toUpperCase(); // As per original code for srcTableQuery
-            String srcColumnName = sourceTableList.get(0).getColumnName().toUpperCase();
-            String tgtTableName = currentRequirement.getTgtTableName().toUpperCase();
-            String auditColumns = "";
-            String appName = currentRequirement.getApplicationName();
-            String appLower = appName.toLowerCase();
-            String appUpper = appName.toUpperCase();
-            String srcTableQuery = "";
-
-            if ("EDL".equalsIgnoreCase(currentRequirement.getFlowType())) {
-                // This seems to be for DB sources - EAPP_DCT audit columns
-                auditColumns = "'$EAPP_DCT_SOURCE_SYSTEM_ID' as eapp_dct_source_system_id, '$EAPP_DCT_FEED_NAME' as eapp_dct_feed_name, '$EAPP_DCT_RUN_ID' as eapp_dct_run_id";
-                auditColumns += ", '$EAPP_DCT_CREATE_USER_ID' as eapp_dct_create_user_id, '$EAPP_DCT_BUSINESS_EFFECTIVE_DATE' as eapp_dct_business_effective_date";
-            }
-
-            // Original srcTableQuery construction (for ingestion from direct source)
-            // If auditColumns is empty, the leading comma might be an issue.
-            // Assuming original code handled this, or selectColString was more than just srcColumnName.
-            // For simplicity, I'll replicate the structure from the image.
-            String selectClauseForSrcTable = srcColumnName.toLowerCase();
-            if(!auditColumns.isEmpty()){
-                selectClauseForSrcTable = auditColumns + ", " + srcColumnName.toLowerCase();
-            }
-            srcTableQuery = SELECT + selectClauseForSrcTable + " FROM " + srcSchemaName + "." + srcTableNameForQuery;
-
-            // Original file-specific overwrite of srcTableQuery (This logic is unusual for srcTableQuery but kept as per your request)
-            if ("file".equalsIgnoreCase(currentRequirement.getSorType())) {
-                // This redefines auditColumns for file type (using app-specific placeholders)
-                // and queries a DataFrame name.
-                auditColumns = String.format(",'${%s_CRTE_BY_ID}' as %s_crte_by_id, '${%s_CRTE_DTTM}' as %s_crte_dttm, '${%s_ERR_FLG_IND}' as %s_err_flg_ind, '${%s_ERR_TXT}' as %s_err_txt, '${%s_RUN_ID}' as %s_run_id, '${%s_SOR_CD}' as %s_sor_cd, '${%s_BUSINESS_EFFECTIVE_DATE}' as %s_business_effective_date",
-                        appUpper, appLower, appUpper, appLower, appUpper, appLower, appUpper, appLower,
-                        appUpper, appLower, appUpper, appLower, appUpper, appLower);
-                srcTableQuery = SELECT + "*" + auditColumns + " FROM " + tgtTableName.toLowerCase() + "_df"; // This still seems to point to a target-derived DF name. Kept as is.
-            }
-            sqlScriptList.add(srcTableQuery);
-
-            // --- NEW LOGIC FOR srcDataFrameQuery ---
-            String srcDataFrameQueryString;
-
-            String sorTypeString = currentRequirement.getSorType();
-            // Assuming getTargetType() exists on Requirement entity as discussed
-            String targetTypeString = currentRequirement.getTargetType(); 
-            String sourceSchema = currentRequirement.getSrcSchema();
-            String originalSourceTableName = currentRequirement.getSrcTableName(); // e.g., "ACTUAL_TABLE_FROM_SOURCE_SYSTEM"
-            String baseTableName = currentRequirement.getTableName(); // e.g., "jira_ticket_table_name_part"
-            String sorName = currentRequirement.getSorName();
-
-            String currentSorType = sorTypeString != null ? sorTypeString.toLowerCase() : "";
-            String currentTargetType = targetTypeString != null ? targetTypeString.toLowerCase() : "";
-
-            String resolvedJobNameForSql;
-            String r_inputTableName = baseTableName != null ? baseTableName.toLowerCase() : "";
-            String r_inputSourceSchema = sourceSchema != null ? sourceSchema.toLowerCase() : "";
-            if ("bmg".equalsIgnoreCase(sorName)) {
-                resolvedJobNameForSql = (!r_inputSourceSchema.isEmpty() ? r_inputSourceSchema + "_" : "") + r_inputTableName;
-            } else {
-                resolvedJobNameForSql = r_inputTableName;
-            }
-
-            String ingestionDataFrameNameForSql;
-             if ("bmg".equalsIgnoreCase(sorName)) {
-                // For BMG, DataFrame might follow the resolvedJobName pattern.
-                // Example: if resolvedJobNameForSql is "bmgp_ref_mcc_cd_curr_visa", then "bmgp_ref_mcc_cd_curr_visa_df"
-                // This is consistent with how JsonRequirementService would derive it.
-                ingestionDataFrameNameForSql = resolvedJobNameForSql + "_df";
-            } else {
-                ingestionDataFrameNameForSql = (baseTableName != null ? baseTableName.toLowerCase() : "") + "_df";
-            }
-
-
-            if (currentSorType.equals("hive")) {
-                String actualHiveSourceTable = "bmg".equalsIgnoreCase(sorName) ? 
-                                               resolvedJobNameForSql : 
-                                               (originalSourceTableName != null ? originalSourceTableName.toLowerCase() : "");
-                String hiveSourceSchema = sourceSchema != null ? sourceSchema.toLowerCase() : "";
-                srcDataFrameQueryString = SELECT + "* FROM " + hiveSourceSchema + "." + actualHiveSourceTable;
-                
-                // Add GCP limits if target is GCP. This query is now for FileExtracts since flows for GCP are disabled.
-                if (currentTargetType.equals("gcp")) {
-                    srcDataFrameQueryString += " ${ENB_LIMIT} ${LIMIT_COUNT}";
-                }
-            } else if (currentSorType.startsWith("file")) { // Covers "file-fixedwidth", "file-pipe", "file-comma"
-                String fileAuditColumns = String.format(", '${%s_CRTE_BY_ID}' as %s_crte_by_id, " +
-                    "'${%s_CRTE_DTTM}' as %s_crte_dttm, '${%s_DELTA_CD}' as %s_delta_cd, " +
-                    "'${%s_ERR_FLG_IND}' as %s_err_flg_ind, '${%s_ERR_TXT}' as %s_err_txt, " +
-                    "'${%s_RUN_ID}' as %s_run_id, '${%s_SOR_CD}' as %s_sor_cd, " +
-                    "'${%s_BUSINESS_EFFECTIVE_DATE}' as %s_business_effective_date",
-                    appUpper, appLower, appUpper, appLower, appUpper, appLower,
-                    appUpper, appLower, appUpper, appLower, appUpper, appLower,
-                    appUpper, appLower, appUpper, appLower); // Using appName for placeholders
-                srcDataFrameQueryString = SELECT + "df.*" + fileAuditColumns + " FROM " + ingestionDataFrameNameForSql + " df";
-                // No GCP limits here as this query is for flows, and flows are disabled for GCP.
-                // If this query were also intended for FileExtracts on GCP from a file source, limits might be needed.
-                // For now, assuming this query is primarily for Hive-targeted flows.
-            } else { // Other DB sources like Teradata, Oracle, MSSQL
-                srcDataFrameQueryString = SELECT + "* FROM " + ingestionDataFrameNameForSql;
-                // Add GCP limits if target is GCP. This query is for FileExtracts since flows for GCP are disabled.
-                if (currentTargetType.equals("gcp")) {
-                    srcDataFrameQueryString += " ${ENB_LIMIT} ${LIMIT_COUNT}";
-                }
-            }
-            sqlScriptList.add(srcDataFrameQueryString);
-            // --- END OF NEW LOGIC FOR srcDataFrameQuery ---
-
-            // --- Existing logic for tgtTableQuery and tgtDataFrameQuery (kept as is) ---
-            String tgtTableQuery = SELECT + srcColumnName.toLowerCase() + " FROM " + "${CAP_CURATED_DATABASE}." + tgtTableName + " ${END_LIMIT} ${LIMIT_COUNT}";
-            sqlScriptList.add(tgtTableQuery);
-            String tgtDataFrameQuery = SELECT + "* FROM " + tgtTableName.toLowerCase() + "_df";
-            sqlScriptList.add(tgtDataFrameQuery);
-        }
-        return sqlScriptList;
-    }
-
-    // Dummy repository interfaces and model classes for compilation if you run this standalone
-    // In your actual project, these would be proper JPA entities and Spring Data repositories.
-    interface RequirementRepository { List<Requirement> findByRequirementId(String id); }
-    interface SourceTableRepository { List<SourceTable> findByRequirementId(String id); }
-    // interface JiraStoryIntakeRepository { Optional<JiraStoryIntake> findById(String id); } // If needed
-    // interface SorRepository { List<Sor> findBySorName(String name); } // If needed
-
-    static class Requirement {
-        String getSrcSchema() { return "DUMMY_SRC_SCHEMA"; }
-        String getSrcTableName() { return "DUMMY_SRC_TABLE"; }
-        String getTgtTableName() { return "DUMMY_TGT_TABLE"; }
-        String getApplicationName() { return "DUMMY_APP"; }
-        String getFlowType() { return "EDL"; } // or "ELT" or other values
-        String getSorType() { return "file-pipe"; } // or "teradata", "hive", etc.
-        String getTargetType() { return "hive"; } // or "gcp"
-        String getTableName() { return "dummy_jira_table_name_part"; } // Base name from Jira
-        String getSorName() { return "DUMMY_SOR"; }
-        // other getters
-    }
-    static class SourceTable {
-        String getColumnName() { return "col1,col2,col3"; }
-        // other getters
-    }
+if ("gcp".equals(currentTargetType)) {
+    srcDataFrameQueryString = srcTableQuery + " ${ENB_LIMIT} ${LIMIT_COUNT}";
+} else if (currentSorType.startsWith("file")) { // Covers "file", "file-pipe", etc.
+    srcDataFrameQueryString = srcTableQuery; // This srcTableQuery for files already includes audit columns & reads from a _df
+} else if ("bmg".equalsIgnoreCase(currentRequirement.getSorName())) {
+    // Uses sourceSchema_tableName_raw_df for BMG DB sources to Hive
+    srcDataFrameQueryString = SELECT + "* FROM " + sourceSchema + "_" + tableNameFromJira + "_raw_df";
+} else {
+    // Standard case for other DB sources to Hive
+    srcDataFrameQueryString = SELECT + "* FROM " + tableNameFromJira + "_raw_df";
 }
+
+// sqlScriptList.add(srcDataFrameQueryString); // Add to list at the correct index
