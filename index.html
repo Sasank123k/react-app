@@ -1,22 +1,160 @@
-// Inside createSqlScript method, after srcTableQuery has been constructed and added to sqlScriptList.
-// String srcTableQuery = sqlScriptList.get(0); // Or the variable itself if still in scope
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+// Assuming other necessary imports for Requirement, SourceTable, repositories, etc. are present.
+// For example:
+// import com.wellsfargo.utcap.model.Requirement;
+// import com.wellsfargo.utcap.model.SourceTable;
+// import com.wellsfargo.utcap.repository.RequirementRepository;
+// import com.wellsfargo.utcap.repository.SourceTableRepository;
+// import org.slf4j.Logger;
+// import org.slf4j.LoggerFactory;
 
-String srcDataFrameQueryString;
-String currentSorType = currentRequirement.getSorType() != null ? currentRequirement.getSorType().toLowerCase() : "";
-String currentTargetType = currentRequirement.getTargetType() != null ? currentRequirement.getTargetType().toLowerCase() : ""; // Assuming getTargetType() exists
-String tableNameFromJira = currentRequirement.getTableName() != null ? currentRequirement.getTableName().toLowerCase() : "";
-String sourceSchema = currentRequirement.getSrcSchema() != null ? currentRequirement.getSrcSchema().toLowerCase() : "";
 
-if ("gcp".equals(currentTargetType)) {
-    srcDataFrameQueryString = srcTableQuery + " ${ENB_LIMIT} ${LIMIT_COUNT}";
-} else if (currentSorType.startsWith("file")) { // Covers "file", "file-pipe", etc.
-    srcDataFrameQueryString = srcTableQuery; // This srcTableQuery for files already includes audit columns & reads from a _df
-} else if ("bmg".equalsIgnoreCase(currentRequirement.getSorName())) {
-    // Uses sourceSchema_tableName_raw_df for BMG DB sources to Hive
-    srcDataFrameQueryString = SELECT + "* FROM " + sourceSchema + "_" + tableNameFromJira + "_raw_df";
-} else {
-    // Standard case for other DB sources to Hive
-    srcDataFrameQueryString = SELECT + "* FROM " + tableNameFromJira + "_raw_df";
+// Assuming this method is part of a class where repositories are injected
+// e.g., @Service or @Component
+public class SqlScriptGeneratorService { // Example class name
+
+    // private static final Logger log = LoggerFactory.getLogger(SqlScriptGeneratorService.class); // Optional logging
+    private final RequirementRepository requirementRepository;
+    private final SourceTableRepository sourceTableRepository;
+
+    private static final String SELECT = "SELECT ";
+
+    // Constructor for dependency injection
+    // @Autowired // If using Spring
+    public SqlScriptGeneratorService(RequirementRepository requirementRepository, SourceTableRepository sourceTableRepository) {
+        this.requirementRepository = requirementRepository;
+        this.sourceTableRepository = sourceTableRepository;
+    }
+
+    public List<String> createSqlScript(String requirementId) {
+        List<String> sqlScriptList = new ArrayList<>();
+        List<Requirement> requirementList = requirementRepository.findByRequirementId(requirementId);
+        List<SourceTable> sourceTableList = sourceTableRepository.findByRequirementId(requirementId);
+
+        if (!requirementList.isEmpty() && !sourceTableList.isEmpty() && 
+            sourceTableList.get(0).getColumnName() != null && !sourceTableList.get(0).getColumnName().isEmpty()) {
+            
+            Requirement currentRequirement = requirementList.get(0);
+
+            String srcSchemaName = currentRequirement.getSrcSchema() != null ? currentRequirement.getSrcSchema().toUpperCase() : "";
+            String srcTableNameOriginalCase = currentRequirement.getSrcTableName();
+            String srcTableNameForQuery = srcTableNameOriginalCase != null ? srcTableNameOriginalCase.toUpperCase() : "";
+            String srcColumnName = sourceTableList.get(0).getColumnName().toUpperCase(); // Assuming this is a comma-separated string
+            String tgtTableNameOriginalCase = currentRequirement.getTgtTableName();
+            String tgtTableNameForQuery = tgtTableNameOriginalCase != null ? tgtTableNameOriginalCase.toUpperCase() : "";
+            
+            String auditColumns = "";
+            String appName = currentRequirement.getApplicationName();
+            String appLower = appName != null ? appName.toLowerCase() : "";
+            String appUpper = appName != null ? appName.toUpperCase() : "";
+            String srcTableQuery = "";
+
+            // --- Existing logic for srcTableQuery (preserved as requested) ---
+            if ("EDL".equalsIgnoreCase(currentRequirement.getFlowType())) {
+                auditColumns = "'$EAPP_DCT_SOURCE_SYSTEM_ID' as eapp_dct_source_system_id, '$EAPP_DCT_FEED_NAME' as eapp_dct_feed_name, '$EAPP_DCT_RUN_ID' as eapp_dct_run_id";
+                auditColumns += ", '$EAPP_DCT_CREATE_USER_ID' as eapp_dct_create_user_id, '$EAPP_DCT_BUSINESS_EFFECTIVE_DATE' as eapp_dct_business_effective_date";
+            }
+
+            String selectClauseForSrcTable = srcColumnName.toLowerCase();
+            if (!auditColumns.isEmpty()) {
+                selectClauseForSrcTable = auditColumns + ", " + srcColumnName.toLowerCase();
+            }
+            srcTableQuery = SELECT + selectClauseForSrcTable + " FROM " + srcSchemaName + "." + srcTableNameForQuery;
+
+            if ("file".equalsIgnoreCase(currentRequirement.getSorType())) {
+                // This redefines auditColumns for file type and queries a DataFrame name.
+                auditColumns = String.format(",'${%s_CRTE_BY_ID}' as %s_crte_by_id, '${%s_CRTE_DTTM}' as %s_crte_dttm, '${%s_ERR_FLG_IND}' as %s_err_flg_ind, '${%s_ERR_TXT}' as %s_err_txt, '${%s_RUN_ID}' as %s_run_id, '${%s_SOR_CD}' as %s_sor_cd, '${%s_BUSINESS_EFFECTIVE_DATE}' as %s_business_effective_date",
+                        appUpper, appLower, appUpper, appLower, appUpper, appLower, appUpper, appLower,
+                        appUpper, appLower, appUpper, appLower, appUpper, appLower);
+                // Using tgtTableName for DataFrame construction as per original snippet for this specific srcTableQuery when source is file
+                srcTableQuery = SELECT + "*" + auditColumns + " FROM " + (tgtTableNameOriginalCase != null ? tgtTableNameOriginalCase.toLowerCase() : "") + "_df";
+            }
+            sqlScriptList.add(srcTableQuery);
+            // --- End of existing logic for srcTableQuery ---
+
+
+            // --- NEW LOGIC FOR srcDataFrameQuery based on your latest specifications ---
+            String srcDataFrameQueryString;
+
+            String sorTypeString = currentRequirement.getSorType();
+            String targetTypeString = currentRequirement.getTargetType(); 
+            String tableNameFromJira = currentRequirement.getTableName(); // This is the base name from Jira
+            String currentSorName = currentRequirement.getSorName();
+            // String sourceSchemaFromReq = currentRequirement.getSrcSchema(); // Already fetched as srcSchemaName
+
+            String currentSorTypeNormalized = sorTypeString != null ? sorTypeString.toLowerCase() : "";
+            String currentTargetTypeNormalized = targetTypeString != null ? targetTypeString.toLowerCase() : "";
+            String baseTableNameNormalized = tableNameFromJira != null ? tableNameFromJira.toLowerCase() : "";
+            String srcSchemaNormalized = srcSchemaName != null ? srcSchemaName.toLowerCase() : "";
+
+
+            if ("gcp".equals(currentTargetTypeNormalized)) {
+                srcDataFrameQueryString = srcTableQuery + " ${ENB_LIMIT} ${LIMIT_COUNT}";
+            } else if (currentSorTypeNormalized.startsWith("file")) { 
+                srcDataFrameQueryString = srcTableQuery; // As per your request, srcDataFrameQuery for files is same as srcTableQuery for files
+            } else if ("bmg".equalsIgnoreCase(currentSorName)) {
+                // For BMG (non-file, non-GCP target), use schema_table_raw_df
+                srcDataFrameQueryString = SELECT + "* FROM " + srcSchemaNormalized + "_" + baseTableNameNormalized + "_raw_df";
+            } else {
+                // Standard case for other DB sources to Hive (non-BMG, non-file, non-GCP target)
+                srcDataFrameQueryString = SELECT + "* FROM " + baseTableNameNormalized + "_raw_df";
+            }
+            sqlScriptList.add(srcDataFrameQueryString);
+            // --- END OF NEW LOGIC FOR srcDataFrameQuery ---
+
+
+            // --- Existing logic for tgtTableQuery and tgtDataFrameQuery (preserved as requested) ---
+            String tgtTableQuery = SELECT + srcColumnName.toLowerCase() + " FROM " + "${CAP_CURATED_DATABASE}." + tgtTableNameForQuery + " ${END_LIMIT} ${LIMIT_COUNT}";
+            sqlScriptList.add(tgtTableQuery);
+            String tgtDataFrameQuery = SELECT + "* FROM " + (tgtTableNameOriginalCase != null ? tgtTableNameOriginalCase.toLowerCase() : "") + "_df";
+            sqlScriptList.add(tgtDataFrameQuery);
+        } else {
+            // Handle cases where prerequisites are not met (e.g., empty lists)
+            // Consider logging an error or returning an empty list / throwing an exception
+            // For now, returning an empty list as per original implicit behavior if condition fails
+            // log.warn("Could not create SQL script for requirementId: {}. Missing Requirement or SourceTableList details.", requirementId);
+        }
+        return sqlScriptList;
+    }
+
+    // --- Dummy model and repository interfaces for context ---
+    // Replace with your actual model and repository definitions
+    private interface RequirementRepository {
+        List<Requirement> findByRequirementId(String id);
+    }
+
+    private interface SourceTableRepository {
+        List<SourceTable> findByRequirementId(String id);
+    }
+
+    private static class Requirement {
+        private String srcSchema;
+        private String srcTableName;
+        private String tgtTableName;
+        private String applicationName;
+        private String flowType;
+        private String sorType;
+        private String targetType;
+        private String tableName; // Base name from Jira
+        private String sorName;
+
+        public String getSrcSchema() { return srcSchema; }
+        public String getSrcTableName() { return srcTableName; }
+        public String getTgtTableName() { return tgtTableName; }
+        public String getApplicationName() { return applicationName; }
+        public String getFlowType() { return flowType; }
+        public String getSorType() { return sorType; }
+        public String getTargetType() { return targetType; }
+        public String getTableName() { return tableName; }
+        public String getSorName() { return sorName; }
+        // Add setters or a constructor if needed for testing
+    }
+
+    private static class SourceTable {
+        private String columnName;
+        public String getColumnName() { return columnName; }
+        // Add setters or a constructor if needed for testing
+    }
 }
-
-// sqlScriptList.add(srcDataFrameQueryString); // Add to list at the correct index
