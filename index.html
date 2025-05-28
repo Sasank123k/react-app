@@ -1,223 +1,3 @@
-package com.wellsfargo.utcap.config;
-
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.wellsfargo.utcap.model.*; // Assuming these models are correctly defined
-import lombok.Getter;
-import lombok.ToString;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-
-@Getter
-@ToString
-public class JsonGenerationConfig {
-
-    public enum SourceType { TERADATA, FILE_FIXEDWIDTH, FILE_PIPE, FILE_COMMA, MSSQL, ORACLE, HIVE, UNKNOWN }
-    public enum TargetType { HIVE, GCP, UNKNOWN }
-
-    public static final String SANITIZED_ZONE = "sanitized";
-    public static final String RAW_ZONE = "raw";
-    public static final String TABLE_TEXT = " table "; // Used in descriptions
-    public static final String INGESTION_TO_TEXT = " ingestion to "; // Used in descriptions
-
-    private final JiraStoryIntake jiraStoryIntake;
-    private final Sor sor;
-    private final ApplicationAuthorizer applicationAuthorizer;
-    private final SQLScript sqlScript;
-
-    private final SourceType sourceType;
-    private final TargetType targetType;
-    private final boolean includeIngestions;
-    private final boolean includeFlows;
-    private final boolean includeDataChecks;
-    private final boolean includeFileExtracts;
-
-    private final String resolvedJobName;
-    private final String resolvedJobAppKeySetting; // Change #7: For the "app" key in the job object
-
-    private final Set<String> jobLevelFieldsToInclude;
-    private final Set<String> ingestionFieldsToInclude;
-
-    private final String resolvedIngestionSourceTypeValue;
-    private final String resolvedIngestionConnectionHeaderValue;
-    private final String resolvedIngestionDataFrameName;
-    private final String resolvedIngestionSourceSQLQuery;
-    private final String resolvedIngestionSourceName;
-    private final String resolvedIngestionDataFilePath;
-    private final String resolvedIngestionSchemaFilePath;
-    private final String resolvedIngestionStagingFilePath;
-    private final String resolvedIngestionDelimiter;
-    private final String resolvedIngestionIsHeaderEnabledValue;
-    private final String ingestionIsCreateTargetTableValue;
-    private final String ingestionIsCacheEnabledValue;
-    private final String ingestionIsOverWritePartitionValue;
-    private final String ingestionIsRowCountDisabledValue;
-    private final ObjectNode prebuiltIngestionAdditionalReadConfigsNode;
-    private final ObjectNode prebuiltIngestionDimcChecksNode;
-
-    private final List<FlowDetailConfig> flowDetailsList;
-
-    private final String resolvedDataChecksAcDcDatabase;
-    private final List<CheckDetailConfig> checkDetailsList;
-    private final ObjectNode prebuiltDataChecksPreChecksNode;
-
-    @Getter
-    @ToString
-    public static class FlowDetailConfig {
-        private final String flowId;
-        private final String resolvedFlowDescription;
-        private final String resolvedFlowQuery;
-        private final String resolvedFlowRegisterName;
-        private final String resolvedFlowDatabaseName;
-        private final String resolvedFlowStorageName;
-        private final String resolvedFlowTargetTablePath;
-        private final String resolvedFlowHivePartitionColumn;
-        private final String isCreateFlowTargetTableValue;
-        private final String isOverWritePartitionValue;
-        private final String isCacheEnabledValue;
-        private final String sendEmailValue;
-        private final String abortIfEmptyValue;
-        private final String saveOutputValue;
-
-        public FlowDetailConfig(String flowId, String resolvedFlowDescription, String resolvedFlowQuery,
-                                String resolvedFlowRegisterName, String resolvedFlowDatabaseName,
-                                String resolvedFlowStorageName, String resolvedFlowTargetTablePath,
-                                String resolvedFlowHivePartitionColumn, String isCreateFlowTargetTableValue,
-                                String isOverWritePartitionValue, String isCacheEnabledValue,
-                                String sendEmailValue, String abortIfEmptyValue, String saveOutputValue) {
-            this.flowId = flowId;
-            this.resolvedFlowDescription = resolvedFlowDescription;
-            this.resolvedFlowQuery = resolvedFlowQuery;
-            this.resolvedFlowRegisterName = resolvedFlowRegisterName;
-            this.resolvedFlowDatabaseName = resolvedFlowDatabaseName;
-            this.resolvedFlowStorageName = resolvedFlowStorageName;
-            this.resolvedFlowTargetTablePath = resolvedFlowTargetTablePath;
-            this.resolvedFlowHivePartitionColumn = resolvedFlowHivePartitionColumn;
-            this.isCreateFlowTargetTableValue = isCreateFlowTargetTableValue;
-            this.isOverWritePartitionValue = isOverWritePartitionValue;
-            this.isCacheEnabledValue = isCacheEnabledValue;
-            this.sendEmailValue = sendEmailValue;
-            this.abortIfEmptyValue = abortIfEmptyValue;
-            this.saveOutputValue = saveOutputValue;
-        }
-    }
-
-    @Getter
-    @ToString
-    public static class CheckDetailConfig {
-        private final String checkId;
-        private final String checkName;
-        private final String checkDescription;
-        private final String resolvedCheckSourceQuery;
-        private final String resolvedCheckTargetQuery;
-        private final String isCheckEnabledValue;
-        private final String isUserSupplyQueryValue;
-        private final String readSourceQueryFromPathValue;
-        private final String readTargetQueryFromPathValue;
-        private final String isFailJobOnDataCheckErrorValue; // Value to be changed by req #2
-
-        public CheckDetailConfig(String checkId, String checkName, String checkDescription,
-                                   String resolvedCheckSourceQuery, String resolvedCheckTargetQuery,
-                                   String isCheckEnabledValue, String isUserSupplyQueryValue,
-                                   String readSourceQueryFromPathValue, String readTargetQueryFromPathValue,
-                                   String isFailJobOnDataCheckErrorValue) {
-            this.checkId = checkId;
-            this.checkName = checkName;
-            this.checkDescription = checkDescription;
-            this.resolvedCheckSourceQuery = resolvedCheckSourceQuery;
-            this.resolvedCheckTargetQuery = resolvedCheckTargetQuery;
-            this.isCheckEnabledValue = isCheckEnabledValue;
-            this.isUserSupplyQueryValue = isUserSupplyQueryValue;
-            this.readSourceQueryFromPathValue = readSourceQueryFromPathValue;
-            this.readTargetQueryFromPathValue = readTargetQueryFromPathValue;
-            this.isFailJobOnDataCheckErrorValue = isFailJobOnDataCheckErrorValue;
-        }
-    }
-
-    public JsonGenerationConfig(
-            JiraStoryIntake jiraStoryIntake, Sor sor, ApplicationAuthorizer applicationAuthorizer, SQLScript sqlScript,
-            SourceType sourceType, TargetType targetType, String resolvedJobName, String resolvedJobAppKeySetting, // Added resolvedJobAppKeySetting
-            boolean includeIngestions, boolean includeFlows, boolean includeDataChecks, boolean includeFileExtracts,
-            Set<String> jobLevelFieldsToInclude, Set<String> ingestionFieldsToInclude,
-            String resolvedIngestionSourceTypeValue, String resolvedIngestionConnectionHeaderValue,
-            String resolvedIngestionDataFrameName, String resolvedIngestionSourceSQLQuery,
-            String resolvedIngestionSourceName, String resolvedIngestionDataFilePath,
-            String resolvedIngestionSchemaFilePath, String resolvedIngestionStagingFilePath,
-            String resolvedIngestionDelimiter, String resolvedIngestionIsHeaderEnabledValue,
-            String ingestionIsCreateTargetTableValue, String ingestionIsCacheEnabledValue, String ingestionIsOverWritePartitionValue,
-            String ingestionIsRowCountDisabledValue,
-            ObjectNode prebuiltIngestionAdditionalReadConfigsNode,
-            ObjectNode prebuiltIngestionDimcChecksNode,
-            List<FlowDetailConfig> flowDetailsList,
-            String resolvedDataChecksAcDcDatabase, List<CheckDetailConfig> checkDetailsList,
-            ObjectNode prebuiltDataChecksPreChecksNode
-    ) {
-        this.jiraStoryIntake = Objects.requireNonNull(jiraStoryIntake, "JiraStoryIntake cannot be null");
-        this.sor = Objects.requireNonNull(sor, "Sor cannot be null");
-        this.applicationAuthorizer = Objects.requireNonNull(applicationAuthorizer, "ApplicationAuthorizer cannot be null");
-        this.sqlScript = Objects.requireNonNull(sqlScript, "SQLScript cannot be null");
-        this.sourceType = Objects.requireNonNull(sourceType, "SourceType cannot be null");
-        this.targetType = Objects.requireNonNull(targetType, "TargetType cannot be null");
-        this.resolvedJobName = Objects.requireNonNull(resolvedJobName, "ResolvedJobName cannot be null");
-        this.resolvedJobAppKeySetting = Objects.requireNonNull(resolvedJobAppKeySetting, "ResolvedJobAppKeySetting cannot be null"); // Change #7
-        this.includeIngestions = includeIngestions;
-        this.includeFlows = includeFlows;
-        this.includeDataChecks = includeDataChecks;
-        this.includeFileExtracts = includeFileExtracts;
-        this.jobLevelFieldsToInclude = Objects.requireNonNull(jobLevelFieldsToInclude, "jobLevelFieldsToInclude cannot be null");
-        this.ingestionFieldsToInclude = Objects.requireNonNull(ingestionFieldsToInclude, "ingestionFieldsToInclude cannot be null");
-        this.resolvedIngestionSourceTypeValue = resolvedIngestionSourceTypeValue;
-        this.resolvedIngestionConnectionHeaderValue = resolvedIngestionConnectionHeaderValue;
-        this.resolvedIngestionDataFrameName = resolvedIngestionDataFrameName;
-        this.resolvedIngestionSourceSQLQuery = resolvedIngestionSourceSQLQuery;
-        this.resolvedIngestionSourceName = resolvedIngestionSourceName;
-        this.resolvedIngestionDataFilePath = resolvedIngestionDataFilePath;
-        this.resolvedIngestionSchemaFilePath = resolvedIngestionSchemaFilePath;
-        this.resolvedIngestionStagingFilePath = resolvedIngestionStagingFilePath;
-        this.resolvedIngestionDelimiter = resolvedIngestionDelimiter;
-        this.resolvedIngestionIsHeaderEnabledValue = resolvedIngestionIsHeaderEnabledValue;
-        this.ingestionIsCreateTargetTableValue = ingestionIsCreateTargetTableValue;
-        this.ingestionIsCacheEnabledValue = ingestionIsCacheEnabledValue;
-        this.ingestionIsOverWritePartitionValue = ingestionIsOverWritePartitionValue;
-        this.ingestionIsRowCountDisabledValue = ingestionIsRowCountDisabledValue;
-        this.prebuiltIngestionAdditionalReadConfigsNode = prebuiltIngestionAdditionalReadConfigsNode;
-        this.prebuiltIngestionDimcChecksNode = prebuiltIngestionDimcChecksNode;
-        this.flowDetailsList = Objects.requireNonNull(flowDetailsList, "flowDetailsList cannot be null");
-        this.resolvedDataChecksAcDcDatabase = resolvedDataChecksAcDcDatabase;
-        this.checkDetailsList = Objects.requireNonNull(checkDetailsList, "checkDetailsList cannot be null");
-        this.prebuiltDataChecksPreChecksNode = prebuiltDataChecksPreChecksNode;
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 package com.wellsfargo.utcap.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -337,8 +117,8 @@ public class JsonRequirementService {
         } else if (auth.getApplicationName() != null) {
             jobSpecificAppValue = auth.getApplicationName().toLowerCase(Locale.ROOT);
         } else {
-            jobSpecificAppValue = jira.getApplicationName().toLowerCase(Locale.ROOT); // Fallback or handle error
-            LOG.warn("ApplicationQualifier and ApplicationName from ApplicationAuthorizer are missing for JIRA app: {}. Using JIRA app name as fallback for job 'app' key.", jira.getApplicationName());
+            jobSpecificAppValue = jira.getApplicationName() != null ? jira.getApplicationName().toLowerCase(Locale.ROOT) : "default_app_value"; // Fallback
+            LOG.warn("ApplicationQualifier and ApplicationName from ApplicationAuthorizer are missing for JIRA app: {}. Using JIRA app name or default for job 'app' key.", jira.getApplicationName());
         }
 
         boolean includeIngestions = (sourceTypeEnum != JsonGenerationConfig.SourceType.HIVE);
@@ -355,9 +135,9 @@ public class JsonRequirementService {
         // Change #4: resolvedIngestionDataFrameName will adapt based on modified resolvedJobNameString
         String resolvedIngestionDataFrameName;
         if (includeIngestions) {
-            if ("bmg".equalsIgnoreCase(sor.getSorName()) && !isFileSource(sourceTypeEnum)) { // Match condition for resolvedJobNameString for BMG part
+            if ("bmg".equalsIgnoreCase(sor.getSorName()) && !isFileSource(sourceTypeEnum)) {
                 resolvedIngestionDataFrameName = resolvedJobNameString + "_df";
-            } else { // Covers non-BMG SORs OR BMG SORs that are file types
+            } else {
                 resolvedIngestionDataFrameName = inputTableName + "_df";
             }
         } else {
@@ -407,7 +187,7 @@ public class JsonRequirementService {
                 buildPrebuiltDataChecksPreChecksNode(sourceTypeEnum, this.objectMapper) : null;
 
         return new JsonGenerationConfig(
-                jira, sor, auth, sqlScript, sourceTypeEnum, targetTypeEnum, resolvedJobNameString, jobSpecificAppValue, // Added jobSpecificAppValue
+                jira, sor, auth, sqlScript, sourceTypeEnum, targetTypeEnum, resolvedJobNameString, jobSpecificAppValue,
                 includeIngestions, includeFlows, includeDataChecks, includeFileExtracts,
                 jobLevelFieldsToInclude, ingestionFieldsToInclude,
                 resolvedIngestionSourceTypeValue, resolvedIngestionConnectionHeaderValue,
@@ -440,7 +220,7 @@ public class JsonRequirementService {
         ));
 
         if (targetType == JsonGenerationConfig.TargetType.HIVE && sourceType == JsonGenerationConfig.SourceType.TERADATA) {
-            fields.add("targetType"); // "parquet"
+            fields.add("targetType");
         }
 
         if (isDatabaseSource(sourceType)) {
@@ -501,7 +281,7 @@ public class JsonRequirementService {
             case FILE_FIXEDWIDTH:
             case FILE_PIPE:
             case FILE_COMMA:
-                return Arrays.asList(6, 0, 1, 2, 3, 7, 8); // Unified list for all file types
+                return Arrays.asList(6, 0, 1, 2, 3, 7, 8); // Unified list
             default:
                 return Collections.emptyList();
         }
@@ -536,7 +316,6 @@ public class JsonRequirementService {
         List<JsonGenerationConfig.FlowDetailConfig> flowConfigs = new ArrayList<>();
         int numberOfFlows = (sourceType == JsonGenerationConfig.SourceType.MSSQL || sourceType == JsonGenerationConfig.SourceType.ORACLE) ? 2 : 1;
 
-        // Using jira.getApplicationName() here as per clarification of point #7 scope
         String appNameForFlowLogic = jira.getApplicationName() != null ? jira.getApplicationName().toLowerCase(Locale.ROOT) : "defaultapp";
         String commonHivePartitionColumn = appNameForFlowLogic + "_business_effective_date";
 
@@ -557,7 +336,6 @@ public class JsonRequirementService {
             if (numberOfFlows == 2 && isFirstFlow) {
                 flowZone = JsonGenerationConfig.RAW_ZONE;
             }
-            // Using jira.getApplicationName() for flow description as per clarification of point #7 scope
             String appNameForDescription = jira.getApplicationName() != null ? jira.getApplicationName() : "UNKNOWN_APP";
             String flowDesc = sor.getSorName().toUpperCase(Locale.ROOT) +
                               JsonGenerationConfig.TABLE_TEXT + baseNameForFlow +
@@ -574,9 +352,8 @@ public class JsonRequirementService {
                     storageName = "${TARGET_TABLE_NAME}";
                     targetTablePath = "${FILE_PATH}/${TARGET_TABLE_NAME}";
                     flowDatabaseName = "${HIVE_TARGET_DBNAME}";
-                } else { // DB sources to Hive
+                } else { 
                     Map<String, String> storageNameMap = Map.of("CNAPP", "consumer", "UTCAP", "utcap");
-                     // Using jira.getApplicationName() here for appSubDir
                     String appSubDir = storageNameMap.getOrDefault(jira.getApplicationName(), jira.getApplicationName() != null ? jira.getApplicationName().toLowerCase() : "defaultapp");
                     storageName = "/datalake${EDL_ENV}/" + appSubDir + "/" +
                             sor.getDomainName().toLowerCase(Locale.ROOT) + "/" +
@@ -595,7 +372,6 @@ public class JsonRequirementService {
         return flowConfigs;
     }
 
-    // Change #2: isFailJobOnDataCheckErrorValue will be "Y"
     private List<JsonGenerationConfig.CheckDetailConfig> prepareCheckDetails(
         JsonGenerationConfig.SourceType sourceType, JsonGenerationConfig.TargetType targetType,
         JiraStoryIntake jira, ApplicationAuthorizer auth,
@@ -607,9 +383,7 @@ public class JsonRequirementService {
         }
 
         String tableNameForCheck = currentResolvedJobName;
-        // Using jira.getApplicationName() for partition placeholder as per clarification of point #7 scope
         String appNameForPartitionPlaceholder = jira.getApplicationName() != null ? jira.getApplicationName().toUpperCase() : "DEFAULTAPP";
-
 
         for (JsonGenerationConfig.FlowDetailConfig currentFlow : flowDetails) {
             String checkId = currentFlow.getFlowId();
@@ -698,9 +472,8 @@ public class JsonRequirementService {
 
     private ObjectNode createJobNode(JsonGenerationConfig config) {
         ObjectNode jobNode = objectMapper.createObjectNode();
-        JiraStoryIntake jira = config.getJiraStoryIntake(); // Keep for other uses if any
         Sor sor = config.getSor();
-        ApplicationAuthorizer auth = config.getApplicationAuthorizer(); // Keep for other uses if any
+        ApplicationAuthorizer auth = config.getApplicationAuthorizer();
 
         jobNode.put("JobName", config.getResolvedJobName());
 
@@ -716,12 +489,12 @@ public class JsonRequirementService {
         if (jobFields.contains("sor")) jobNode.put("sor", sor.getSorName().toLowerCase(Locale.ROOT));
 
         jobNode.put("jobId", "1");
-        jobNode.put("jobDescription", determineJobDescription(config)); // Uses new format from Change #1
+        jobNode.put("jobDescription", determineJobDescription(config));
         jobNode.put("isJobEnabled", "Y");
-        jobNode.set("Email", createEmailNode(config)); // Uses updated subject from Change #6
+        jobNode.set("Email", createEmailNode(config));
 
         if (config.isIncludeIngestions()) {
-            ObjectNode ingestionsNode = buildGenericIngestionNode(config); // Ingestion desc updated by Change #1
+            ObjectNode ingestionsNode = buildGenericIngestionNode(config);
             if (ingestionsNode != null && ingestionsNode.size() > 0) jobNode.set("ingestions", ingestionsNode);
         }
         if (config.isIncludeFlows()) {
@@ -746,16 +519,12 @@ public class JsonRequirementService {
         JiraStoryIntake jira = config.getJiraStoryIntake();
         Sor sor = config.getSor();
         String jobNameForDesc = config.getResolvedJobName();
-        // App name for description comes from Jira intake, as per clarification for point #7
         String appNameForDesc = jira.getApplicationName() != null ? jira.getApplicationName() : "UNKNOWN_APP";
 
-
         if (config.getTargetType() == JsonGenerationConfig.TargetType.GCP) {
-            // Change #3 & #6 applied here
-            return "CDMP Ingestion for Hive table - " + jobNameForDesc;
+            return "CDMP Ingestion for Hive table - " + jobNameForDesc; // Change #3 & #6
         } else { // For HIVE target
-            // Change #1 applied here
-            return sor.getSorName().toUpperCase(Locale.ROOT) +
+            return sor.getSorName().toUpperCase(Locale.ROOT) + // Change #1
                    JsonGenerationConfig.TABLE_TEXT + jobNameForDesc +
                    JsonGenerationConfig.INGESTION_TO_TEXT + appNameForDesc;
         }
@@ -771,13 +540,10 @@ public class JsonRequirementService {
 
         String subject;
         String subjectNamePart = config.getResolvedJobName();
-        // App name for subject comes from Jira intake, as per clarification for point #7
         String appNameForSubject = jira.getApplicationName() != null ? jira.getApplicationName() : "UNKNOWN_APP";
 
-
         if (config.getTargetType() == JsonGenerationConfig.TargetType.GCP) {
-            // Change #6 applied here
-            subject = "CDMP Ingestion - " + subjectNamePart; // Simplified from jira.getTableName to subjectNamePart (resolvedJobName)
+            subject = "CDMP Ingestion - " + subjectNamePart; // Change #6 applied & simplified from jira.getTableName
         } else if (isFileSource(config.getSourceType())) {
             subject = "utcap ingestion for feed " + subjectNamePart;
         } else {
@@ -797,8 +563,7 @@ public class JsonRequirementService {
 
         ObjectNode ingestionItemNode = objectMapper.createObjectNode();
         if (fields.contains("ingestionId")) ingestionItemNode.put("ingestionId", "1");
-        // Change #1: Ingestion description updated
-        if (fields.contains("ingestionDesc")) ingestionItemNode.put("ingestionDesc", determineIngestionDescription(config));
+        if (fields.contains("ingestionDesc")) ingestionItemNode.put("ingestionDesc", determineIngestionDescription(config)); // Change #1
         if (fields.contains("isIngestionEnabled")) ingestionItemNode.put("isIngestionEnabled", "Y");
         if (fields.contains("sourceType")) ingestionItemNode.put("sourceType", config.getResolvedIngestionSourceTypeValue());
         if (fields.contains("ConnectionHeader") && config.getResolvedIngestionConnectionHeaderValue() != null)
@@ -848,15 +613,13 @@ public class JsonRequirementService {
         return null;
     }
 
-    // Change #1: Ingestion description to match new job description format for Hive
+    // Change #1: Ingestion description to match new job description format
     private String determineIngestionDescription(JsonGenerationConfig config){
         JiraStoryIntake jira = config.getJiraStoryIntake();
         Sor sor = config.getSor();
         String jobNameForDesc = config.getResolvedJobName();
-        // App name for description comes from Jira intake, as per clarification for point #7
         String appNameForDesc = jira.getApplicationName() != null ? jira.getApplicationName() : "UNKNOWN_APP";
 
-        // Unified format as per request #1
         return sor.getSorName().toUpperCase(Locale.ROOT) +
                JsonGenerationConfig.TABLE_TEXT + jobNameForDesc +
                JsonGenerationConfig.INGESTION_TO_TEXT + appNameForDesc;
@@ -911,7 +674,7 @@ public class JsonRequirementService {
                 return null;
             }
             if (!"${AUDIT_DATABASE}".equals(config.getResolvedDataChecksAcDcDatabase()) && config.getResolvedDataChecksAcDcDatabase() != null) {
-                // Proceed if acDCDatabase is not default, even if no checks/prechecks
+                // Proceed
             } else {
                 return null;
             }
@@ -935,8 +698,7 @@ public class JsonRequirementService {
                 if(detail.getResolvedCheckSourceQuery()!=null) checkItemNode.put("sourceQuery", detail.getResolvedCheckSourceQuery());
                 if(detail.getResolvedCheckTargetQuery()!=null) checkItemNode.put("targetQuery", detail.getResolvedCheckTargetQuery());
                 if(detail.getReadTargetQueryFromPathValue()!=null) checkItemNode.put("readTargetQueryFromPath", detail.getReadTargetQueryFromPathValue());
-                // Change #2: isFailJobOnDataCheckErrorValue is obtained from CheckDetailConfig which is now "Y"
-                if(detail.getIsFailJobOnDataCheckErrorValue()!=null) checkItemNode.put("isFailJobOnDataCheckError", detail.getIsFailJobOnDataCheckErrorValue());
+                if(detail.getIsFailJobOnDataCheckErrorValue()!=null) checkItemNode.put("isFailJobOnDataCheckError", detail.getIsFailJobOnDataCheckErrorValue()); // Change #2
                 checkArray.add(checkItemNode);
             }
         }
@@ -955,13 +717,12 @@ public class JsonRequirementService {
         if (!config.isIncludeFileExtracts()) return null;
         ObjectNode fileExtractsNode = objectMapper.createObjectNode();
         ArrayNode fileExtractArray = fileExtractsNode.putArray("fileExtract");
-        JiraStoryIntake jira = config.getJiraStoryIntake();
         ObjectNode fileExtractItemNode = objectMapper.createObjectNode();
         fileExtractItemNode.put("fileExtractId", "1");
         fileExtractItemNode.put("isFileExtractEnabled", "${IS_FILE_EXTRACT_ENABLED}");
 
         String sourceDescriptionPart = config.getSourceType() == JsonGenerationConfig.SourceType.HIVE ? "hive data" : config.getResolvedJobName();
-        fileExtractItemNode.put("fileDescription", "Extracting " + sourceDescriptionPart + " to avro file for CDMP"); // Retained "Extracting" as per specific instruction for GCP job/email desc only
+        fileExtractItemNode.put("fileDescription", "Extracting " + sourceDescriptionPart + " to avro file for CDMP");
         fileExtractItemNode.put("subjectArea", config.getSourceType() == JsonGenerationConfig.SourceType.HIVE ? "cdmp using FileExtract" : "CDMP");
 
         fileExtractItemNode.put("zone", JsonGenerationConfig.RAW_ZONE);
@@ -988,10 +749,10 @@ public class JsonRequirementService {
         return fileExtractsNode;
     }
 
-    // Change #5: Parameterize values for dataVolumeCompletenessCheck and businessDateCheck
+    // Change #5 & #9: Parameterize values for specific DIMC checks
     private static synchronized void populateDimcChecksMasterList() {
         if (!DIMC_CHECKS_MASTER_LIST.isEmpty()) return;
-        LOG.info("Populating DIMC Checks Master List (Refactored with new parameterizations)...");
+        LOG.info("Populating DIMC Checks Master List (with latest parameterizations)...");
 
         Map<String, Object> check0=new HashMap<>(); check0.put("dimcCheckname","duplicateFileLoadChecks"); check0.put("isDimcCheckEnabled","${DUPLICATE_FILELOAD_CHECK_ENABLED}"); check0.put("isFailJobOnError","${DUPLICATE_FILELOAD_CHECK_FAILURE_FLAG}"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check0));
         Map<String, Object> check1=new HashMap<>(); check1.put("dimcCheckname","dataVolumeConsistencyCheck"); check1.put("isDimcCheckEnabled","${DATA_VOLUME_CONSISTENCY_CHECK_ENABLED}"); check1.put("upperThreshold","${UPPER_THRESHOLD}"); check1.put("lowerThreshold","${LOWER_THRESHOLD}"); check1.put("numPastDays","${NUM_PAST_DAYS}"); check1.put("isFailJobOnError","${DATA_VOLUME_CONSISTENCY_CHECK_FAILURE_FLAG}"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check1));
@@ -1000,28 +761,32 @@ public class JsonRequirementService {
         Map<String, Object> check4=new HashMap<>(); check4.put("dimcCheckname","missingDbObjectCheck"); check4.put("isDimcCheckEnabled","${MISSING_DB_OBJECT_CHECK_ENABLED}"); check4.put("isFailJobOnError","${MISSING_DB_OBJECT_CHECK_FAILURE_FLAG}"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check4));
         Map<String, Object> check5=new HashMap<>(); check5.put("dimcCheckname","emptySourceCheck"); check5.put("isDimcCheckEnabled","${EMPTY_SOURCE_CHECK_ENABLED}"); check5.put("isFailJobOnError","${EMPTY_SOURCE_CHECK_FAILURE_FLAG}"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check5));
 
-        // Change #5: Parameterize dataVolumeCompletenessCheck (check6)
-        Map<String, Object> check6=new HashMap<>();
+        Map<String, Object> check6=new HashMap<>(); // dataVolumeCompletenessCheck
         check6.put("dimcCheckname","dataVolumeCompletenessCheck");
-        check6.put("controlFileRowFilterByIndex","${DVCC_CTL_FILE_ROW_FILTER_SPEC}"); // Was path, now generic spec
+        check6.put("controlFileRowFilterByIndex","${DVCC_CTL_FILE_ROW_FILTER_SPEC}");
         check6.put("controlFileFieldValueByIndex","${DVCC_CTL_FILE_FIELD_VALUE_SPEC}");
-        check6.put("isDimcCheckEnabled","${DVCC_ENABLED}"); // Was "N"
-        check6.put("isFailJobOnError","${DVCC_FAIL_ON_ERROR}"); // Was "N"
+        check6.put("isDimcCheckEnabled","${DVCC_ENABLED}");
+        check6.put("isFailJobOnError","${DVCC_FAIL_ON_ERROR}");
         DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check6));
 
-        Map<String, Object> check7=new HashMap<>(); check7.put("dimcCheckname","fileDateCheck"); check7.put("isDimcCheckEnabled","${FILE_DATE_CHECK_ENABLED}"); check7.put("isFailJobOnError","${FILE_DATE_CHECK_FAILURE_FLAG}"); check7.put("fileDateFromFileNamePattern",".*([0-9]{4}[0-9]{2}[0-9]{2}).*"); check7.put("fileDateFromFileNameFormat","yyyyMMdd"); DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check7));
+        Map<String, Object> check7=new HashMap<>(); // fileDateCheck - Change #9
+        check7.put("dimcCheckname","fileDateCheck");
+        check7.put("isDimcCheckEnabled","${FILE_DATE_CHECK_ENABLED}");
+        check7.put("isFailJobOnError","${FILE_DATE_CHECK_FAILURE_FLAG}");
+        check7.put("fileDateFromFileNamePattern","${FDC_FILENAME_PATTERN}"); // Parameterized
+        check7.put("fileDateFromFileNameFormat","${FDC_FILENAME_DATE_FORMAT}"); // Parameterized
+        DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check7));
 
-        // Change #5: Parameterize businessDateCheck (check8)
-        Map<String, Object> check8=new HashMap<>();
+        Map<String, Object> check8=new HashMap<>(); // businessDateCheck
         check8.put("dimcCheckname","businessDateCheck");
-        check8.put("businessDateFromFileNamePattern","${BDC_FILENAME_PATTERN}"); // Was hardcoded pattern
-        check8.put("businessDateFromFileNameFormat","${BDC_FILENAME_DATE_FORMAT}"); // Was "yyyyMMdd"
-        check8.put("upperThresholdInDays","${BDC_UPPER_THRESHOLD_DAYS}"); // Was "20"
-        check8.put("lowerThresholdInDays","${BDC_LOWER_THRESHOLD_DAYS}"); // Was "20"
-        check8.put("controlFileRowFilterByIndex","${BDC_CTL_FILE_ROW_FILTER_SPEC}"); // Was "2"
-        check8.put("controlFileFieldValueByIndex","${BDC_CTL_FILE_FIELD_VALUE_SPEC}"); // Was "fileDate=1"
-        check8.put("isDimcCheckEnabled","${BDC_ENABLED}"); // Was "N"
-        check8.put("isFailJobOnError","${BDC_FAIL_ON_ERROR}"); // Was "N"
+        check8.put("businessDateFromFileNamePattern","${BDC_FILENAME_PATTERN}");
+        check8.put("businessDateFromFileNameFormat","${BDC_FILENAME_DATE_FORMAT}");
+        check8.put("upperThresholdInDays","${BDC_UPPER_THRESHOLD_DAYS}");
+        check8.put("lowerThresholdInDays","${BDC_LOWER_THRESHOLD_DAYS}");
+        check8.put("controlFileRowFilterByIndex","${BDC_CTL_FILE_ROW_FILTER_SPEC}");
+        check8.put("controlFileFieldValueByIndex","${BDC_CTL_FILE_FIELD_VALUE_SPEC}");
+        check8.put("isDimcCheckEnabled","${BDC_ENABLED}");
+        check8.put("isFailJobOnError","${BDC_FAIL_ON_ERROR}");
         DIMC_CHECKS_MASTER_LIST.add(Collections.unmodifiableMap(check8));
 
         LOG.info("DIMC Checks Master List populated with {} items.", DIMC_CHECKS_MASTER_LIST.size());
