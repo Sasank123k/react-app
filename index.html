@@ -10,7 +10,7 @@
         "isParallelProcessing": {
           "type": "string",
           "required": true,
-          "default": "N", // MODIFIED: Aligned with backend
+          "default": "N",
           "enum": ["Y", "N"]
         },
         "jobs": {
@@ -23,7 +23,7 @@
               "properties": {
                 "app": {
                   "type": "string",
-                  "required": false // Backend provides this via ApplicationAuthorizer logic
+                  "required": false
                 },
                 "appRemedyId": {
                   "type": "string",
@@ -47,21 +47,21 @@
                 },
                 "jobId": {
                   "type": "string",
-                  "required": false // Backend sets "1"
+                  "required": false
                 },
                 "jobName": {
                   "type": "string",
-                  "required": false // Backend provides resolvedJobName
+                  "required": false
                 },
                 "isJobEnabled": {
                   "type": "string",
-                  "required": false, // Backend sets "Y"
+                  "required": false,
                   "default": "Y",
                   "enum": ["Y", "N"]
                 },
                 "jobDescription": {
                   "type": "string",
-                  "required": false // Backend provides dynamic description
+                  "required": false
                 },
                 "Email": {
                   "type": "object",
@@ -70,21 +70,21 @@
                     "fromAddress": {
                       "type": "string",
                       "required": false,
-                      "default": "${EMAIL_TO_LIST}" // Consistent with backend
+                      "default": "${EMAIL_TO_LIST}"
                     },
                     "toAddress": {
                       "type": "string",
                       "required": false,
-                      "default": "${EMAIL_CC_LIST}" // Consistent with backend
+                      "default": "${EMAIL_CC_LIST}"
                     },
                     "subject": {
                       "type": "string",
-                      "required": false // Backend provides dynamic subject
+                      "required": false
                     },
                     "isPriorityAlert": {
                       "type": "string",
                       "required": false,
-                      "default": "Y", // Consistent with backend
+                      "default": "Y",
                       "enum": ["Y", "N"]
                     }
                   }
@@ -102,11 +102,11 @@
                         "properties": {
                           "dimcChecks": {
                             "type": "object",
-                            "required": true, // If ingestions object & dimcChecks key is present
+                            "required": true,
                             "properties": {
-                              "isDimcChecksEnabled": { // MODIFIED: Aligned with backend behavior
+                              "isDimcChecksEnabled": {
                                 "type": "string",
-                                "default": "Y", // Backend sets "Y" if dimcChecks object included
+                                "default": "Y",
                                 "enum": ["Y","N"],
                                 "required": true
                                },
@@ -119,7 +119,7 @@
                                     "dimcCheckname": {
                                       "type": "string",
                                       "required": true,
-                                      "enum": [ // MODIFIED: Added missing check names
+                                      "enum": [
                                         "missingDbObjectCheck",
                                         "emptySourceCheck",
                                         "deliveryCheck",
@@ -134,13 +134,13 @@
                                     "isDimcCheckEnabled": {
                                       "type": "string",
                                       "required": true,
-                                      "default": "Y", // Or placeholder if individual checks use them
+                                      "default": "Y",
                                       "enum": ["Y", "N"]
                                     },
                                     "isFailJobOnError": {
                                       "type": "string",
                                       "required": true,
-                                      "default": "Y", // Or placeholder
+                                      "default": "Y",
                                       "enum": ["Y", "N"]
                                     },
                                     "SLA": {
@@ -155,20 +155,19 @@
                                       "type": "string",
                                       "required": false
                                     },
-                                    "numPastDays": { // MODIFIED: Typo corrected from numsPastDays
+                                    "numPastDays": {
                                       "type": "string",
                                       "required": false
                                     },
-                                    // ADDED: Specific parameters for certain DIMC checks, with defaults as placeholders
                                     "controlFileRowFilterByIndex": {
                                         "type": "string",
                                         "required": false,
-                                        "default": "${DVCC_CTL_FILE_ROW_FILTER_SPEC}" // Example for DVCC, can be specific
+                                        "default": "${DVCC_CTL_FILE_ROW_FILTER_SPEC}"
                                     },
                                     "controlFileFieldValueByIndex": {
                                         "type": "string",
                                         "required": false,
-                                        "default": "${DVCC_CTL_FILE_FIELD_VALUE_SPEC}" // Example for DVCC
+                                        "default": "${DVCC_CTL_FILE_FIELD_VALUE_SPEC}"
                                     },
                                     "fileDateFromFileNamePattern": {
                                         "type": "string",
@@ -190,19 +189,16 @@
                                         "required": false,
                                         "default": "${BDC_FILENAME_DATE_FORMAT}"
                                     },
-                                    "upperThresholdInDays": { // Specific to businessDateCheck
+                                    "upperThresholdInDays": {
                                         "type": "string",
                                         "required": false,
                                         "default": "${BDC_UPPER_THRESHOLD_DAYS}"
                                     },
-                                    "lowerThresholdInDays": { // Specific to businessDateCheck
+                                    "lowerThresholdInDays": {
                                         "type": "string",
                                         "required": false,
                                         "default": "${BDC_LOWER_THRESHOLD_DAYS}"
                                     }
-                                    // Note: More specific placeholder defaults for isDimcCheckEnabled & isFailJobOnError
-                                    // could be added if they vary per check type and are placeholder driven,
-                                    // e.g. default: "${CHECK_ENABLED_PLACEHOLDER}"
                                   }
                                 }
                               }
@@ -210,33 +206,33 @@
                           },
                           "ingestionId": {
                             "type": "string",
-                            "required": false // Backend sets "1"
+                            "required": false
                           },
                           "ingestionDesc": {
                             "type": "string",
-                            "required": false // Backend provides dynamic description
+                            "required": false
                           },
                           "isIngestionEnabled": {
                             "type": "string",
-                            "required": true, // Backend sets "Y"
+                            "required": true,
                             "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "sourceType": {
                             "type": "string",
-                            "required": false // Backend provides this
+                            "required": false
                           },
                           "ConnectionHeader": {
                             "type": "string",
-                            "required": false // Backend provides this for DB sources
+                            "required": false
                           },
-                          "sourceConnectionHeader": { // This was in original meta, backend uses "ConnectionHeader"
+                          "sourceConnectionHeader": {
                             "type": "string",
                             "required": false
                           },
                           "sourceName": {
                             "type": "string",
-                            "required": false // Backend provides for Oracle
+                            "required": false
                           },
                           "sourcePartition": {
                             "type": "string",
@@ -253,38 +249,38 @@
                           "sourceSQLQuery": {
                             "type": "string",
                             "required": false,
-                            "format": "textarea" // Backend provides for DB sources
+                            "format": "textarea"
                           },
                           "dataFilePath": {
                             "type": "string",
-                            "required": false // Backend provides for File sources
+                            "required": false
                           },
-                           "schemaFilePath": { // ADDED: As backend generates it for file sources
+                           "schemaFilePath": {
                             "type": "string",
                             "required": false
                           },
                           "stagingFilePath": {
                             "type": "string",
-                            "required": false // Backend provides for File sources
+                            "required": false
                           },
-                           "delimiter": { // ADDED: As backend generates it for pipe/comma files
+                           "delimiter": {
                             "type": "string",
                             "required": false
                           },
-                           "isHeaderEnabled": { // ADDED: As backend generates it for file sources
+                           "isHeaderEnabled": {
                             "type": "string",
                             "required": false,
                             "enum": ["Y","N"]
                           },
                           "dataFrameName": {
                             "type": "string",
-                            "required": false // Backend provides this
+                            "required": false
                           },
                           "targetName": {
                             "type": "string",
                             "required": false
                           },
-                          "targetType": { // For Teradata to Hive in backend
+                          "targetType": {
                             "type": "string",
                             "required": false,
                             "default": "parquet",
@@ -293,18 +289,17 @@
                           "isCreateTargetTable": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // MODIFIED: Aligned with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
-                          "targetTablePath": { // This is more for flows in backend
+                          "targetTablePath": {
                             "type": "string",
                             "required": false
                           },
-                          // targetPartition was here, removed as per backend.
                           "isParallelProcessing": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // Original default
+                            "default": "N",
                             "enum": ["Y", "N"]
                           },
                           "splitColumn": {
@@ -326,24 +321,23 @@
                           "isRowCountDisabled": {
                             "type": "string",
                             "required": false,
-                            // MODIFIED: Removed default: "Y", as backend is specific ("N" or omits)
                             "enum": ["Y", "N"]
                           },
                           "additionalReadConfigs": {
                             "type": "object",
-                            "required": false, // Backend provides for File types, different content for Mongo
+                            "required": false,
                             "properties": {
-                              "partitioner": { // Specific to Mongo in original metadata
+                              "partitioner": {
                                 "type": "string",
                                 "required": false,
                                 "default": "MongoSplitVectorPartitioner"
                               },
-                              "quote": { // ADDED: for file types from backend
+                              "quote": {
                                 "type": "string",
                                 "required": false,
                                 "default": "\""
                               },
-                              "escape": { // ADDED: for file types from backend
+                              "escape": {
                                 "type": "string",
                                 "required": false,
                                 "default": "\""
@@ -375,31 +369,31 @@
                           "isCacheEnabled": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // MODIFIED: Aligned with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "isOverWritePartition": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // MODIFIED: Aligned with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "abortIfDuplicate": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // MODIFIED: Aligned with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           },
                           "abortIfEmpty": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // MODIFIED: Aligned with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           },
                           "isRunEMHReport": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // MODIFIED: Aligned with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           }
                         }
@@ -407,7 +401,7 @@
                     }
                   }
                 },
-                "flows": { // Note: Backend flow generation is much simpler than this metadata section
+                "flows": {
                   "type": "object",
                   "required": false,
                   "properties": {
@@ -420,16 +414,16 @@
                         "properties": {
                           "flowId": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "flowDesc": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "isFlowEnabled": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // Consistent with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "seqDependencies": {
@@ -447,41 +441,41 @@
                           "query": {
                             "type": "string",
                             "required": false,
-                            "format": "textarea" // Backend sets this
+                            "format": "textarea"
                           },
                           "registerName": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "saveOutput": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // Consistent with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "flowDataBaseName": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "storageName": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "targetTablePath": {
                             "type": "string",
-                            "required": false // Backend sets this for file source to Hive
+                            "required": false
                           },
                           "hivePartitionColumn": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "isCreateFlowTargetTable": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // MODIFIED: Aligned with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           },
-                          "isCreateHiveView ": { // Space in key name - potential typo to fix if intended as isCreateHiveView
+                          "isCreateHiveView ": {
                             "type": "string",
                             "required": false,
                             "default": "Y",
@@ -604,8 +598,8 @@
                             "default": "Y",
                             "enum": ["Y", "N"]
                           },
-                          "additionalReadConfigs": { // Already an object in Ingestions
-                            "type": "object",       // Should this also be an object here or string?
+                          "additionalReadConfigs": {
+                            "type": "object",
                             "required": false,
                             "properties": {
                               "partitioner": {
@@ -632,25 +626,25 @@
                           "isOverWritePartition": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // MODIFIED: Aligned with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "isCacheEnabled": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // Consistent with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "sendEmail": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // MODIFIED: Aligned with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           },
                           "abortIfEmpty": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // MODIFIED: Aligned with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           }
                         }
@@ -660,23 +654,20 @@
                 },
                 "dataChecks": {
                   "type": "object",
-                  "required": true, // If dataChecks section is present
+                  "required": true,
                   "properties": {
                     "acDCDatabase": {
                       "type": "string",
-                      "required": true, // Backend sets "${AUDIT_DATABASE}"
+                      "required": true,
                       "default": "${AUDIT_DATABASE}"
                     },
-                    "isTrendingEnabled": { // This was removed from backend
+                    "isTrendingEnabled": {
                       "type": "string",
                       "required": false,
                       "default": "Y",
                       "enum": ["Y", "N"]
                     },
-                    "checks": { // Renamed from "checks" array to "check" array in backend output but schema used "checks"
-                                // The backend `buildGenericDataChecksNode` does `dataChecksNode.putArray("check")`
-                                // So schema should probably be "check" as array name, or backend needs to change to "checks"
-                                // Assuming "check" is the array key name from backend for now for properties below
+                    "check": {
                       "type": "array",
                       "required": false,
                       "items": {
@@ -684,59 +675,59 @@
                         "properties": {
                           "checkId": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "checkName": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "checkDesc": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "isCheckEnabled": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // Consistent with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "isUserSupplyQuery": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // Consistent with backend
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           },
                           "readSourceQueryFromPath": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // MODIFIED: Aligned with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           },
                           "sourceQuery": {
                             "type": "string",
-                            "required": false, // Backend sets this
+                            "required": false,
                             "format": "textarea"
                           },
                           "targetQuery": {
                             "type": "string",
-                            "required": false, // Backend sets this
+                            "required": false,
                             "format": "textarea"
                           },
-                          "readTargetQueryFromPath": { // MODIFIED: Typo corrected
+                          "readTargetQueryFromPath": {
                             "type": "string",
                             "required": false,
-                            "default": "N", // Consistent with backend
+                            "default": "N",
                             "enum": ["Y", "N"]
                           },
-                          "partition": { // Not in backend CheckDetailConfig
+                          "partition": {
                             "type": "string",
                             "required": false
                           },
-                          "controlFilePath": { // Not in backend CheckDetailConfig
+                          "controlFilePath": {
                             "type": "string",
                             "required": false
                           },
-                          "isHeaderAvailable": { // Not in backend CheckDetailConfig
+                          "isHeaderAvailable": {
                             "type": "string",
                             "required": false,
                             "default": "Y",
@@ -745,33 +736,31 @@
                           "isFailJobOnDataCheckError": {
                             "type": "string",
                             "required": false,
-                            "default": "Y", // Consistent with backend (Change #2 made it "Y")
+                            "default": "Y",
                             "enum": ["Y", "N"]
                           }
                         }
                       }
                     },
-                    "prechecks": { // Backend uses "preChecks" (capital C)
-                                   // Assuming "preChecks" for consistency with backend output.
+                    "preChecks": {
                       "type": "object",
-                      "required": true, // If preChecks section is present
+                      "required": true,
                       "properties": {
                         "isPreCheckEnabled": {
                           "type": "string",
                           "required": true,
-                          "default": "${PRECHECK_ENABLED}", // MODIFIED: Aligned with backend placeholder
+                          "default": "${PRECHECK_ENABLED}",
                           "enum": ["Y", "N"]
                         },
-                        "preCheck": { // Backend uses "preCheck" for the array name
+                        "preCheck": {
                           "type": "array",
                           "required": true,
-                          "default": [ // This default array is illustrative; backend generates it
+                          "default": [
                             {
                               "preCheckName": "ServiceIDCheck",
                               "isFailJobOnPreCheckError": "${SERVICE_IDCHECK_FAILURE_FLAG}",
                               "isPreCheckEnabled": "${SERVICE_IDCHECK_ENABLED}"
                             }
-                            // ... other default precheck items from original metadata
                           ],
                           "items": {
                             "type": "object",
@@ -780,23 +769,23 @@
                               "preCheckName": {
                                 "type": "string",
                                 "required": true,
-                                "enum": [ // These are generated by backend
+                                "enum": [
                                   "ServiceIDCheck", "TargetDataBaseAvailabilityCheck", "TargetTableAvailabilityCheck",
                                   "TargetTablePathWritableCheck", "FlowSeqDependenciesCheck", "SourceDataBaseAvailabilityCheck",
                                   "SourceTableAvailabilityCheck", "SourceTableEmptyCheck", "SourcePathAvailabilityCheck",
                                   "SourcePathEmptyCheck"
                                 ]
                               },
-                              "isPreCheckEnabled": { // Individual item
+                              "isPreCheckEnabled": {
                                 "type": "string",
                                 "required": true,
-                                "default": "${PLACEHOLDER_FROM_BACKEND}", // Backend uses specific placeholders
+                                "default": "${PLACEHOLDER_FROM_BACKEND}",
                                 "enum": ["Y", "N"]
                               },
-                              "isFailJobOnPreCheckError": { // Individual item
+                              "isFailJobOnPreCheckError": {
                                 "type": "string",
                                 "required": true,
-                                "default": "${PLACEHOLDER_FROM_BACKEND}", // Backend uses specific placeholders
+                                "default": "${PLACEHOLDER_FROM_BACKEND}",
                                 "enum": ["Y", "N"]
                               }
                             }
@@ -819,29 +808,29 @@
                         "properties": {
                           "fileExtractId": {
                             "type": "string",
-                            "required": false // Backend sets "1"
+                            "required": false
                           },
                           "isFileExtractEnabled": {
                             "type": "string",
                             "required": false,
-                            "default": "${IS_FILE_EXTRACT_ENABLED}", // MODIFIED: Aligned with backend placeholder
+                            "default": "${IS_FILE_EXTRACT_ENABLED}",
                             "enum": ["Y", "N"]
                           },
                           "fileDescription": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "subjectArea": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "zone": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "system": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "consumer": {
                             "type": "string",
@@ -849,12 +838,12 @@
                           },
                           "fileType": {
                             "type": "string",
-                            "required": false, // Backend sets "avro"
+                            "required": false,
                             "enum": ["parquet", "avro", "JSON", "csv"]
                           },
                           "extractQuery": {
                             "type": "string",
-                            "required": false, // Backend sets this
+                            "required": false,
                             "format": "textarea"
                           },
                           "databaseName": {
@@ -881,7 +870,7 @@
                           },
                           "hdfsFilePath": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "quoteAll": {
                             "type": "string",
@@ -889,37 +878,37 @@
                           },
                           "externalFilePath": {
                             "type": "string",
-                            "required": false // Backend sets this
+                            "required": false
                           },
                           "cdmpAdditionalParams": {
                             "type": "object",
-                            "required": false, // Backend sets this
+                            "required": false,
                             "properties": {
                               "outputFormat": {
                                 "type": "string",
                                 "required": false,
-                                "default": "avro", // Consistent with backend
+                                "default": "avro",
                                 "enum": ["avro"]
                               },
                               "cdmpFileName": {
                                 "type": "string",
-                                "required": false // Backend sets this
+                                "required": false
                               },
                               "cdmpPatternMode": {
                                 "type": "string",
                                 "required": false,
-                                "default": "daily", // Consistent with backend
+                                "default": "daily",
                                 "enum": ["daily", "weekly", "monthly"]
                               },
                               "isCustomPartitionRequired": {
                                 "type": "string",
                                 "required": false,
-                                "default": "true", // Consistent with backend
+                                "default": "true",
                                 "enum": ["true", "false"]
                               },
                               "desiredPartFileSize": {
                                 "type": "string",
-                                "required": false // Backend sets this
+                                "required": false
                               }
                             }
                           }
