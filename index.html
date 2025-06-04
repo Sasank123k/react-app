@@ -1,40 +1,30 @@
-// src/main/java/com/wellsfargo/utcap/dto/ConfigureFlowsRequest.java
-package com.wellsfargo.utcap.dto;
-
-// It's good practice to use a DTO for request bodies.
-// You can use Lombok's @Data or standard getters/setters.
-public class ConfigureFlowsRequest {
-    private String currentJson;
-    private boolean includeFlows;
-
-    // Getters and Setters
-    public String getCurrentJson() {
-        return currentJson;
+ @Autowired
+    public JsonArtifactController(JsonRequirementService jsonRequirementService) {
+        this.jsonRequirementService = jsonRequirementService;
     }
 
-    public void setCurrentJson(String currentJson) {
-        this.currentJson = currentJson;
+    // ... your other existing endpoints ...
+
+    @PostMapping("/{requirementId}/configure-flows")
+    public ResponseEntity<ObjectNode> configureFlowsEndpoint(
+            @PathVariable String requirementId,
+            @RequestBody ConfigureFlowsRequest request) {
+        try {
+            ObjectNode updatedJson = jsonRequirementService.configureFlows(
+                    requirementId,
+                    request.getCurrentJson(),
+                    request.isIncludeFlows()
+            );
+            return ResponseEntity.ok(updatedJson);
+        } catch (JsonProcessingException e) {
+            LOG.error("Error processing JSON for requirementId {}: {}", requirementId, e.getMessage(), e);
+            // Consider a more specific error response DTO if needed
+            return ResponseEntity.badRequest().build(); 
+        } catch (ConfigurationException e) {
+            LOG.error("Configuration error for requirementId {}: {}", requirementId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build(); // Or BadRequest depending on cause
+        } catch (Exception e) {
+            LOG.error("Unexpected error configuring flows for requirementId {}: {}", requirementId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
-
-    public boolean isIncludeFlows() {
-        return includeFlows;
-    }
-
-    public void setIncludeFlows(boolean includeFlows) {
-        this.includeFlows = includeFlows;
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
