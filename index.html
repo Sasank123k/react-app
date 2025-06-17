@@ -1,7 +1,144 @@
-graph TD
-    A[Start] --> B(Process 1);
-    B --> C{Decision};
-    C -- Yes --> D[Process 2A];
-    C -- No --> E[Process 2B];
-    D --> F[End];
-    E --> F;
+Of course. Here are the model, repository, and controller files for a Spring Boot application to manage a static Tool collection in MongoDB.
+1. Model (Tool.java)
+This class defines the structure of your MongoDB document.
+package com.example.yourproject.model;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+
+@Document(collection = "tools")
+public class Tool {
+
+    @Id
+    private String id;
+
+    @Field("ToolName")
+    private String toolName;
+
+    private String version;
+
+    // Constructors
+    public Tool() {
+    }
+
+    public Tool(String toolName, String version) {
+        this.toolName = toolName;
+        this.version = version;
+    }
+
+    // Getters and Setters
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getToolName() {
+        return toolName;
+    }
+
+    public void setToolName(String toolName) {
+        this.toolName = toolName;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+}
+
+Key Points:
+ * @Document(collection = "tools"): Maps this class to the tools collection in MongoDB.
+ * @Id: Specifies the primary key for the document.
+ * @Field("ToolName"): Maps the toolName field in the class to the ToolName key in the MongoDB document.
+2. Repository (ToolRepository.java)
+This interface handles the database operations for the Tool model.
+package com.example.yourproject.repository;
+
+import com.example.yourproject.model.Tool;
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface ToolRepository extends MongoRepository<Tool, String> {
+
+    Optional<Tool> findByToolName(String toolName);
+
+}
+
+Key Points:
+ * extends MongoRepository<Tool, String>: Provides all the standard CRUD (Create, Read, Update, Delete) operations for the Tool object.
+ * findByToolName(String toolName): A custom query method to find a tool by its name.
+3. Controller (ToolController.java)
+This controller exposes REST endpoints to interact with your static collection. Since the collection is static, you'll likely populate it once and then mainly read from it.
+package com.example.yourproject.controller;
+
+import com.example.yourproject.model.Tool;
+import com.example.yourproject.repository.ToolRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/tools")
+public class ToolController {
+
+    @Autowired
+    private ToolRepository toolRepository;
+
+    /**
+     * Endpoint to get all tools.
+     * @return A list of all tools.
+     */
+    @GetMapping
+    public List<Tool> getAllTools() {
+        return toolRepository.findAll();
+    }
+
+    /**
+     * Endpoint to add a list of tools.
+     * This is useful for populating your static collection.
+     * @param tools The list of tools to add.
+     * @return The saved list of tools.
+     */
+    @PostMapping
+    public ResponseEntity<List<Tool>> addTools(@RequestBody List<Tool> tools) {
+        // For a truly static collection, you might want to clear existing entries first.
+        // toolRepository.deleteAll();
+        List<Tool> savedTools = toolRepository.saveAll(tools);
+        return new ResponseEntity<>(savedTools, HttpStatus.CREATED);
+    }
+}
+
+Key Points:
+ * @RestController: Marks this class as a request handler.
+ * @RequestMapping("/api/tools"): Sets the base URL for all endpoints in this controller.
+ * @GetMapping: Handles HTTP GET requests to retrieve all tools.
+ * @PostMapping: Handles HTTP POST requests to add a list of tools. You can use this endpoint with a tool like Postman to populate your static data.
+To populate your collection, you would send a POST request to /api/tools with a JSON body like this:
+[
+    {
+        "ToolName": "Maven",
+        "version": "3.8.4"
+    },
+    {
+        "ToolName": "Gradle",
+        "version": "7.3"
+    },
+    {
+        "ToolName": "Git",
+        "version": "2.33.1"
+    }
+]
+
