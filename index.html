@@ -1,259 +1,41 @@
-import React, { useEffect, useState } from 'react';
+const handleSubmit = () => {
+  if (!selectedSor) {
+    showShowMessageBar('Please select a SOR before submitting.', 'warning');
+    return;
+  }
 
-// Assuming these paths are correct relative to this file
-import NavigationBar from '../../../components/NavigationBar/NavigationBar';
-import { MICROSERVICE_URL } from '../../../util/constants';
-import { useAppGlobalState } from 'gwf/react-library';
-import { generateSearHeader } from '../../../Authentication';
-import axios from 'axios';
+  // --- Validation Logic Starts Here ---
+  const errors = [];
 
-// Imports from the Pioneer component library
-import {
-  Flexgrid,
-  FlexgridItem, // Corrected from FlexGridItem
-  MenuItem,
-  Select,
-  Button,
-  TextInput,
-  Section,
-  MessageBar,
-  IconInformationalLight,
-  IconWarning,
-  Form,
-  Checkbox, // Assuming this is the name of the checkbox component
-} from '@pioneer/core';
-
-const BusinessApplicationOnboarding = () => {
-  // --- State Management ---
-  const appGlobalState = useAppGlobalState();
-
-  // State for dropdowns and selections
-  const [sorNames, setSorNames] = useState([]);
-  const [selectedSor, setSelectedSor] = useState('');
-
-  // State for form data
-  const [sorData, setSorData] = useState({});
-  const [appData, setAppData] = useState({});
-  const [treatAsApp, setTreatAsApp] = useState(false);
-
-  // State for user feedback
-  const [messages, setMessages] = useState('');
-  const [messageBoxState, setMessageBoxState] = useState({
-    isMessageOpen: false,
-    messageType: 'Information',
-  });
-
-  // --- API Function Definitions ---
-
-  const fetchSorNames = async () => {
-    try {
-      const config = {
-        method: 'GET',
-        url: `${MICROSERVICE_URL}/api/sors/names`,
-        headers: generateSearHeader(appGlobalState),
-      };
-      const response = await axios(config);
-      setSorNames(response.data);
-    } catch (error) {
-      console.error('Error fetching SOR names:', error);
-      showShowMessageBar('Error fetching SOR list.', 'warning');
+  // 1. Validate SOR Data
+  for (const key in sorData) {
+    if (!sorData[key]) {
+      errors.push(`SOR Details: '${key}' is required.`);
     }
-  };
+  }
 
-  const fetchOnboardingDetails = async (sorName) => {
-    try {
-      const config = {
-        method: 'GET',
-        url: `${MICROSERVICE_URL}/api/onboarding/${sorName}`,
-        headers: generateSearHeader(appGlobalState),
-      };
-      const response = await axios(config);
-      const { sorDetails, appDetails } = response.data;
-      
-      setSorData(sorDetails || {});
-      setAppData(appDetails || {});
-      setTreatAsApp(!!appDetails); // Set checkbox to true if app details exist
-    } catch (error) {
-      console.error(`Error fetching details for ${sorName}:`, error);
-      showShowMessageBar(`Error fetching details for ${sorName}.`, 'warning');
-      setSorData({});
-      setAppData({});
-      setTreatAsApp(false);
-    }
-  };
-
-  const saveOnboardingDetails = async () => {
-    const payload = {
-      treatAsApp,
-      sorData,
-      appData: treatAsApp ? appData : null,
-    };
-
-    try {
-      const config = {
-        method: 'PUT',
-        url: `${MICROSERVICE_URL}/api/onboarding/${selectedSor}`,
-        headers: generateSearHeader(appGlobalState),
-        data: payload,
-      };
-      await axios(config);
-      showShowMessageBar('Onboarding details saved successfully!', 'Information');
-    } catch (error) {
-      console.error('Error saving details:', error);
-      showShowMessageBar('Failed to save details. See console for errors.', 'warning');
-    }
-  };
-
-  // --- useEffect Hooks ---
-
-  useEffect(() => {
-    fetchSorNames();
-  }, []);
-
-  useEffect(() => {
-    if (selectedSor) {
-      fetchOnboardingDetails(selectedSor);
-    } else {
-      // Clear forms if no SOR is selected
-      setSorData({});
-      setAppData({});
-      setTreatAsApp(false);
-    }
-  }, [selectedSor]);
-
-
-  // --- Event Handlers ---
-
-  const handleSorSelect = (e) => {
-    setSelectedSor(e.value);
-  };
-
-  const handleCheckboxChange = (e) => {
-    setTreatAsApp(e.checked);
-  };
-  
-  const handleInputChange = (e, type) => {
-    const { name, value } = e; // e.g., name: "userField1" or "flowMachineMap.edl"
-    const setState = type === 'sor' ? setSorData : setAppData;
+  // 2. Validate App Data only if the box is checked
+  if (treatAsApp) {
+    // Check simple app fields
+    if (!appData.userAppField1) errors.push("Application Details: 'userAppField1' is required.");
+    if (!appData.userAppField2) errors.push("Application Details: 'userAppField2' is required.");
+    if (!appData.userAppField3) errors.push("Application Details: 'userAppField3' is required.");
     
-    setState(prev => {
-        if (name.includes('.')) {
-            const [parentKey, childKey] = name.split('.');
-            return {
-                ...prev,
-                [parentKey]: {
-                    ...prev[parentKey],
-                    [childKey]: value
-                }
-            };
-        }
-        return { ...prev, [name]: value };
-    });
-  };
+    // Check nested map fields
+    if (!appData.flowMachineMap?.edl) errors.push("Flow Machine Map: 'EDL' is required.");
+    if (!appData.flowMachineMap?.ingress) errors.push("Flow Machine Map: 'Ingress' is required.");
+    if (!appData.securityMap?.firewall) errors.push("Security Map: 'Firewall' is required.");
+    if (!appData.securityMap?.encryption) errors.prush("Security Map: 'Encryption' is required.");
+  }
 
-  const handleSubmit = () => {
-    saveOnboardingDetails();
-  };
-  
-  // Message Bar handlers
-  const handleCloseMessage = () => {
-    setMessageBoxState({ ...messageBoxState, isMessageOpen: false });
-  };
+  // 3. If there are any errors, show them and stop
+  if (errors.length > 0) {
+    showShowMessageBar(errors.join(' \n'), 'warning');
+    return;
+  }
+  // --- Validation Logic Ends Here ---
 
-  const showShowMessageBar = (message, type = 'Information') => {
-    setMessages(message);
-    setMessageBoxState({ isMessageOpen: true, messageType: type });
-    setTimeout(() => {
-        setMessageBoxState(prev => ({ ...prev, isMessageOpen: false }));
-    }, 5000);
-  };
 
-  // --- JSX Structure ---
-
-  return (
-    <>
-      <NavigationBar />
-      <MessageBar
-        open={messageBoxState.isMessageOpen}
-        theme={messageBoxState.messageType}
-        icon={messageBoxState.messageType === 'warning' ? <IconWarning size="small" /> : <IconInformationalLight size="small" />}
-        onClose={handleCloseMessage}
-        zIndex={9999}
-        closeButton
-      >
-        <h4 style={{ color: 'black' }}>{messages}</h4>
-      </MessageBar>
-
-      <div style={{ margin: '20px' }}>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            Business Application Onboarding
-          </h1>
-        </div>
-
-        <Form onSubmit={handleSubmit} style={{ marginRight: '15px' }}>
-          <Flexgrid>
-            <FlexgridItem>
-              <Select label="Select SOR" required={true} onValueChange={handleSorSelect}>
-                {sorNames.map((option) => (
-                  <MenuItem key={option} value={option}>
-                    {option}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FlexgridItem>
-          </Flexgrid>
-
-          {selectedSor && (
-            <>
-              <Section title="SOR Details" defaultExpanded={true}>
-                <Flexgrid>
-                  <FlexgridItem span={4}><TextInput label="User Field 1" name="userField1" value={sorData.userField1 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
-                  <FlexgridItem span={4}><TextInput label="User Field 2" name="userField2" value={sorData.userField2 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
-                  <FlexgridItem span={4}><TextInput label="User Field 3" name="userField3" value={sorData.userField3 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
-                  <FlexgridItem span={4}><TextInput label="User Field 4" name="userField4" value={sorData.userField4 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
-                  <FlexgridItem span={4}><TextInput label="User Field 5" name="userField5" value={sorData.userField5 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
-                </Flexgrid>
-              </Section>
-
-              <Checkbox label="Is this SOR also an Application?" checked={treatAsApp} onValueChange={handleCheckboxChange} />
-
-              {treatAsApp && (
-                <Section title="Application Details" defaultExpanded={true}>
-                  <Flexgrid>
-                    <FlexgridItem span={4}><TextInput label="User App Field 1" name="userAppField1" value={appData.userAppField1 || ''} onValueChange={(e) => handleInputChange(e, 'app')} /></FlexgridItem>
-                    <FlexgridItem span={4}><TextInput label="User App Field 2" name="userAppField2" value={appData.userAppField2 || ''} onValueChange={(e) => handleInputChange(e, 'app')} /></FlexgridItem>
-                    <FlexgridItem span={4}><TextInput label="User App Field 3" name="userAppField3" value={appData.userAppField3 || ''} onValueChange={(e) => handleInputChange(e, 'app')} /></FlexgridItem>
-                  </Flexgrid>
-                  
-                  <Section title="Flow Machine Map" defaultExpanded={true}>
-                    <Flexgrid>
-                      <FlexgridItem span={6}><TextInput label="EDL" name="flowMachineMap.edl" value={appData.flowMachineMap?.edl || ''} onValueChange={(e) => handleInputChange(e, 'app')} /></FlexgridItem>
-                      <FlexgridItem span={6}><TextInput label="Ingress" name="flowMachineMap.ingress" value={appData.flowMachineMap?.ingress || ''} onValueChange={(e) => handleInputChange(e, 'app')} /></FlexgridItem>
-                    </Flexgrid>
-                  </Section>
-
-                  <Section title="Security Map" defaultExpanded={true}>
-                    <Flexgrid>
-                      <FlexgridItem span={6}><TextInput label="Firewall" name="securityMap.firewall" value={appData.securityMap?.firewall || ''} onValueChange={(e) => handleInputChange(e, 'app')} /></FlexgridItem>
-                      <FlexgridItem span={6}><TextInput label="Encryption" name="securityMap.encryption" value={appData.securityMap?.encryption || ''} onValueChange={(e) => handleInputChange(e, 'app')} /></FlexgridItem>
-                    </Flexgrid>
-                  </Section>
-
-                </Section>
-              )}
-
-              <Flexgrid alignHorizontal="center">
-                <FlexgridItem>
-                  <Button label="Save Onboarding Details" type="submit" />
-                </FlexgridItem>
-              </Flexgrid>
-            </>
-          )}
-        </Form>
-      </div>
-    </>
-  );
+  // If validation passes, proceed with saving the data
+  saveOnboardingDetails();
 };
-
-export default BusinessApplicationOnboarding;
