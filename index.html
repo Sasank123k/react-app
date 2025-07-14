@@ -1,75 +1,337 @@
-That's an excellent question. You've identified a key part of the user experience.
-While you could make the frontend work without it, it's highly recommended to have an endpoint that gets all the initial data for a selected SOR.
-Without it, when a user selects a SOR from the dropdown, the form fields would be blank. The user would have no idea what values (if any) are already stored in the database. They would be overwriting data blindly instead of editing it.
-## The Best Solution: A Combined GET Endpoint
-The most efficient solution is to have a single GET endpoint that fetches all the necessary data at once after the user makes a selection from the dropdown. This gives the user the current state of both the SOR and the App (if it exists).
-Here is how you would implement this in the files we've already created.
-1. Create a CombinedDetailsDto.java
-This DTO will carry all the data needed to populate the form.
-CombinedDetailsDto.java
-package com.yourpackage.dto;
+Of course. Here is the complete, single-file React component for your "Business Application Onboarding" page.
+This file includes:
+ * All necessary state management using useState and useEffect.
+ * API calls using axios.
+ * Dynamic form rendering based on user selections.
+ * A robust handler for updating simple, nested, and doubly-nested state objects.
+ * Basic CSS for a clean layout.
+Just copy this code into a file like BusinessApplicationOnboarding.js in your React project.
+BusinessApplicationOnboarding.js
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
-import com.yourpackage.model.App;
-import com.yourpackage.model.Sor;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+// --- Basic CSS for layout ---
+const styles = `
+  .onboarding-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    font-family: sans-serif;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  h1, h2 {
+    color: #333;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+  }
+  .form-section {
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    border-radius: 5px;
+  }
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: #555;
+  }
+  input[type="text"], select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+    margin-top: 2rem;
+  }
+  .checkbox-group input {
+    width: auto;
+    margin-right: 10px;
+  }
+  button {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-top: 1.5rem;
+    width: 100%;
+  }
+  button:hover {
+    background-color: #0056b3;
+  }
+  .status-message {
+    padding: 1rem;
+    margin-top: 1rem;
+    border-radius: 4px;
+    text-align: center;
+  }
+  .status-message.success {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  .status-message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+`;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class CombinedDetailsDto {
-    private Sor sorDetails;
-    private App appDetails; // This will be null if an app record doesn't exist
-}
+// --- API Configuration ---
+const api = axios.create({
+  baseURL: 'http://localhost:8080/api',
+});
 
-2. Add the Logic to the Service
-Add a new method to your service to fetch and combine the data.
-BusinessApplicationOnboardingService.java (add this new method)
-// Inside BusinessApplicationOnboardingService.java
 
-// ... (existing methods) ...
+const BusinessApplicationOnboarding = () => {
+  // --- State Definitions ---
+  const [sorNames, setSorNames] = useState([]);
+  const [selectedSor, setSelectedSor] = useState('');
+  
+  const initialSorData = {
+    userField1: '',
+    userField2: '',
+    userField3: '',
+    userField4: '',
+    userField5: '',
+  };
 
-/**
- * Fetches the existing details for a SOR and its corresponding App (if it exists).
- * This is used to populate the form for editing.
- */
-public CombinedDetailsDto getOnboardingDetails(String name) {
-    // Fetch the SOR details
-    List<Sor> sors = sorRepository.findBySorName(name);
-    if (sors.isEmpty()) {
-        throw new RuntimeException("SOR not found: " + name);
+  const initialAppData = {
+    userAppField1: '',
+    userAppField2: '',
+    userAppField3: '',
+    flowMachineMap: { edl: '', ingress: '' },
+    securityMap: { firewall: '', encryption: '' },
+  };
+
+  const [sorData, setSorData] = useState(initialSorData);
+  const [appData, setAppData] = useState(initialAppData);
+  const [treatAsApp, setTreatAsApp] = useState(false);
+
+  const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+
+
+  // --- Data Fetching Effect ---
+  useEffect(() => {
+    const fetchSorNames = async () => {
+      try {
+        const response = await api.get('/sors/names');
+        setSorNames(response.data);
+      } catch (error) {
+        console.error("Error fetching SOR names:", error);
+        setStatusMessage({ text: 'Could not fetch SOR list.', type: 'error' });
+      }
+    };
+    fetchSorNames();
+  }, []);
+
+
+  // --- Event Handlers ---
+  const handleSorSelectChange = async (e) => {
+    const sorName = e.target.value;
+    setSelectedSor(sorName);
+    setStatusMessage({ text: '', type: '' });
+
+    if (!sorName) {
+      setSorData(initialSorData);
+      setAppData(initialAppData);
+      setTreatAsApp(false);
+      return;
     }
-    Sor sor = sors.get(0);
 
-    // Fetch the corresponding App details, if they exist
-    List<App> apps = appRepository.findByApplicationName(name);
-    App app = apps.isEmpty() ? null : apps.get(0);
+    try {
+      const response = await api.get(`/onboarding/${sorName}`);
+      const { sorDetails, appDetails } = response.data;
 
-    return new CombinedDetailsDto(sor, app);
-}
+      setSorData(sorDetails || initialSorData);
 
-3. Add the Endpoint to the Controller
-Finally, add the new GET endpoint to your controller.
-BusinessApplicationOnboardingController.java (add this new endpoint)
-// Inside BusinessApplicationOnboardingController.java
+      if (appDetails) {
+        // If app details exist, populate the form and check the box
+        setAppData({
+          ...initialAppData, // Start with defaults
+          ...appDetails, // Overwrite with fetched data
+          flowMachineMap: appDetails.flowMachineMap || initialAppData.flowMachineMap,
+          securityMap: appDetails.securityMap || initialAppData.securityMap,
+        });
+        setTreatAsApp(true);
+      } else {
+        // If no app details, reset the app form and uncheck the box
+        setAppData(initialAppData);
+        setTreatAsApp(false);
+      }
+    } catch (error) {
+      console.error(`Error fetching details for ${sorName}:`, error);
+      // Handle case where SOR exists but maybe App throws an error, etc.
+      setAppData(initialAppData);
+      setTreatAsApp(false);
+    }
+  };
 
-// ... (existing endpoints for /sors/names and /apps/{appName}) ...
+  const handleCheckboxChange = (e) => {
+    setTreatAsApp(e.target.checked);
+  };
 
-/**
- * Gets all existing SOR and App data to populate the form when a user selects a SOR.
- */
-@GetMapping("/onboarding/{sorName}")
-public ResponseEntity<CombinedDetailsDto> getOnboardingDetails(@PathVariable String sorName) {
-    return ResponseEntity.ok(onboardingService.getOnboardingDetails(sorName));
-}
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    const parts = name.split('.'); // e.g., "sorData.userField1" or "appData.flowMachineMap.edl"
 
-// ... (existing PUT mapping for /onboarding/{sorName}) ...
+    const stateUpdater = {
+      sorData: setSorData,
+      appData: setAppData,
+    };
+    
+    const [mainKey, subKey, nestedKey] = parts; // [appData, flowMachineMap, edl]
 
-## Revised Workflow
-With this change, your frontend workflow becomes much cleaner:
- * User selects "SOR_Beta" from the dropdown.
- * Frontend makes one call: GET /api/onboarding/SOR_Beta.
- * The response contains everything: the SOR details and the App details (or null).
- * The frontend populates all form fields with the existing data, ready for the user to edit.
- * The separate GET /api/apps/{appName} endpoint is no longer needed by the frontend workflow, as this single call provides all the necessary information.
+    const setState = stateUpdater[mainKey];
+
+    if (setState) {
+      setState(prev => {
+        if (nestedKey) { // Handles doubly-nested objects e.g., maps
+          return {
+            ...prev,
+            [subKey]: {
+              ...prev[subKey],
+              [nestedKey]: value,
+            },
+          };
+        } else { // Handles top-level fields in the state slice
+          return { ...prev, [subKey]: value };
+        }
+      });
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedSor) {
+      setStatusMessage({ text: 'Please select a SOR before submitting.', type: 'error' });
+      return;
+    }
+
+    const payload = {
+      treatAsApp,
+      sorData,
+      appData: treatAsApp ? appData : null, // Only send appData if it's being treated as an app
+    };
+
+    try {
+      await api.put(`/onboarding/${selectedSor}`, payload);
+      setStatusMessage({ text: 'Details saved successfully!', type: 'success' });
+    } catch (error) {
+      console.error("Error saving details:", error);
+      setStatusMessage({ text: 'Failed to save details. Please check the console.', type: 'error' });
+    }
+  };
+
+  // --- JSX Rendering ---
+  return (
+    <>
+      <style>{styles}</style>
+      <div className="onboarding-container">
+        <h1>Business Application Onboarding</h1>
+
+        <div className="form-group">
+          <label htmlFor="sor-select">Select SOR</label>
+          <select id="sor-select" value={selectedSor} onChange={handleSorSelectChange}>
+            <option value="">-- Please choose an SOR --</option>
+            {sorNames.map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedSor && (
+          <form onSubmit={handleSubmit}>
+            <div className="form-section">
+              <h2>SOR Details</h2>
+              {Object.keys(sorData).map(key => (
+                 key !== 'id' && key !== 'sorName' && typeof sorData[key] === 'string' &&
+                <div className="form-group" key={key}>
+                  <label htmlFor={`sor-${key}`}>{key}</label>
+                  <input
+                    type="text"
+                    id={`sor-${key}`}
+                    name={`sorData.${key}`}
+                    value={sorData[key] || ''}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="checkbox-group">
+              <input
+                type="checkbox"
+                id="is-app-checkbox"
+                checked={treatAsApp}
+                onChange={handleCheckboxChange}
+              />
+              <label htmlFor="is-app-checkbox">Is this SOR also an Application?</label>
+            </div>
+
+            {treatAsApp && (
+              <div className="form-section">
+                <h2>Application Details</h2>
+                
+                {/* Simple Key-Value pairs for App */}
+                <div className="form-group">
+                  <label htmlFor="app-userAppField1">userAppField1</label>
+                  <input type="text" id="app-userAppField1" name="appData.userAppField1" value={appData.userAppField1 || ''} onChange={handleInputChange} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="app-userAppField2">userAppField2</label>
+                  <input type="text" id="app-userAppField2" name="appData.userAppField2" value={appData.userAppField2 || ''} onChange={handleInputChange} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="app-userAppField3">userAppField3</label>
+                  <input type="text" id="app-userAppField3" name="appData.userAppField3" value={appData.userAppField3 || ''} onChange={handleInputChange} />
+                </div>
+
+                {/* Map 1: FlowMachineMap */}
+                <div className="form-group">
+                    <h4>Flow Machine Map</h4>
+                    <label htmlFor="app-flow-edl">EDL</label>
+                    <input type="text" id="app-flow-edl" name="appData.flowMachineMap.edl" value={appData.flowMachineMap.edl || ''} onChange={handleInputChange} />
+                    <label htmlFor="app-flow-ingress">Ingress</label>
+                    <input type="text" id="app-flow-ingress" name="appData.flowMachineMap.ingress" value={appData.flowMachineMap.ingress || ''} onChange={handleInputChange} />
+                </div>
+                
+                {/* Map 2: SecurityMap */}
+                <div className="form-group">
+                    <h4>Security Map</h4>
+                    <label htmlFor="app-sec-firewall">Firewall</label>
+                    <input type="text" id="app-sec-firewall" name="appData.securityMap.firewall" value={appData.securityMap.firewall || ''} onChange={handleInputChange} />
+                    <label htmlFor="app-sec-encryption">Encryption</label>
+                    <input type="text" id="app-sec-encryption" name="appData.securityMap.encryption" value={appData.securityMap.encryption || ''} onChange={handleInputChange} />
+                </div>
+
+              </div>
+            )}
+
+            <button type="submit">Save Onboarding Details</button>
+          </form>
+        )}
+
+        {statusMessage.text && (
+          <div className={`status-message ${statusMessage.type}`}>
+            {statusMessage.text}
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
+export default BusinessApplicationOnboarding;
+
