@@ -1,70 +1,256 @@
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import java.util.List;
+Of course. Here are all the consolidated backend files with the specified naming convention and the complete logic we've discussed.
+## Model
+These are your data structures that map to the MongoDB collections.
+Sor.java
+package com.yourpackage.model;
 
-@RestController
-@RequestMapping("/api/sors")
-@CrossOrigin(origins = "http://localhost:3000") // Allow requests from your React app
-public class SorController {
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import lombok.Data;
 
-    @Autowired
-    private SorService sorService;
+@Data
+@Document(collection = "sor")
+public class Sor {
 
-    @GetMapping("/names")
-    public ResponseEntity<List<String>> getAllSorNames() {
-        return ResponseEntity.ok(sorService.getAllSorNames());
-    }
+    @Id
+    private String id;
 
-    @GetMapping("/{sorName}")
-    public ResponseEntity<Sor> getSorDetails(@PathVariable String sorName) {
-        return ResponseEntity.ok(sorService.getSorDetails(sorName));
-    }
+    private String sorName;
+    
+    // Other fields that are automatically populated
+    private String autoField1;
+    private int autoField2;
 
-    @PutMapping("/{sorName}")
-    public ResponseEntity<Sor> updateSorDetails(@PathVariable String sorName, @RequestBody SorDto sorDto) {
-        return ResponseEntity.ok(sorService.updateSorDetails(sorName, sorDto));
-    }
+    // Fields that the user will edit/add
+    private String userField1;
+    private String userField2;
 }
 
+App.java
+package com.yourpackage.model;
 
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import lombok.Data;
 
+@Data
+@Document(collection = "apps")
+public class App {
 
+    @Id
+    private String id;
 
+    private String applicationName;
+    
+    // Other fields that are automatically populated for an App
+    private String someOtherAppField;
 
+    // Fields that the user will edit/add for an App
+    private String userAppField1;
+    private String userAppField2;
+}
 
+## Repository
+These interfaces handle the database query operations.
+SorRepository.java
+package com.yourpackage.repository;
 
-
-
-        import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import com.yourpackage.model.Sor;
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
 import java.util.List;
+
+@Repository
+public interface SorRepository extends MongoRepository<Sor, String> {
+    
+    // As per your request, this returns a List
+    List<Sor> findBySorName(String sorName);
+}
+
+AppRepository.java
+package com.yourpackage.repository;
+
+import com.yourpackage.model.App;
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface AppRepository extends MongoRepository<App, String> {
+    
+    // Finds an app by its name, returning Optional is best here
+    Optional<App> findByApplicationName(String applicationName);
+}
+
+## DTO (Data Transfer Objects)
+These classes define the shape of the data sent to and from your API.
+SorDto.java
+package com.yourpackage.dto;
+
+import lombok.Data;
+
+@Data
+public class SorDto {
+    private String userField1;
+    private String userField2;
+}
+
+AppDto.java
+package com.yourpackage.dto;
+
+import lombok.Data;
+
+@Data
+public class AppDto {
+    private String userAppField1;
+    private String userAppField2;
+}
+
+CombinedUpdateDto.java
+package com.yourpackage.dto;
+
+import lombok.Data;
+
+@Data
+public class CombinedUpdateDto {
+    private boolean isApp; // Flag indicating user's intent
+    private SorDto sorData;
+    private AppDto appData; // Can be null if isApp is false
+}
+
+## Service
+This class contains all the business logic.
+BusinessApplicationOnboardingService.java
+package com.yourpackage.service;
+
+import com.yourpackage.dto.CombinedUpdateDto;
+import com.yourpackage.model.App;
+import com.yourpackage.model.Sor;
+import com.yourpackage.repository.AppRepository;
+import com.yourpackage.repository.SorRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-public class SorService {
+public class BusinessApplicationOnboardingService {
 
     @Autowired
     private SorRepository sorRepository;
 
+    @Autowired
+    private AppRepository appRepository;
+
+    /**
+     * Fetches all unique SOR names for the dropdown.
+     */
     public List<String> getAllSorNames() {
         return sorRepository.findAll().stream()
                 .map(Sor::getSorName)
+                .distinct()
                 .collect(Collectors.toList());
     }
 
-    public Sor getSorDetails(String sorName) {
-        return sorRepository.findBySorName(sorName)
-                .orElseThrow(() -> new RuntimeException("SOR not found: " + sorName));
-    }
+    /**
+     * Updates SOR details and Updates or Creates App details based on user input.
+     * This is the core logic for the save operation.
+     */
+    @Transactional
+    public void updateAndCreateDetails(String name, CombinedUpdateDto updateDto) {
+        // 1. Update the SOR details.
+        List<Sor> sors = sorRepository.findBySorName(name);
+        if (sors.isEmpty()) {
+            throw new RuntimeException("SOR not found: " + name);
+        }
+        // Get the first SOR from the list to update.
+        Sor sorToUpdate = sors.get(0);
+        sorToUpdate.setUserField1(updateDto.getSorData().getUserField1());
+        sorToUpdate.setUserField2(updateDto.getSorData().getUserField2());
+        sorRepository.save(sorToUpdate);
 
-    public Sor updateSorDetails(String sorName, SorDto sorDto) {
-        Sor sor = sorRepository.findBySorName(sorName)
-                .orElseThrow(() -> new RuntimeException("SOR not found: " + sorName));
+        // 2. Check if the user marked this SOR as an App.
+        if (updateDto.isApp()) {
+            // Find if an app with this name already exists.
+            Optional<App> appOptional = appRepository.findByApplicationName(name);
 
-        sor.setUserField1(sorDto.getUserField1());
-        sor.setUserField2(sorDto.getUserField2());
+            App appToSave;
+            if (appOptional.isPresent()) {
+                // App exists, so we get it for updating.
+                appToSave = appOptional.get();
+            } else {
+                // App does not exist, so we create a new one.
+                appToSave = new App();
+                appToSave.setApplicationName(name); // Set the name
+            }
 
-        return sorRepository.save(sor);
+            // Set the fields from the DTO.
+            appToSave.setUserAppField1(updateDto.getAppData().getUserAppField1());
+            appToSave.setUserAppField2(updateDto.getAppData().getUserAppField2());
+            
+            // Save the new or updated app document.
+            appRepository.save(appToSave);
+        }
     }
 }
+
+## Controller
+This single controller exposes all the necessary API endpoints.
+BusinessApplicationOnboardingController.java
+package com.yourpackage.controller;
+
+import com.yourpackage.dto.CombinedUpdateDto;
+import com.yourpackage.model.App;
+import com.yourpackage.repository.AppRepository;
+import com.yourpackage.service.BusinessApplicationOnboardingService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api") // Base path for the API
+@CrossOrigin(origins = "http://localhost:3000") // Adjust for your frontend URL
+public class BusinessApplicationOnboardingController {
+
+    @Autowired
+    private BusinessApplicationOnboardingService onboardingService;
+
+    @Autowired
+    private AppRepository appRepository;
+
+    /**
+     * Endpoint to get all SOR names for the initial dropdown.
+     */
+    @GetMapping("/sors/names")
+    public ResponseEntity<List<String>> getAllSorNames() {
+        return ResponseEntity.ok(onboardingService.getAllSorNames());
+    }
+
+    /**
+     * Endpoint for the frontend to check if an App exists when the user
+     * checks the "Is this an app?" box.
+     */
+    @GetMapping("/apps/{appName}")
+    public ResponseEntity<App> getAppByName(@PathVariable String appName) {
+        return appRepository.findByApplicationName(appName)
+                .map(ResponseEntity::ok) // If found, return 200 OK with app data
+                .orElse(ResponseEntity.notFound().build()); // If not found, return 404
+    }
+
+    /**
+     * Main endpoint to save all user-provided data for both SOR and App.
+     */
+    @PutMapping("/onboarding/{sorName}")
+    public ResponseEntity<Void> updateOnboardingDetails(
+            @PathVariable String sorName,
+            @RequestBody CombinedUpdateDto updateDto) {
+        onboardingService.updateAndCreateDetails(sorName, updateDto);
+        return ResponseEntity.ok().build();
+    }
+}
+
