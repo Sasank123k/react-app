@@ -6,7 +6,7 @@ import { generateSearHeader } from '../../../Authentication';
 import axios from 'axios';
 
 import {
-  FlexGrid,
+  Flexgrid,
   FlexGridItem,
   MenuItem,
   Select,
@@ -14,7 +14,7 @@ import {
   TextInput,
   TextArea,
   Section,
-  MessageBox,
+  MessageBar,
   IconInformationalLight,
   IconWarning,
   Form,
@@ -281,7 +281,7 @@ const UsecaseOnboarding = () => {
   return (
     <>
       <NavigationBar />
-      <MessageBox
+      <MessageBar
         open={messageBoxState.isMessageOpen}
         theme={messageBoxState.messageType}
         icon={
@@ -296,7 +296,7 @@ const UsecaseOnboarding = () => {
         closeButton
       >
         <h4 style={{ color: 'black' }}>{messages}</h4>
-      </MessageBox>
+      </MessageBar>
       <div className="usecaseonboarding" style={{ marginLeft: '20px' }}>
         <div style={{ textAlign: 'center' }}>
           <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>
@@ -304,7 +304,7 @@ const UsecaseOnboarding = () => {
           </h1>
         </div>
         <Form onSubmit={handleSubmit} style={{ marginRight: '15px' }}>
-          <FlexGrid>
+          <Flexgrid>
             <FlexGridItem span={4}>
               <Select
                 label="Select L4"
@@ -349,11 +349,11 @@ const UsecaseOnboarding = () => {
                 ))}
               </Select>
             </FlexGridItem>
-          </FlexGrid>
+          </Flexgrid>
           <br />
 
           <Section title="Business Owners" defaultExpanded="true">
-            <FlexGrid>
+            <Flexgrid>
               <FlexGridItem span={4}>
                 <TextInput
                   type="text"
@@ -408,13 +408,13 @@ const UsecaseOnboarding = () => {
                   }}
                 />
               </FlexGridItem>
-            </FlexGrid>
+            </Flexgrid>
           </Section>
           <br />
 
           {/* TECH OWNERS */}
           <Section title="Tech Owners" defaultExpanded="true">
-            <FlexGrid>
+            <Flexgrid>
               <FlexGridItem span={4}>
                 <TextInput
                   type="text"
@@ -469,12 +469,12 @@ const UsecaseOnboarding = () => {
                   }}
                 />
               </FlexGridItem>
-            </FlexGrid>
+            </Flexgrid>
           </Section>
 
           <br />
           <Section title="L1 & ADS" defaultExpanded="true">
-            <FlexGrid>
+            <Flexgrid>
               <FlexGridItem span={4}>
                 <TextInput
                   type="text"
@@ -528,11 +528,11 @@ const UsecaseOnboarding = () => {
                   })}
                 </Select>
               </FlexGridItem>
-            </FlexGrid>
+            </Flexgrid>
           </Section>
           <br />
           <Section title="Usecase Details" defaultExpanded="true">
-            <FlexGrid>
+            <Flexgrid>
               <FlexGridItem span={4}>
                 <TextInput
                   type="text"
@@ -570,13 +570,13 @@ const UsecaseOnboarding = () => {
                   }}
                 />
               </FlexGridItem>
-            </FlexGrid>
+            </Flexgrid>
           </Section>
-          <FlexGrid alignVertical="center" alignHorizontal="center">
+          <Flexgrid alignVertical="center" alignHorizontal="center">
             <FlexGridItem>
               <Button label="Submit" type="submit" />
             </FlexGridItem>
-          </FlexGrid>
+          </Flexgrid>
         </Form>
       </div>
     </>
