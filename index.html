@@ -1,143 +1,75 @@
-Got it. I've updated the AppRepository and all the code that depends on it to use List<App> instead of Optional<App>.
-This change primarily affects the repository itself, the service that uses it, and the controller endpoint that checks for an existing app.
-## Updated Files
-Here are the complete, updated files reflecting this change.
-AppRepository.java
-The method signature is now updated to return a List<App>.
-package com.yourpackage.repository;
+That's an excellent question. You've identified a key part of the user experience.
+While you could make the frontend work without it, it's highly recommended to have an endpoint that gets all the initial data for a selected SOR.
+Without it, when a user selects a SOR from the dropdown, the form fields would be blank. The user would have no idea what values (if any) are already stored in the database. They would be overwriting data blindly instead of editing it.
+## The Best Solution: A Combined GET Endpoint
+The most efficient solution is to have a single GET endpoint that fetches all the necessary data at once after the user makes a selection from the dropdown. This gives the user the current state of both the SOR and the App (if it exists).
+Here is how you would implement this in the files we've already created.
+1. Create a CombinedDetailsDto.java
+This DTO will carry all the data needed to populate the form.
+CombinedDetailsDto.java
+package com.yourpackage.dto;
 
-import com.yourpackage.model.App;
-import org.springframework.data.mongodb.repository.MongoRepository;
-import org.springframework.stereotype.Repository;
-import java.util.List;
-
-@Repository
-public interface AppRepository extends MongoRepository<App, String> {
-    
-    // 👇 Now returns a List instead of Optional
-    List<App> findByApplicationName(String applicationName);
-}
-
-BusinessApplicationOnboardingService.java
-The service logic now checks if the returned list is empty to determine if an app exists.
-package com.yourpackage.service;
-
-import com.yourpackage.dto.CombinedUpdateDto;
 import com.yourpackage.model.App;
 import com.yourpackage.model.Sor;
-import com.yourpackage.repository.AppRepository;
-import com.yourpackage.repository.SorRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
-@Service
-public class BusinessApplicationOnboardingService {
-
-    @Autowired
-    private SorRepository sorRepository;
-
-    @Autowired
-    private AppRepository appRepository;
-
-    public List<String> getAllSorNames() {
-        return sorRepository.findAll().stream()
-                .map(Sor::getSorName)
-                .distinct()
-                .collect(Collectors.toList());
-    }
-
-    @Transactional
-    public void updateAndCreateDetails(String name, CombinedUpdateDto updateDto) {
-        List<Sor> sors = sorRepository.findBySorName(name);
-        if (sors.isEmpty()) {
-            throw new RuntimeException("SOR not found: " + name);
-        }
-        Sor sorToUpdate = sors.get(0);
-        sorToUpdate.setUserField1(updateDto.getSorData().getUserField1());
-        sorToUpdate.setUserField2(updateDto.getSorData().getUserField2());
-        sorRepository.save(sorToUpdate);
-
-        if (updateDto.isApp()) {
-            // 👇 Find if an app with this name already exists by checking the list.
-            List<App> apps = appRepository.findByApplicationName(name);
-
-            App appToSave;
-            if (!apps.isEmpty()) {
-                // 👇 App exists, so get the first one from the list to update.
-                appToSave = apps.get(0);
-            } else {
-                // App does not exist, so create a new one.
-                appToSave = new App();
-                appToSave.setApplicationName(name);
-            }
-
-            appToSave.setUserAppField1(updateDto.getAppData().getUserAppField1());
-            appToSave.setUserAppField2(updateDto.getAppData().getUserAppField2());
-            appToSave.setFlowMachineMap(updateDto.getAppData().getFlowMachineMap());
-            
-            appRepository.save(appToSave);
-        }
-    }
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CombinedDetailsDto {
+    private Sor sorDetails;
+    private App appDetails; // This will be null if an app record doesn't exist
 }
 
-BusinessApplicationOnboardingController.java
-The endpoint for checking if an app exists is updated to handle the list.
-package com.yourpackage.controller;
+2. Add the Logic to the Service
+Add a new method to your service to fetch and combine the data.
+BusinessApplicationOnboardingService.java (add this new method)
+// Inside BusinessApplicationOnboardingService.java
 
-import com.yourpackage.dto.CombinedUpdateDto;
-import com.yourpackage.model.App;
-import com.yourpackage.repository.AppRepository;
-import com.yourpackage.service.BusinessApplicationOnboardingService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+// ... (existing methods) ...
 
-import java.util.List;
-
-@RestController
-@RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:3000")
-public class BusinessApplicationOnboardingController {
-
-    @Autowired
-    private BusinessApplicationOnboardingService onboardingService;
-
-    @Autowired
-    private AppRepository appRepository;
-
-    @GetMapping("/sors/names")
-    public ResponseEntity<List<String>> getAllSorNames() {
-        return ResponseEntity.ok(onboardingService.getAllSorNames());
+/**
+ * Fetches the existing details for a SOR and its corresponding App (if it exists).
+ * This is used to populate the form for editing.
+ */
+public CombinedDetailsDto getOnboardingDetails(String name) {
+    // Fetch the SOR details
+    List<Sor> sors = sorRepository.findBySorName(name);
+    if (sors.isEmpty()) {
+        throw new RuntimeException("SOR not found: " + name);
     }
+    Sor sor = sors.get(0);
 
-    /**
-     * Endpoint for the frontend to check if an App exists.
-     * It now handles a List response from the repository.
-     */
-    @GetMapping("/apps/{appName}")
-    public ResponseEntity<App> getAppByName(@PathVariable String appName) {
-        // 👇 Fetch the list of apps by name.
-        List<App> apps = appRepository.findByApplicationName(appName);
-        
-        if (!apps.isEmpty()) {
-            // 👇 If the list is not empty, return the first app found with a 200 OK.
-            return ResponseEntity.ok(apps.get(0));
-        } else {
-            // 👇 If the list is empty, return 404 Not Found.
-            return ResponseEntity.notFound().build();
-        }
-    }
+    // Fetch the corresponding App details, if they exist
+    List<App> apps = appRepository.findByApplicationName(name);
+    App app = apps.isEmpty() ? null : apps.get(0);
 
-    @PutMapping("/onboarding/{sorName}")
-    public ResponseEntity<Void> updateOnboardingDetails(
-            @PathVariable String sorName,
-            @RequestBody CombinedUpdateDto updateDto) {
-        onboardingService.updateAndCreateDetails(sorName, updateDto);
-        return ResponseEntity.ok().build();
-    }
+    return new CombinedDetailsDto(sor, app);
 }
 
+3. Add the Endpoint to the Controller
+Finally, add the new GET endpoint to your controller.
+BusinessApplicationOnboardingController.java (add this new endpoint)
+// Inside BusinessApplicationOnboardingController.java
+
+// ... (existing endpoints for /sors/names and /apps/{appName}) ...
+
+/**
+ * Gets all existing SOR and App data to populate the form when a user selects a SOR.
+ */
+@GetMapping("/onboarding/{sorName}")
+public ResponseEntity<CombinedDetailsDto> getOnboardingDetails(@PathVariable String sorName) {
+    return ResponseEntity.ok(onboardingService.getOnboardingDetails(sorName));
+}
+
+// ... (existing PUT mapping for /onboarding/{sorName}) ...
+
+## Revised Workflow
+With this change, your frontend workflow becomes much cleaner:
+ * User selects "SOR_Beta" from the dropdown.
+ * Frontend makes one call: GET /api/onboarding/SOR_Beta.
+ * The response contains everything: the SOR details and the App details (or null).
+ * The frontend populates all form fields with the existing data, ready for the user to edit.
+ * The separate GET /api/apps/{appName} endpoint is no longer needed by the frontend workflow, as this single call provides all the necessary information.
