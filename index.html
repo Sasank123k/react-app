@@ -1,337 +1,586 @@
-Of course. Here is the complete, single-file React component for your "Business Application Onboarding" page.
-This file includes:
- * All necessary state management using useState and useEffect.
- * API calls using axios.
- * Dynamic form rendering based on user selections.
- * A robust handler for updating simple, nested, and doubly-nested state objects.
- * Basic CSS for a clean layout.
-Just copy this code into a file like BusinessApplicationOnboarding.js in your React project.
-BusinessApplicationOnboarding.js
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import NavigationBar from '../../../components/NavigationBar/NavigationBar';
+import { MICROSERVICE_URL } from '../../../util/constants';
+import { useAppGlobalState } from 'gwf/react-library';
+import { generateSearHeader } from '../../../Authentication';
 import axios from 'axios';
 
-// --- Basic CSS for layout ---
-const styles = `
-  .onboarding-container {
-    max-width: 800px;
-    margin: 2rem auto;
-    padding: 2rem;
-    font-family: sans-serif;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  }
-  h1, h2 {
-    color: #333;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 10px;
-  }
-  .form-section {
-    background-color: #f9f9f9;
-    border: 1px solid #eee;
-    padding: 1.5rem;
-    margin-top: 1.5rem;
-    border-radius: 5px;
-  }
-  .form-group {
-    margin-bottom: 1rem;
-  }
-  label {
-    display: block;
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-    color: #555;
-  }
-  input[type="text"], select {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-  }
-  .checkbox-group {
-    display: flex;
-    align-items: center;
-    margin-top: 2rem;
-  }
-  .checkbox-group input {
-    width: auto;
-    margin-right: 10px;
-  }
-  button {
-    background-color: #007bff;
-    color: white;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-    margin-top: 1.5rem;
-    width: 100%;
-  }
-  button:hover {
-    background-color: #0056b3;
-  }
-  .status-message {
-    padding: 1rem;
-    margin-top: 1rem;
-    border-radius: 4px;
-    text-align: center;
-  }
-  .status-message.success {
-    background-color: #d4edda;
-    color: #155724;
-  }
-  .status-message.error {
-    background-color: #f8d7da;
-    color: #721c24;
-  }
-`;
+import {
+  FlexGrid,
+  FlexGridItem,
+  MenuItem,
+  Select,
+  Button,
+  TextInput,
+  TextArea,
+  Section,
+  MessageBox,
+  IconInformationalLight,
+  IconWarning,
+  Form,
+} from '@pioneer/core';
 
-// --- API Configuration ---
-const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
-});
+const UsecaseOnboarding = () => {
+  const appGlobalState = useAppGlobalState();
 
+  const [l4option, setL4option] = useState('');
+  const [l4optionslist, setL4optionslist] = useState([]);
 
-const BusinessApplicationOnboarding = () => {
-  // --- State Definitions ---
-  const [sorNames, setSorNames] = useState([]);
-  const [selectedSor, setSelectedSor] = useState('');
-  
-  const initialSorData = {
-    userField1: '',
-    userField2: '',
-    userField3: '',
-    userField4: '',
-    userField5: '',
-  };
+  const [l3option, setL3option] = useState('');
+  const [l3optionslist, setL3optionslist] = useState([]);
 
-  const initialAppData = {
-    userAppField1: '',
-    userAppField2: '',
-    userAppField3: '',
-    flowMachineMap: { edl: '', ingress: '' },
-    securityMap: { firewall: '', encryption: '' },
-  };
+  const [l2option, setL2option] = useState('');
+  const [l2optionslist, setL2optionslist] = useState([]);
 
-  const [sorData, setSorData] = useState(initialSorData);
-  const [appData, setAppData] = useState(initialAppData);
-  const [treatAsApp, setTreatAsApp] = useState(false);
+  const [usecaseName, setUsecaseName] = useState('');
+  const [usecaseDescription, setUsecaseDescription] = useState('');
 
-  const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+  const [adsList, setAdsList] = useState([]);
+  const [selectedADS, setSelectedADS] = useState('');
+  const [selectedAdsAlias, setSelectedAdsAlias] = useState('');
 
+  const [formData, setFormData] = useState({
+    l2BusinessOwner: '',
+    l2TechOwner: '',
+    l3BusinessOwner: '',
+    l3TechOwner: '',
+    l4BusinessOwner: '',
+    l4TechOwner: '',
+    l1: '',
+    l1ProductOwner: '',
+    ADS: '',
+    adsAlias: ''
+  });
+  const [messages, setMessages] = useState('');
+  const [messageBoxState, setMessageBoxState] = React.useState({
+    isMessageOpen: false,
+    messageType: 'Information',
+  });
 
-  // --- Data Fetching Effect ---
-  useEffect(() => {
-    const fetchSorNames = async () => {
-      try {
-        const response = await api.get('/sors/names');
-        setSorNames(response.data);
-      } catch (error) {
-        console.error("Error fetching SOR names:", error);
-        setStatusMessage({ text: 'Could not fetch SOR list.', type: 'error' });
-      }
-    };
-    fetchSorNames();
-  }, []);
-
-
-  // --- Event Handlers ---
-  const handleSorSelectChange = async (e) => {
-    const sorName = e.target.value;
-    setSelectedSor(sorName);
-    setStatusMessage({ text: '', type: '' });
-
-    if (!sorName) {
-      setSorData(initialSorData);
-      setAppData(initialAppData);
-      setTreatAsApp(false);
-      return;
-    }
-
+  const fetchL4ListData = async () => {
     try {
-      const response = await api.get(`/onboarding/${sorName}`);
-      const { sorDetails, appDetails } = response.data;
+      const config = {
+        method: 'GET',
+        url: `${MICROSERVICE_URL}/usecaseonboarding/getL4List`,
+        headers: generateSearHeader(appGlobalState),
+      };
 
-      setSorData(sorDetails || initialSorData);
-
-      if (appDetails) {
-        // If app details exist, populate the form and check the box
-        setAppData({
-          ...initialAppData, // Start with defaults
-          ...appDetails, // Overwrite with fetched data
-          flowMachineMap: appDetails.flowMachineMap || initialAppData.flowMachineMap,
-          securityMap: appDetails.securityMap || initialAppData.securityMap,
-        });
-        setTreatAsApp(true);
-      } else {
-        // If no app details, reset the app form and uncheck the box
-        setAppData(initialAppData);
-        setTreatAsApp(false);
-      }
+      const response = await axios(config);
+      console.log('L4 list data is', response.data);
+      setL4optionslist(response.data);
     } catch (error) {
-      console.error(`Error fetching details for ${sorName}:`, error);
-      // Handle case where SOR exists but maybe App throws an error, etc.
-      setAppData(initialAppData);
-      setTreatAsApp(false);
+      console.error('Error fetching data', error);
     }
   };
 
-  const handleCheckboxChange = (e) => {
-    setTreatAsApp(e.target.checked);
+  const fetchL3ListData = async (l4option) => {
+    console.log('Before api call value of l4option is ', l4option);
+    try {
+      const config = {
+        method: 'GET',
+        url: `${MICROSERVICE_URL}/usecaseonboarding/getL3ForL4`,
+        params: { l4: l4option },
+        headers: generateSearHeader(appGlobalState),
+      };
+
+      const response = await axios(config);
+      console.log('L3 list data is', response.data);
+      setL3optionslist(response.data);
+    } catch (error) {
+      console.error('Error fetching data', error);
+    }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    const parts = name.split('.'); // e.g., "sorData.userField1" or "appData.flowMachineMap.edl"
+  const fetchL2ListData = async (l3option) => {
+    console.log('L3 option selected by user before api call is ', l3option);
+    try {
+      const config = {
+        method: 'GET',
+        url: `${MICROSERVICE_URL}/usecaseonboarding/getL2ForL3`,
+        params: { l3: l3option },
+        headers: generateSearHeader(appGlobalState),
+      };
 
-    const stateUpdater = {
-      sorData: setSorData,
-      appData: setAppData,
-    };
-    
-    const [mainKey, subKey, nestedKey] = parts; // [appData, flowMachineMap, edl]
+      const response = await axios(config);
+      console.log('L2 list data is', response.data);
+      setL2optionslist(response.data);
+    } catch (error) {
+      console.error('Error fetching data', error);
+    }
+  };
 
-    const setState = stateUpdater[mainKey];
+  const fetchADSList = async () => {
+    try {
+      const config = {
+        method: 'GET',
+        url: `${MICROSERVICE_URL}/usecaseonboarding/getADSList`,
+        headers: generateSearHeader(appGlobalState),
+      };
 
-    if (setState) {
-      setState(prev => {
-        if (nestedKey) { // Handles doubly-nested objects e.g., maps
-          return {
-            ...prev,
-            [subKey]: {
-              ...prev[subKey],
-              [nestedKey]: value,
-            },
-          };
-        } else { // Handles top-level fields in the state slice
-          return { ...prev, [subKey]: value };
-        }
+      const response = await axios(config);
+      console.log('ADSLIST', response.data);
+      setAdsList(response.data);
+    } catch (error) {
+      console.error('Error fetching ADS list');
+    }
+  };
+
+  const fetchBusinessOwnersAndTechOwners = async (
+    l4option,
+    l3option,
+    l2option
+  ) => {
+    console.log(
+      'Selected values before api call of business and tech owners is ',
+      l4option,
+      l3option,
+      l2option
+    );
+    try {
+      const config = {
+        method: 'GET',
+        url: `${MICROSERVICE_URL}/usecaseonboarding/getFieldByL4L3L2`,
+        params: { l4: l4option, l3: l3option, l2: l2option },
+        headers: generateSearHeader(appGlobalState),
+      };
+
+      const response = await axios(config);
+      console.log('Business owners and tech owners api', response.data);
+      setFormData(response.data);
+    } catch (error) {
+      console.error('Error fetching data', error);
+      setFormData({
+        l2BusinessOwner: '',
+        l2TechOwner: '',
+        l3BusinessOwner: '',
+        l3TechOwner: '',
+        l4BusinessOwner: '',
+        l4TechOwner: '',
       });
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedSor) {
-      setStatusMessage({ text: 'Please select a SOR before submitting.', type: 'error' });
-      return;
-    }
-
-    const payload = {
-      treatAsApp,
-      sorData,
-      appData: treatAsApp ? appData : null, // Only send appData if it's being treated as an app
-    };
-
+  const handleSubmit = async () => {
     try {
-      await api.put(`/onboarding/${selectedSor}`, payload);
-      setStatusMessage({ text: 'Details saved successfully!', type: 'success' });
+      const dataToSubmit = {
+        ...formData,
+        usecaseName: usecaseName,
+        usecaseDescription: usecaseDescription,
+        l4: l4option,
+        l3: l3option,
+        l2: l2option,
+        ADS: selectedADS,
+        adsAlias: selectedAdsAlias,
+      };
+
+      const config = {
+        method: 'POST',
+        url: `${MICROSERVICE_URL}/usecaseonboarding/saveUsecaseData`,
+        headers: generateSearHeader(appGlobalState),
+        data: dataToSubmit,
+      };
+
+      const response = await axios(config);
+      console.log('Data saved successfully', response.data);
+      showMessages('Data Saved Successfully!');
     } catch (error) {
-      console.error("Error saving details:", error);
-      setStatusMessage({ text: 'Failed to save details. Please check the console.', type: 'error' });
+      console.error('Error saving data', error);
     }
   };
 
-  // --- JSX Rendering ---
+  const handleL4Update = (e) => {
+    setL4option(e.value);
+  };
+  const handleL3Update = (e) => {
+    setL3option(e.value);
+  };
+  const handleL2Update = (e) => {
+    setL2option(e.value);
+  };
+
+  const handleADSUpdate = (selectedValue) => {
+    console.log('Selected value is', selectedValue);
+    setSelectedADS(selectedValue.value);
+
+    const selectedItem = adsList.find(
+      (item) => Object.keys(item)[0] === selectedValue.value
+    );
+    console.log('ads list is ', adsList);
+    console.log('selected item is ', selectedItem);
+    if (selectedItem) {
+      const key = selectedValue.value;
+      const aliasValue = selectedItem[key];
+      console.log('alias is ', aliasValue);
+      setSelectedAdsAlias(aliasValue);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e;
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  };
+  const handleUsecase = (e) => {
+    setUsecaseName(e.value);
+  };
+  const handleUsecaseDescription = (e) => {
+    setUsecaseDescription(e.value);
+  };
+
+  const handleClose = () => {
+    setTimeout(() => {
+      setMessageBoxState({ ...messageBoxState, isMessageOpen: false });
+    }, 0);
+  };
+
+  const showShowMessageBar = (message, type = 'information') => {
+    console.log('testing message bar: ', message);
+    setMessages(message);
+    setMessageBoxState({
+      isMessageOpen: true,
+      messageType: type,
+    });
+    setTimeout(
+      () => {
+        setMessageBoxState({
+          ...messageBoxState,
+          isMessageOpen: false,
+          messageType: type,
+        });
+      },
+      5000
+    );
+  };
+
+  useEffect(() => {
+    fetchL4ListData();
+    fetchADSList();
+  }, []);
+
+  useEffect(() => {
+    if (l4option.length > 0) {
+      fetchL3ListData(l4option);
+    }
+  }, [l4option]);
+
+  useEffect(() => {
+    if (l3option.length > 0) {
+      fetchL2ListData(l3option);
+    }
+  }, [l3option]);
+
+  //when all 3 are selected, autofill the 3 business owners and 3 tech owners
+  useEffect(() => {
+    if (l3option.length > 0 && l4option.length > 0 && l2option.length > 0) {
+      fetchBusinessOwnersAndTechOwners(l4option, l3option, l2option);
+    }
+  }, [l4option, l3option, l2option]);
+
   return (
     <>
-      <style>{styles}</style>
-      <div className="onboarding-container">
-        <h1>Business Application Onboarding</h1>
-
-        <div className="form-group">
-          <label htmlFor="sor-select">Select SOR</label>
-          <select id="sor-select" value={selectedSor} onChange={handleSorSelectChange}>
-            <option value="">-- Please choose an SOR --</option>
-            {sorNames.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
+      <NavigationBar />
+      <MessageBox
+        open={messageBoxState.isMessageOpen}
+        theme={messageBoxState.messageType}
+        icon={
+          messageBoxState.messageType === 'warning' ? (
+            <IconWarning size="small" />
+          ) : (
+            <IconInformationalLight size="small" />
+          )
+        }
+        onClose={handleClose}
+        zIndex={9999}
+        closeButton
+      >
+        <h4 style={{ color: 'black' }}>{messages}</h4>
+      </MessageBox>
+      <div className="usecaseonboarding" style={{ marginLeft: '20px' }}>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>
+            Usecase Onboarding{' '}
+          </h1>
         </div>
+        <Form onSubmit={handleSubmit} style={{ marginRight: '15px' }}>
+          <FlexGrid>
+            <FlexGridItem span={4}>
+              <Select
+                label="Select L4"
+                name="l4"
+                required={true}
+                onValueChange={handleL4Update}
+              >
+                {l4optionslist.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FlexGridItem>
 
-        {selectedSor && (
-          <form onSubmit={handleSubmit}>
-            <div className="form-section">
-              <h2>SOR Details</h2>
-              {Object.keys(sorData).map(key => (
-                 key !== 'id' && key !== 'sorName' && typeof sorData[key] === 'string' &&
-                <div className="form-group" key={key}>
-                  <label htmlFor={`sor-${key}`}>{key}</label>
-                  <input
-                    type="text"
-                    id={`sor-${key}`}
-                    name={`sorData.${key}`}
-                    value={sorData[key] || ''}
-                    onChange={handleInputChange}
-                  />
-                </div>
-              ))}
-            </div>
+            <FlexGridItem span={4}>
+              <Select
+                label="Select L3"
+                required={true}
+                name="l3"
+                onValueChange={handleL3Update}
+              >
+                {l3optionslist.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FlexGridItem>
 
-            <div className="checkbox-group">
-              <input
-                type="checkbox"
-                id="is-app-checkbox"
-                checked={treatAsApp}
-                onChange={handleCheckboxChange}
-              />
-              <label htmlFor="is-app-checkbox">Is this SOR also an Application?</label>
-            </div>
+            <FlexGridItem span={4}>
+              <Select
+                label="Select L2"
+                required={true}
+                name="l2"
+                onValueChange={handleL2Update}
+              >
+                {l2optionslist.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FlexGridItem>
+          </FlexGrid>
+          <br />
 
-            {treatAsApp && (
-              <div className="form-section">
-                <h2>Application Details</h2>
-                
-                {/* Simple Key-Value pairs for App */}
-                <div className="form-group">
-                  <label htmlFor="app-userAppField1">userAppField1</label>
-                  <input type="text" id="app-userAppField1" name="appData.userAppField1" value={appData.userAppField1 || ''} onChange={handleInputChange} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="app-userAppField2">userAppField2</label>
-                  <input type="text" id="app-userAppField2" name="appData.userAppField2" value={appData.userAppField2 || ''} onChange={handleInputChange} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="app-userAppField3">userAppField3</label>
-                  <input type="text" id="app-userAppField3" name="appData.userAppField3" value={appData.userAppField3 || ''} onChange={handleInputChange} />
-                </div>
+          <Section title="Business Owners" defaultExpanded="true">
+            <FlexGrid>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required={true}
+                  key={`input-${formData.l4BusinessOwner || 'unresolved'}`}
+                  label="L4 Business Owner Name"
+                  value={formData.l4BusinessOwner}
+                  name="l4BusinessOwner"
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  key={`input-${formData.l3BusinessOwner || 'unresolved'}`}
+                  label="L3 Business Owner Name"
+                  name="l3BusinessOwner"
+                  value={formData.l3BusinessOwner}
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  label="L2 Business Owner Name"
+                  name="l2BusinessOwner"
+                  value={formData.l2BusinessOwner}
+                  key={`input-${formData.l2BusinessOwner || 'unresolved'}`}
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+            </FlexGrid>
+          </Section>
+          <br />
 
-                {/* Map 1: FlowMachineMap */}
-                <div className="form-group">
-                    <h4>Flow Machine Map</h4>
-                    <label htmlFor="app-flow-edl">EDL</label>
-                    <input type="text" id="app-flow-edl" name="appData.flowMachineMap.edl" value={appData.flowMachineMap.edl || ''} onChange={handleInputChange} />
-                    <label htmlFor="app-flow-ingress">Ingress</label>
-                    <input type="text" id="app-flow-ingress" name="appData.flowMachineMap.ingress" value={appData.flowMachineMap.ingress || ''} onChange={handleInputChange} />
-                </div>
-                
-                {/* Map 2: SecurityMap */}
-                <div className="form-group">
-                    <h4>Security Map</h4>
-                    <label htmlFor="app-sec-firewall">Firewall</label>
-                    <input type="text" id="app-sec-firewall" name="appData.securityMap.firewall" value={appData.securityMap.firewall || ''} onChange={handleInputChange} />
-                    <label htmlFor="app-sec-encryption">Encryption</label>
-                    <input type="text" id="app-sec-encryption" name="appData.securityMap.encryption" value={appData.securityMap.encryption || ''} onChange={handleInputChange} />
-                </div>
+          {/* TECH OWNERS */}
+          <Section title="Tech Owners" defaultExpanded="true">
+            <FlexGrid>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  label="L4 Tech Owner Name"
+                  name="l4TechOwner"
+                  value={formData.l4TechOwner}
+                  key={`input-${formData.l4TechOwner || 'unresolved'}`}
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  label="L3 Tech Owner Name"
+                  value={formData.l3TechOwner}
+                  key={`input-${formData.l3TechOwner || 'unresolved'}`}
+                  name="l3TechOwner"
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  label="L2 Tech Owner Name"
+                  name="l2TechOwner"
+                  value={formData.l2TechOwner}
+                  key={`input-${formData.l2TechOwner || 'unresolved'}`}
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+            </FlexGrid>
+          </Section>
 
-              </div>
-            )}
-
-            <button type="submit">Save Onboarding Details</button>
-          </form>
-        )}
-
-        {statusMessage.text && (
-          <div className={`status-message ${statusMessage.type}`}>
-            {statusMessage.text}
-          </div>
-        )}
+          <br />
+          <Section title="L1 & ADS" defaultExpanded="true">
+            <FlexGrid>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  label="L1"
+                  name="l1"
+                  value={formData.l1}
+                  key={`input-${formData.l1 || 'unresolved'}`}
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  label="L1 Product Owner"
+                  name="l1ProductOwner"
+                  value={formData.l1ProductOwner}
+                  key={`input-${formData.l1ProductOwner || 'unresolved'}`}
+                  onValueChange={(e) => handleInputChange(e)}
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+              <FlexGridItem span={4}>
+                <Select
+                  label="Select ADS"
+                  name="ads"
+                  onValueChange={handleADSUpdate}
+                  required={true}
+                >
+                  {adsList.map((item) => {
+                    const key = Object.keys(item)[0];
+                    return (
+                      <MenuItem key={key} value={key}>
+                        {key}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FlexGridItem>
+            </FlexGrid>
+          </Section>
+          <br />
+          <Section title="Usecase Details" defaultExpanded="true">
+            <FlexGrid>
+              <FlexGridItem span={4}>
+                <TextInput
+                  type="text"
+                  required="true"
+                  label="Usecase Name"
+                  name="usecaseName"
+                  onValueChange={(e) => {
+                    handleUsecase(e);
+                  }}
+                  style={{
+                    width: '100%',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+              <FlexGridItem span={4}>
+                <TextArea
+                  type="text"
+                  required="true"
+                  label="Usecase Description"
+                  name="usecaseDescription"
+                  onValueChange={(e) => handleUsecaseDescription(e)}
+                  style={{
+                    width: '100%',
+                    marginBottom: '5px',
+                    padding: '5px',
+                    borderRadius: '4px',
+                    border: '1px solid #ccc',
+                    fontSize: '1rem',
+                    outline: 'none',
+                  }}
+                />
+              </FlexGridItem>
+            </FlexGrid>
+          </Section>
+          <FlexGrid alignVertical="center" alignHorizontal="center">
+            <FlexGridItem>
+              <Button label="Submit" type="submit" />
+            </FlexGridItem>
+          </FlexGrid>
+        </Form>
       </div>
     </>
   );
 };
 
-export default BusinessApplicationOnboarding;
-
+export default UsecaseOnboarding;
