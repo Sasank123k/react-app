@@ -1,162 +1,75 @@
-// In BusinessApplicationOnboardingService.java
+Of course. Here are the specific changes you need to make to your BusinessApplicationOnboarding.js file to replace the text inputs with dropdowns populated from your new API.
+## 1. Add New State Variables
+First, add two new state variables at the top of your component to hold the options for your dropdowns.
+// In BusinessApplicationOnboarding.js
 
-/**
- * Fetches the list of values for a given configuration name.
- * This version correctly handles a List response from the repository.
- */
-public List<String> getConfigurationValues(String name) {
-    // 1. Fetch the list from the repository
-    List<Configuration> configs = configurationRepository.findByTemplateName(name);
+// ... (existing state variables) ...
+const [sorTypeOptions, setSorTypeOptions] = useState([]);
+const [domainNameOptions, setDomainNameOptions] = useState([]);
 
-    // 2. Check if the list is empty (this replaces orElseThrow)
-    if (configs.isEmpty()) {
-        throw new RuntimeException("Configuration not found for templateName: " + name);
+## 2. Update useEffect to Fetch Dropdown Data
+Next, modify your initial useEffect hook to fetch this new configuration data when the component loads. Using Promise.all is the most efficient way to do this.
+This replaces your old useEffect that only fetched SOR names.
+// In BusinessApplicationOnboarding.js
+
+useEffect(() => {
+  const fetchInitialData = async () => {
+    try {
+      // Fetch all required lists in parallel for faster loading
+      const [sorNamesRes, sorTypesRes, domainNamesRes] = await Promise.all([
+        api.get('/sors/names'),
+        api.get('/configurations/sorTypes'),
+        api.get('/configurations/domainNames')
+      ]);
+
+      setSorNames(sorNamesRes.data);
+      setSorTypeOptions(sorTypesRes.data);
+      setDomainNameOptions(domainNamesRes.data);
+
+    } catch (error) {
+      console.error("Error fetching initial page data:", error);
+      showShowMessageBar('Could not load initial page data.', 'warning');
     }
-    
-    // 3. If not empty, get the first item from the list
-    Configuration config = configs.get(0);
+  };
+  fetchInitialData();
+}, []);
 
-    String rawJsonString = config.getJson();
-    
-    if (rawJsonString == null || rawJsonString.trim().isEmpty()) {
-        return Collections.emptyList();
-    }
-    
-    // 4. The rest of the parsing logic remains the same
-    return Arrays.stream(rawJsonString.split(","))
-                 .map(String::trim)
-                 .collect(Collectors.toList());
-}
+## 3. Replace TextInput with <Select> in JSX
+Finally, in your JSX, find the <TextInput> components you want to replace and swap them with Pioneer's <Select> component.
+Let's assume userField1 was meant to be SOR Type and userField2 was Domain Name.
+Find this block in your "SOR Details" section:
+<FlexgridItem span={4}><TextInput label="User Field 1" name="userField1" value={sorData.userField1 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
+<FlexgridItem span={4}><TextInput label="User Field 2" name="userField2" value={sorData.userField2 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
 
+And replace it with this:
+<FlexgridItem span={4}>
+  <Select 
+    label="SOR Type" 
+    required={true} 
+    value={sorData.userField1 || ''} 
+    onValueChange={(e) => handleInputChange({ name: 'userField1', value: e.value }, 'sor')}
+  >
+    {sorTypeOptions.map((option) => (
+      <MenuItem key={option} value={option}>
+        {option}
+      </MenuItem>
+    ))}
+  </Select>
+</FlexgridItem>
 
+<FlexgridItem span={4}>
+  <Select 
+    label="Domain Name" 
+    required={true} 
+    value={sorData.userField2 || ''} 
+    onValueChange={(e) => handleInputChange({ name: 'userField2', value: e.value }, 'sor')}
+  >
+    {domainNameOptions.map((option) => (
+      <MenuItem key={option} value={option}>
+        {option}
+      </MenuItem>
+    ))}
+  </Select>
+</FlexgridItem>
 
-
-
-
-Of course. Since you already have the Model and Repository files set up for your existing collection, here are the other backend files you need to update, the dummy data to add, and the steps to test the new API.
-## 1. Dummy Content to Add to MongoDB
-You need to add two new documents to your existing collection (the one from the screenshot). This data will be fetched to populate your dropdowns.
-Document 1: For SOR Types
-{
-    "templateName": "sorTypes",
-    "json": "Internal, External - Vendor, Hybrid, Platform Service"
-}
-
-Document 2: For Domain Names
-{
-    "templateName": "domainNames",
-    "json": "Finance & Accounting, Human Resources, Supply Chain & Logistics, Core Technology, Customer Experience"
-}
-
-## 2. Updated Backend Files
-You only need to add new methods to your existing Service and Controller files.
-BusinessApplicationOnboardingService.java (Additions)
-Add the new ConfigurationRepository and the method to get and parse the values.
-package com.yourpackage.service;
-
-import com.yourpackage.model.Configuration; // Make sure to import your Configuration model
-import com.yourpackage.repository.ConfigurationRepository; // Import the new repository
-
-// Other imports...
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.stream.Collectors;
-
-@Service
-public class BusinessApplicationOnboardingService {
-
-    // ... (existing @Autowired fields for SorRepository and AppRepository)
-
-    // 👇 Add this new repository
-    @Autowired
-    private ConfigurationRepository configurationRepository;
-
-    // ... (existing methods like updateAndCreateDetails, etc.)
-
-    // 👇 Add this new method
-    /**
-     * Fetches the list of values for a given configuration name (e.g., "sorTypes").
-     * This version reads a comma-separated string from the 'json' field and parses it.
-     */
-    public List<String> getConfigurationValues(String name) {
-        Configuration config = configurationRepository.findByTemplateName(name)
-                .orElseThrow(() -> new RuntimeException("Configuration not found for templateName: " + name));
-
-        String rawJsonString = config.getJson();
-        
-        if (rawJsonString == null || rawJsonString.trim().isEmpty()) {
-            return Collections.emptyList();
-        }
-        
-        // Split the string by commas, trim whitespace from each item, and collect into a List
-        return Arrays.stream(rawJsonString.split(","))
-                     .map(String::trim)
-                     .collect(Collectors.toList());
-    }
-}
-
-BusinessApplicationOnboardingController.java (Addition)
-Add the new GET endpoint to expose the functionality.
-package com.yourpackage.controller;
-
-// Other imports...
-
-@RestController
-@RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:3000")
-public class BusinessApplicationOnboardingController {
-
-    @Autowired
-    private BusinessApplicationOnboardingService onboardingService;
-
-    // ... (other existing autowired fields and endpoints)
-
-    // 👇 Add this new endpoint
-    /**
-     * Generic endpoint to get configuration lists for dropdowns.
-     * The {name} in the path must match a 'templateName' in the database.
-     */
-    @GetMapping("/configurations/{name}")
-    public ResponseEntity<List<String>> getConfigurationByName(@PathVariable String name) {
-        return ResponseEntity.ok(onboardingService.getConfigurationValues(name));
-    }
-}
-
-## 3. How to Test the API with Postman
-After updating your code and adding the dummy data, you can test the new endpoint.
-Test Case 1: Fetching SOR Types
- * Method: GET
- * URL: http://localhost:8080/api/configurations/sorTypes
-   (Note: The sorTypes in the URL must exactly match the templateName value from your database.)
-Steps:
- * Open a new request in Postman.
- * Set the method to GET.
- * Enter the URL above.
- * Click Send.
-✅ Expected Result:
-You should receive a Status: 200 OK and a JSON body that is an array of strings:
-[
-    "Internal",
-    "External - Vendor",
-    "Hybrid",
-    "Platform Service"
-]
-
-Test Case 2: Fetching Domain Names
- * Method: GET
- * URL: http://localhost:8080/api/configurations/domainNames
-Steps:
- * Open a new request in Postman.
- * Set the method to GET.
- * Enter the URL above.
- * Click Send.
-✅ Expected Result:
-You should receive a Status: 200 OK and a JSON body with the domain names:
-[
-    "Finance & Accounting",
-    "Human Resources",
-    "Supply Chain & Logistics",
-    "Core Technology",
-    "Customer Experience"
-]
-
+Important Note: Notice the change in the onValueChange handler. Since the <Select> component from your framework doesn't have a name attribute, we manually create an object { name: 'userField1', value: e.value } to pass to your existing handleInputChange function. This allows you to reuse your handler without any modifications.
