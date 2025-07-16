@@ -1,41 +1,127 @@
-const handleSubmit = () => {
-  if (!selectedSor) {
-    showShowMessageBar('Please select a SOR before submitting.', 'warning');
-    return;
-  }
+Of course. Since you already have the Model and Repository files set up for your existing collection, here are the other backend files you need to update, the dummy data to add, and the steps to test the new API.
+## 1. Dummy Content to Add to MongoDB
+You need to add two new documents to your existing collection (the one from the screenshot). This data will be fetched to populate your dropdowns.
+Document 1: For SOR Types
+{
+    "templateName": "sorTypes",
+    "json": "Internal, External - Vendor, Hybrid, Platform Service"
+}
 
-  // --- Validation Logic Starts Here ---
-  const errors = [];
+Document 2: For Domain Names
+{
+    "templateName": "domainNames",
+    "json": "Finance & Accounting, Human Resources, Supply Chain & Logistics, Core Technology, Customer Experience"
+}
 
-  // 1. Validate SOR Data
-  for (const key in sorData) {
-    if (!sorData[key]) {
-      errors.push(`SOR Details: '${key}' is required.`);
+## 2. Updated Backend Files
+You only need to add new methods to your existing Service and Controller files.
+BusinessApplicationOnboardingService.java (Additions)
+Add the new ConfigurationRepository and the method to get and parse the values.
+package com.yourpackage.service;
+
+import com.yourpackage.model.Configuration; // Make sure to import your Configuration model
+import com.yourpackage.repository.ConfigurationRepository; // Import the new repository
+
+// Other imports...
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.stream.Collectors;
+
+@Service
+public class BusinessApplicationOnboardingService {
+
+    // ... (existing @Autowired fields for SorRepository and AppRepository)
+
+    // 👇 Add this new repository
+    @Autowired
+    private ConfigurationRepository configurationRepository;
+
+    // ... (existing methods like updateAndCreateDetails, etc.)
+
+    // 👇 Add this new method
+    /**
+     * Fetches the list of values for a given configuration name (e.g., "sorTypes").
+     * This version reads a comma-separated string from the 'json' field and parses it.
+     */
+    public List<String> getConfigurationValues(String name) {
+        Configuration config = configurationRepository.findByTemplateName(name)
+                .orElseThrow(() -> new RuntimeException("Configuration not found for templateName: " + name));
+
+        String rawJsonString = config.getJson();
+        
+        if (rawJsonString == null || rawJsonString.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        // Split the string by commas, trim whitespace from each item, and collect into a List
+        return Arrays.stream(rawJsonString.split(","))
+                     .map(String::trim)
+                     .collect(Collectors.toList());
     }
-  }
+}
 
-  // 2. Validate App Data only if the box is checked
-  if (treatAsApp) {
-    // Check simple app fields
-    if (!appData.userAppField1) errors.push("Application Details: 'userAppField1' is required.");
-    if (!appData.userAppField2) errors.push("Application Details: 'userAppField2' is required.");
-    if (!appData.userAppField3) errors.push("Application Details: 'userAppField3' is required.");
-    
-    // Check nested map fields
-    if (!appData.flowMachineMap?.edl) errors.push("Flow Machine Map: 'EDL' is required.");
-    if (!appData.flowMachineMap?.ingress) errors.push("Flow Machine Map: 'Ingress' is required.");
-    if (!appData.securityMap?.firewall) errors.push("Security Map: 'Firewall' is required.");
-    if (!appData.securityMap?.encryption) errors.prush("Security Map: 'Encryption' is required.");
-  }
+BusinessApplicationOnboardingController.java (Addition)
+Add the new GET endpoint to expose the functionality.
+package com.yourpackage.controller;
 
-  // 3. If there are any errors, show them and stop
-  if (errors.length > 0) {
-    showShowMessageBar(errors.join(' \n'), 'warning');
-    return;
-  }
-  // --- Validation Logic Ends Here ---
+// Other imports...
 
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "http://localhost:3000")
+public class BusinessApplicationOnboardingController {
 
-  // If validation passes, proceed with saving the data
-  saveOnboardingDetails();
-};
+    @Autowired
+    private BusinessApplicationOnboardingService onboardingService;
+
+    // ... (other existing autowired fields and endpoints)
+
+    // 👇 Add this new endpoint
+    /**
+     * Generic endpoint to get configuration lists for dropdowns.
+     * The {name} in the path must match a 'templateName' in the database.
+     */
+    @GetMapping("/configurations/{name}")
+    public ResponseEntity<List<String>> getConfigurationByName(@PathVariable String name) {
+        return ResponseEntity.ok(onboardingService.getConfigurationValues(name));
+    }
+}
+
+## 3. How to Test the API with Postman
+After updating your code and adding the dummy data, you can test the new endpoint.
+Test Case 1: Fetching SOR Types
+ * Method: GET
+ * URL: http://localhost:8080/api/configurations/sorTypes
+   (Note: The sorTypes in the URL must exactly match the templateName value from your database.)
+Steps:
+ * Open a new request in Postman.
+ * Set the method to GET.
+ * Enter the URL above.
+ * Click Send.
+✅ Expected Result:
+You should receive a Status: 200 OK and a JSON body that is an array of strings:
+[
+    "Internal",
+    "External - Vendor",
+    "Hybrid",
+    "Platform Service"
+]
+
+Test Case 2: Fetching Domain Names
+ * Method: GET
+ * URL: http://localhost:8080/api/configurations/domainNames
+Steps:
+ * Open a new request in Postman.
+ * Set the method to GET.
+ * Enter the URL above.
+ * Click Send.
+✅ Expected Result:
+You should receive a Status: 200 OK and a JSON body with the domain names:
+[
+    "Finance & Accounting",
+    "Human Resources",
+    "Supply Chain & Logistics",
+    "Core Technology",
+    "Customer Experience"
+]
+
