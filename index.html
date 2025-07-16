@@ -1,3 +1,38 @@
+// In BusinessApplicationOnboardingService.java
+
+/**
+ * Fetches the list of values for a given configuration name.
+ * This version correctly handles a List response from the repository.
+ */
+public List<String> getConfigurationValues(String name) {
+    // 1. Fetch the list from the repository
+    List<Configuration> configs = configurationRepository.findByTemplateName(name);
+
+    // 2. Check if the list is empty (this replaces orElseThrow)
+    if (configs.isEmpty()) {
+        throw new RuntimeException("Configuration not found for templateName: " + name);
+    }
+    
+    // 3. If not empty, get the first item from the list
+    Configuration config = configs.get(0);
+
+    String rawJsonString = config.getJson();
+    
+    if (rawJsonString == null || rawJsonString.trim().isEmpty()) {
+        return Collections.emptyList();
+    }
+    
+    // 4. The rest of the parsing logic remains the same
+    return Arrays.stream(rawJsonString.split(","))
+                 .map(String::trim)
+                 .collect(Collectors.toList());
+}
+
+
+
+
+
+
 Of course. Since you already have the Model and Repository files set up for your existing collection, here are the other backend files you need to update, the dummy data to add, and the steps to test the new API.
 ## 1. Dummy Content to Add to MongoDB
 You need to add two new documents to your existing collection (the one from the screenshot). This data will be fetched to populate your dropdowns.
