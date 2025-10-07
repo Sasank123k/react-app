@@ -1,125 +1,77 @@
-// In BusinessApplicationOnboarding.js
-
-useEffect(() => {
-  const fetchInitialData = async () => {
-    try {
-      // 1. Define the configuration for each API call, following your team's standard
-      const sorNamesConfig = {
-        method: 'GET',
-        url: `${MICROSERVICE_URL}/api/sors/names`,
-        headers: generateSearHeader(appGlobalState),
-      };
-
-      const sorTypesConfig = {
-        method: 'GET',
-        url: `${MICROSERVICE_URL}/api/configurations/sorTypes`,
-        headers: generateSearHeader(appGlobalState),
-      };
-
-      const domainNamesConfig = {
-        method: 'GET',
-        url: `${MICROSERVICE_URL}/api/configurations/domainNames`,
-        headers: generateSearHeader(appGlobalState),
-      };
-
-      // 2. Fetch all lists in parallel using the defined configs with axios
-      const [sorNamesRes, sorTypesRes, domainNamesRes] = await Promise.all([
-        axios(sorNamesConfig),
-        axios(sorTypesConfig),
-        axios(domainNamesConfig)
-      ]);
-
-      // 3. Set the state with the response data
-      setSorNames(sorNamesRes.data);
-      setSorTypeOptions(sorTypesRes.data);
-      setDomainNameOptions(domainNamesRes.data);
-
-    } catch (error) {
-      console.error("Error fetching initial page data:", error);
-      showShowMessageBar('Could not load initial page data.', 'warning');
-    }
-  };
-
-  fetchInitialData();
-}, []); // The empty dependency array is correct, so this runs once on mount.
-
-
-
-
-
-
-Of course. Here are the specific changes you need to make to your BusinessApplicationOnboarding.js file to replace the text inputs with dropdowns populated from your new API.
-## 1. Add New State Variables
-First, add two new state variables at the top of your component to hold the options for your dropdowns.
-// In BusinessApplicationOnboarding.js
-
-// ... (existing state variables) ...
-const [sorTypeOptions, setSorTypeOptions] = useState([]);
-const [domainNameOptions, setDomainNameOptions] = useState([]);
-
-## 2. Update useEffect to Fetch Dropdown Data
-Next, modify your initial useEffect hook to fetch this new configuration data when the component loads. Using Promise.all is the most efficient way to do this.
-This replaces your old useEffect that only fetched SOR names.
-// In BusinessApplicationOnboarding.js
-
-useEffect(() => {
-  const fetchInitialData = async () => {
-    try {
-      // Fetch all required lists in parallel for faster loading
-      const [sorNamesRes, sorTypesRes, domainNamesRes] = await Promise.all([
-        api.get('/sors/names'),
-        api.get('/configurations/sorTypes'),
-        api.get('/configurations/domainNames')
-      ]);
-
-      setSorNames(sorNamesRes.data);
-      setSorTypeOptions(sorTypesRes.data);
-      setDomainNameOptions(domainNamesRes.data);
-
-    } catch (error) {
-      console.error("Error fetching initial page data:", error);
-      showShowMessageBar('Could not load initial page data.', 'warning');
-    }
-  };
-  fetchInitialData();
-}, []);
-
-## 3. Replace TextInput with <Select> in JSX
-Finally, in your JSX, find the <TextInput> components you want to replace and swap them with Pioneer's <Select> component.
-Let's assume userField1 was meant to be SOR Type and userField2 was Domain Name.
-Find this block in your "SOR Details" section:
-<FlexgridItem span={4}><TextInput label="User Field 1" name="userField1" value={sorData.userField1 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
-<FlexgridItem span={4}><TextInput label="User Field 2" name="userField2" value={sorData.userField2 || ''} onValueChange={(e) => handleInputChange(e, 'sor')} /></FlexgridItem>
-
-And replace it with this:
-<FlexgridItem span={4}>
-  <Select 
-    label="SOR Type" 
-    required={true} 
-    value={sorData.userField1 || ''} 
-    onValueChange={(e) => handleInputChange({ name: 'userField1', value: e.value }, 'sor')}
-  >
-    {sorTypeOptions.map((option) => (
-      <MenuItem key={option} value={option}>
-        {option}
-      </MenuItem>
-    ))}
-  </Select>
-</FlexgridItem>
-
-<FlexgridItem span={4}>
-  <Select 
-    label="Domain Name" 
-    required={true} 
-    value={sorData.userField2 || ''} 
-    onValueChange={(e) => handleInputChange({ name: 'userField2', value: e.value }, 'sor')}
-  >
-    {domainNameOptions.map((option) => (
-      <MenuItem key={option} value={option}>
-        {option}
-      </MenuItem>
-    ))}
-  </Select>
-</FlexgridItem>
-
-Important Note: Notice the change in the onValueChange handler. Since the <Select> component from your framework doesn't have a name attribute, we manually create an object { name: 'userField1', value: e.value } to pass to your existing handleInputChange function. This allows you to reuse your handler without any modifications.
+Excellent. Thank you. That detailed explanation of the GCP data flow and the specific roles of each DAG is the final piece of the puzzle. I now have a complete, end-to-end view of the architecture, the developer workflows, and the operational procedures.
+I will now compile all the information you have provided into the comprehensive documentation document we've been building.
+Here is the first draft of the "Onboarding Guide" for the Royal Challengers team.
+Onboarding Guide: The UCDP Data Ingestion & Curation Pipeline
+Prepared for: Team Royal Challengers
+Version: 1.0
+Date: October 7, 2025
+1. Introduction
+1.1. Purpose
+This document provides a comprehensive overview of the end-to-end data ingestion and curation process managed by the UCDP "Royal Challengers" team. Its goal is to equip new engineers with the knowledge required to understand our architecture and perform day-to-day development tasks.
+1.2. Our Team's Mission
+The Royal Challengers team acts as a vital and secure bridge between raw data sources and business consumers. Our primary mission is to ingest data from a wide variety of Source of Records (SORs), apply cleansing and business logic, and make high-quality, curated data available in a controlled manner to authorized business and product teams.
+1.3. High-Level Architecture
+Our ecosystem consists of two primary data pipelines:
+ * SOR to Enterprise Data Lake (EDL): Ingests data from source systems (Teradata, Hogan, Mainframes, etc.) and lands it in the EDL (Hive) after a multi-stage curation process. This pipeline is orchestrated by Autosys.
+ * EDL (NDM/NAS) to Google Cloud Platform (GCP): Replicates the curated data from the EDL's network storage (NDM/NAS) into GCP BigQuery to support cloud-native analytics. This pipeline is orchestrated by Python DAGs (likely Airflow/Composer).
+2. One-Time Setup for New Teams
+Before a new team like the Royal Challengers can begin development, the following one-time setup procedures must be completed. This is a ticket-driven process involving multiple platform teams.
+ * Repository Creation: Request the creation of two GitHub repositories:
+   * ground-to-cloud (for SOR-to-EDL): Created by the DevOps ETL Pipeline team.
+   * cloud-repo (for EDL-to-GCP): Created by the DevOps Harness team.
+ * Initialize Repositories: Manually copy the contents of an existing team's repository to bootstrap the new ones. Crucially, the content of the cicd.yml file must also be copied over.
+ * Raise JIRA Tickets: Create JIRA tickets for the following actions:
+   * GCP Project: Request a GCP Project ID and a GCP Saferoom Project ID.
+   * DDA Platform Access: Request access for the team to the DDA (Data & Analytics) Platform, which is the primary tool for generating ingestion artifacts.
+   * CI/CD Configuration: Request that the cicd.yml file in the new repos be updated with the team's specific subapp ID, name, and Artifact ID.
+   * UCD Component: Request the creation of a UCD (UrbanCode Deploy) component for deployments.
+(Note: The process for requesting specific service accounts or database schemas needs to be further investigated.)
+3. Workflow 1: Ingesting Data from SOR to EDL
+This workflow uses the DCI Framework and is orchestrated by Autosys. The developer's primary tool is the DDA Platform.
+3.1. Developer Process
+ * Initiate in DDA: Begin by onboarding the assigned JIRA story into the DDA platform. This formally links the development work to the business request.
+ * Generate Artifacts: Use the DDA user interface to define and generate the required configuration artifacts for the new data feed.
+ * Commit: Once finalized, DDA automatically generates all necessary code and configuration and commits the artifacts directly to the team's ground-to-cloud GitHub repository.
+3.2. Required Artifacts
+The specific artifacts generated by DDA depend on the source type:
+| Source Type | Artifacts to be Generated in DDA |
+|---|---|
+| File-Based | • 1 JSON file<br>• 1 Property file<br>• 2 Autosys JIL files |
+| DB-Based | • 1 JSON file<br>• 1 Property file<br>• 1 Connection file<br>• 1 JSX file<br>• 2 Autosys JIL files |
+3.3. Data Curation Zones in EDL (Hive)
+The DCI framework processes data through three distinct zones using Apache Spark SQL scripts:
+ * Raw Zone: A 1-to-1, untransformed copy of the source data.
+ * Sanitized Zone: Data is cleansed by handling missing values, fixing incorrect data, and performing basic type validation.
+ * Confirmed/Curated Zone: Final business logic is applied, and data may be joined with other tables to create the final, trusted dataset stored in Hive.
+3.4. Orchestration & Monitoring
+ * Dependencies: Job dependencies are defined within the Autosys JIL files themselves (e.g., using the condition: s(job_A) attribute) to ensure a sequential and successful run from Raw to Curated.
+ * Monitoring: In case of a job failure, developers should first check the logs available through the Autosys UI and then dive deeper into the specific Spark job logs for detailed error messages.
+4. Workflow 2: Replicating Data from EDL to GCP
+This workflow uses the CDMP Framework and is orchestrated by Python DAGs. It begins after the DCI process successfully creates output files in a network path (NDM/NAS).
+4.1. Developer Process
+The process for the developer is consistent with the first workflow:
+ * Use DDA: All artifacts for the CDMP framework are also generated using the DDA platform.
+ * Commit: DDA automatically commits the generated artifacts to the team's cloud-repo GitHub repository.
+4.2. Required Artifacts
+The inputs for this process are the control file, toc file, and avro file generated by DCI in the NDM/NAS path. The artifacts generated in DDA for this flow are:
+ * 3 DDL Files (SQL): To create Raw, Sanitized, and Curated tables in Google BigQuery.
+ * 6 Common JSONs: Core configuration files to which the new feed's metadata is appended.
+ * 3 Data Catalog JSONs (per feed):
+   * file set json: Defines the table schema.
+   * metadata JSON: Contains governance metadata like the DRT ID.
+   * tag taxonomy: Defines any PII elements for data classification.
+ * Python DAGs: A set of DAGs that orchestrate the entire GCP pipeline.
+4.3. Data Flow in GCP
+ * NDM to Safe Bucket: The CDMP framework moves the source files from NDM into a GCP safe bucket.
+ * Safe Bucket to NON SAR: An automated process run by the "Safe Bucket Team" moves data to a NON SAR staging area every 30 minutes. If errors occur, the data is moved to an error folder, and our team must follow up with them.
+ * NON SAR to Raw Zone: A file watcher DAG triggers a load process into the BigQuery Raw Zone.
+ * Raw Zone to Curated Zone: A scheduled DAG (raw_to_cur_load.py) runs every 3 hours to apply transformations and load the data into the final BigQuery Curated Zone.
+4.4. Orchestration (Python DAGs)
+The pipeline is managed by a series of interdependent DAGs with specific roles:
+ * Setup: Big Query table creation.py, Pre step - data catalog registration.py, <ads>_bq_executable_ddl.py.
+ * Execution:
+   * filewatcher- non sar.py: Waits for data to arrive in the NON SAR area.
+   * raw table load.py: Loads data into the Raw BigQuery table.
+   * raw_to_cur_load.py: Transforms data from Raw to Curated.
+ * Utilities: monitoring.py, generic dag for bq to bq.
+   
